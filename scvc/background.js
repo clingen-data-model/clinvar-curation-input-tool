@@ -62,7 +62,9 @@ chrome.extension.onMessage.addListener(
         new Date(), // Timestamp
         request.submitter_id,
         request.variation_id,
-        request.user_email
+        request.user_email,
+        request.override_field,
+        request.override_value
       ]]};
 
       // Append values to the spreadsheet

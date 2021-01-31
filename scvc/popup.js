@@ -49,7 +49,9 @@ window.addEventListener('DOMContentLoaded', () => {
         action: document.getElementById("action").value,
         reason: document.getElementById("reason").value,
         notes: document.getElementById("notes").value,
-        user_email: ""
+        user_email: "",
+        override_field: document.getElementById("override-field").value,
+        override_value: document.getElementById("override-value").value
       }
       chrome.runtime.sendMessage(data, function(response) {
         console.log('response', response);
@@ -76,8 +78,11 @@ window.addEventListener('DOMContentLoaded', () => {
           origin : "<i>origin</i>", review : "<i>rev stat</i>", method : "<i>method</i>", interp : "<i>interp</i>", eval_date : "<i>eval dt</i>" };
         document.getElementById('scvdisplay').classList.add("text-muted");
         document.getElementById('action').disabled = true;
+        document.getElementById('action').value = "";
         document.getElementById('reason').disabled = true;
+        document.getElementById('reason').value = "";
         document.getElementById('notes').readOnly = true;
+        document.getElementById('notes').value = "";
       }
       document.getElementById('scv').value = selectedRow.scv;
       document.getElementById('interp').value = selectedRow.interp;
@@ -94,6 +99,22 @@ window.addEventListener('DOMContentLoaded', () => {
       document.getElementById('eval_date').value = selectedRow.eval_date;
       document.getElementById('eval_date_ro').innerHTML = selectedRow.eval_date;
     });
+  });
+
+  document.getElementById("action").addEventListener("change", function() {
+    var selectedVal = document.getElementById("action").value;
+
+    if ( selectedVal == "Override" ) {
+      document.getElementById('override-field').disabled = false;
+      document.getElementById('override-value').disabled = false;
+    }
+    else {
+      document.getElementById('override-field').disabled = true;
+      document.getElementById('override-field').value = "";
+      document.getElementById('override-value').disabled = true;
+      document.getElementById('override-value').value = "";
+    }
+
   });
 
   // ...query for the active tab...
