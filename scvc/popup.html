@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-giJF6kkoqNQ00vy+HMDP7azOuL0xtbfIcaT9wjKHr8RbDVddVHyTfAAsrekwKmP1" crossorigin="anonymous">
+
+    <title>Clinvar Test Extension</title>
+    <script type="text/javascript" src="popup.js"></script>
+  </head>
+
+  <body class="p-2" style="width:600px;">
+
+    <div class="container">
+      <div class="row bg-primary text-white">
+        <div class="col"><a href="#" id="gsheetlink" class="text-white">Google Sheet</a></div>
+        <div class="col small text-right text-white">(right click to open in a new window)</div>
+      </div>
+      <div class="row bg-primary text-white px-2">
+        <h4 id="vcvid">VCV ID</h4> 
+      </div>
+      <div class="row bg-primary text-white px-2">
+        <h6 id="name">Variant Name</h6>
+      </div>
+
+      <div class="row p-2 border border-primary border-bottom-0">
+        <div class="form-group">
+          <label for="scvselect">Select an SCV</label>
+          <select id="scvselect" name="scvselect" class="form-control" >
+                <option value="">Choose one...</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="scvdisplay" class="row border border-primary border-top-0 text-muted">
+        <div class="col-sm text-center">
+          <div id="interp_ro" class="border-bottom"><i>interp</i></div>
+          <div id="review_ro" class="border-bottom"><i>rev stat</i></div>
+          <div id="eval_date_ro"><i>eval dt</i></div>
+        </div>
+        <div class="col-sm-5 text-center border border-top-0 border-bottom-0">
+          <div id="submitter_ro"><i>none selected</i></div>
+        </div>
+        <div class="col-sm text-center">
+          <div id="origin_ro" class="border-bottom"><i>origin</i></div>
+          <div id="method_ro"><i>method</i></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="container" >
+      <div class="row">
+
+        <form id="annotations">
+          
+          <input type="hidden" id="submitter" name="submitter"/>
+          <input type="hidden" id="submitter_id" name="submitter_id"/>
+          <input type="hidden" id="subm_date" name="subm_date"/>
+          <input type="hidden" id="condition" name="condition"/>
+          <input type="hidden" id="origin" name="origin"/>
+          <input type="hidden" id="review" name="review"/>
+          <input type="hidden" id="method" name="method"/>
+          <input type="hidden" id="interp" name="interp"/>
+          <input type="hidden" id="eval_date" name="eval_date"/>
+          <input type="hidden" id="variant_name" name="variant_name"/>
+          <input type="hidden" id="variation_id" name="variation_id"/>
+          <input type="hidden" id="vcv" name="vcv"/>
+          <input type="hidden" id="spreadsheet" name="spreadsheet"/>
+          <input type="hidden" id="sheet" name="sheet"/>
+          <input type="hidden" id="scv" name="scv"/>
+
+          <div class="form-group">
+           <label for="action">Action</label>
+           <select id="action" name="action" class="form-control" disabled>
+             <option value="Exclude">Exclude</option>
+             <option value="No Change">No Change</option>
+             <option value="Override Value">Override Value (see Notes)</option>
+           </select>
+          </div>
+
+          <div class="form-group">
+              <label for="reason">Reason</label>
+              <select id="reason" name="reason" class="form-control" disabled>
+                <option value="">Choose one...</option>
+                <option value="Older claim that does not account for recent evidence">Older claim that does not account for recent evidence</option>
+                <option value="P/LP claim without supporting evidence provided">P/LP claim without supporting evidence provided</option>
+                <option value="P or LP claim with insufficient evidence to meet at least LP based on ACMG guidelines">P or LP claim with insufficient evidence to meet at least LP based on ACMG guidelines</option>
+                <option value="VUS claim without supporting evidence">VUS claim without supporting evidence</option>
+                <option value="Unnecessary benign claim when other interpretations are pathogenic">Unnecessary benign claim when other interpretations are pathogenic</option>
+                <option value="Other">Other</option>
+              </select>
+          </div>
+
+          <div class="form-group pb-2">
+              <label for="notes">Notes</label>
+              <textarea id="notes" name="notes" class="form-control" readOnly rows="2" cols="25" placeholder="Additional comments and notes."></textarea>
+          </div>
+    
+          <button type="submit" id="saveAnnotations" class="btn btn-primary">Submit</button>
+        </form>
+     </div>
+    </div>
+  </body>
+
+</html>
