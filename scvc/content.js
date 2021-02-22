@@ -16,7 +16,7 @@ chrome.runtime.onMessage.addListener((msg, sender, response) => {
     // Collect the necessary data.
     var cond_origin_re = /(.*)\nAllele origin: (.*)/i;
     var review_method_re = /(.*)\n.*\n*Method: (.*)/i;
-    var subm_scv_re = /(.*)\nAccession: (.*)\nSubmitted: \((.*)\)/i;
+    var subm_scv_re = /(.*)(\n.*)*\nAccession: (.*)\nSubmitted: \((.*)\)/i;
     var interp_re = /(.*)\n\((.*)\)/i;
     var subm_id_re = /\/clinvar\/submitters\/([0-9]*)\//i;
 
@@ -38,9 +38,9 @@ chrome.runtime.onMessage.addListener((msg, sender, response) => {
 
         domInfo.row.push({
             submitter : subm_scv_match[1],
-            scv    : subm_scv_match[2],
+            scv    : subm_scv_match[3],
             submitter_id : subm_id,
-            subm_date : subm_scv_match[3],
+            subm_date : subm_scv_match[4],
             condition : cond_origin_match[1],
             origin : cond_origin_match[2],
             review : review_method_match[1],
