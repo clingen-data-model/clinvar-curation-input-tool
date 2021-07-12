@@ -3,6 +3,14 @@ Chrome extension to allow curators to capture SCV data to a google sheet directl
 
 ## Release Notes
 
+### v1.5.2 changes
+* Add 2 new entries to drop down for rules...
+  * “Review by VCEP, no evidence has been provided to dispute this classification”
+  * “Reviewed by VCEP, VCEP needs to recurate variant based on new evidence”
+
+### v1.5.1 changes
+* Added debugging code to gather analytics on why some installations are freezing.
+
 ### v1.5 changes
 
 * Add 2 new entries to drop down for rules...
