@@ -26,7 +26,7 @@ function onGAPILoad() {
   }).then(function () {
     console.log('gapi initialized')
   }, function(error) {
-    console.log('error', error)
+    console.log('error on initialize', error)
   });
 }
 
@@ -77,6 +77,9 @@ chrome.extension.onMessage.addListener(
         // On success
         console.log(`${response.result.updates.updatedCells} cells appended.`)
         sendResponse({success: true});
+      }, function(error) {
+        // On error
+        console.log('error appending values', error)
       });
     })
 

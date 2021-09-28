@@ -3,6 +3,12 @@ Chrome extension to allow curators to capture SCV data to a google sheet directl
 
 ## Release Notes
 
+### v1.5.3 changes
+* Added more error logging
+* Removed disabled and readonly settings on Reason and Notes fields by default
+* Add 1 new entries to drop down for rules...
+  * “Unnecessary benign claim when other interpretations are pathogenic”
+
 ### v1.5.2 changes
 * Add 2 new entries to drop down for rules...
   * “Review by VCEP, no evidence has been provided to dispute this classification”

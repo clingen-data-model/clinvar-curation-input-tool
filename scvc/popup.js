@@ -68,21 +68,21 @@ window.addEventListener('DOMContentLoaded', () => {
       var selectedVal = document.getElementById("scvselect").value;
       if ( selectedVal != "" ) {
         selectedRow = domInfo.row[parseInt(selectedVal)];
-        document.getElementById('scvdisplay').classList.remove("text-muted");
-        document.getElementById('action').disabled = false;
-        document.getElementById('reason').disabled = false;
-        document.getElementById('notes').readOnly = false;
+      //   document.getElementById('scvdisplay').classList.remove("text-muted");
+      //   document.getElementById('action').disabled = false;
+      //   document.getElementById('reason').disabled = false;
+      //   document.getElementById('notes').readOnly = false;
       }
       else {
         selectedRow = { submitter : "<i>none selected</i>", scv    : "", subm_date : "", condition : "",
           origin : "<i>origin</i>", review : "<i>rev stat</i>", method : "<i>method</i>", interp : "<i>interp</i>", eval_date : "<i>eval dt</i>" };
-        document.getElementById('scvdisplay').classList.add("text-muted");
-        document.getElementById('action').disabled = true;
-        document.getElementById('action').value = "";
-        document.getElementById('reason').disabled = true;
-        document.getElementById('reason').value = "";
-        document.getElementById('notes').readOnly = true;
-        document.getElementById('notes').value = "";
+      //   document.getElementById('scvdisplay').classList.add("text-muted");
+      //   document.getElementById('action').disabled = true;
+      //   document.getElementById('action').value = "";
+      //   document.getElementById('reason').disabled = true;
+      //   document.getElementById('reason').value = "";
+      //   document.getElementById('notes').readOnly = true;
+      //   document.getElementById('notes').value = "";
       }
       document.getElementById('scv').value = selectedRow.scv;
       document.getElementById('interp').value = selectedRow.interp;
