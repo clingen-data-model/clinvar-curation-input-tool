@@ -3,6 +3,11 @@ Chrome extension to allow curators to capture SCV data to a google sheet directl
 
 ## Release Notes
 
+### v1.5.4 changes
+* Improved error handling and alerting to users when reload is needed
+* Upgraded bootstrap css library from beta to 5.1.1
+* Added debugging to display google user info to identify inconsistencies across users.
+
 ### v1.5.3 changes
 * Added more error logging
 * Removed disabled and readonly settings on Reason and Notes fields by default

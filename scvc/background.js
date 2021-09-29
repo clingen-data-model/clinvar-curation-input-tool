@@ -40,7 +40,7 @@ chrome.extension.onMessage.addListener(
 
     // Get the users email
     chrome.identity.getProfileUserInfo(function(userinfo){
-      alert("userinfo..."+JSON.stringify(userinfo));
+      alert("userinfo...\n"+JSON.stringify(userinfo));
       request.user_email=userinfo.email;
     });
 
@@ -82,7 +82,7 @@ chrome.extension.onMessage.addListener(
       }, function(error) {
         // On error
         console.log('error appending values', error)
-        alert("error here!!..."+JSON.stringify(error));
+        alert("Error appending values to google sheet...\n"+JSON.stringify(error));
       });
     })
 
