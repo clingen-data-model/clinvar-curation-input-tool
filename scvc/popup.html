@@ -3,7 +3,7 @@
 
   <head>
     <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-giJF6kkoqNQ00vy+HMDP7azOuL0xtbfIcaT9wjKHr8RbDVddVHyTfAAsrekwKmP1" crossorigin="anonymous">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-F3w7mX95PdgyTmZZMECAngseQB83DfGTowi0iMjiWaeVhAn4FJkqJByhZMI3AhiU" crossorigin="anonymous">
 
     <title>Clinvar Test Extension</title>
     <script type="text/javascript" src="popup.js"></script>
@@ -24,6 +24,7 @@
       </div>
 
       <div class="row p-2 border border-primary border-bottom-0">
+        <div id="message"></div>
         <div class="form-group">
           <label for="scvselect">Select an SCV</label>
           <select id="scvselect" name="scvselect" class="form-control" >
@@ -72,7 +73,7 @@
             <div class="row">
               <div class="col-sm">
                  <label for="action">Action</label>
-                 <select id="action" name="action" class="form-control">
+                 <select id="action" name="action" class="form-control" disabled>
                    <option value="Exclude">Exclude</option>
                    <option value="No Change">No Change</option>
                    <option value="Override">Override</option>
@@ -105,7 +106,7 @@
             <div class="row">
               <div class="col-sm-12">
                 <label for="reason">Reason</label>
-                <select id="reason" name="reason" class="form-control">
+                <select id="reason" name="reason" class="form-control" disabled>
                   <option value="">Choose one...</option>
                   <option value="B/BL/VUS claim when a mutually exclusive disease association is P/LP">B/BL/VUS claim when a mutually exclusive disease association is P/LP</option>
                   <option value="New submission from submitter that appears to have been intended to update this older submission">New submission from submitter that appears to have been intended to update this older submission</option>
@@ -127,7 +128,7 @@
             <div class="row">
               <div class="col-sm-12">
                 <label for="notes">Notes</label>
-                <textarea id="notes" name="notes" class="form-control" rows="2" cols="25" placeholder="Additional comments and notes."></textarea>
+                <textarea id="notes" name="notes" class="form-control" readOnly rows="2" cols="25" placeholder="Additional comments and notes."></textarea>
               </div>
             </div>
           </div>

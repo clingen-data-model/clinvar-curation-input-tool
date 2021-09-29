@@ -1,6 +1,7 @@
 // Update the relevant fields with the new data.
 
-const setDOMInfo = info => {
+function setDOMInfo(info) {
+
   chrome.storage.local.set({'vcvdata': JSON.stringify(info)});
 
   document.getElementById('vcv').value = info.vcv;
@@ -53,9 +54,25 @@ window.addEventListener('DOMContentLoaded', () => {
         override_field: document.getElementById("override-field").value,
         override_value: document.getElementById("override-value").value
       }
+
+      if (!data.scv) {
+        alert("An SCV is required. Please select an SCV before submitting.");
+        // document.getElementById('message').innerText = "SCV must be selected first.";
+        return;
+      }
+
       chrome.runtime.sendMessage(data, function(response) {
+        var lastError = chrome.runtime.lastError;
+        if (lastError) {
+            alert('error...'+lastError.message);
+            // 'Could not establish connection. Receiving end does not exist.'
+            return;
+        }
+
+        alert("message response..."+JSON.stringify(response));
         console.log('response', response);
       });
+
       window.close();
   });
 
@@ -68,21 +85,21 @@ window.addEventListener('DOMContentLoaded', () => {
       var selectedVal = document.getElementById("scvselect").value;
       if ( selectedVal != "" ) {
         selectedRow = domInfo.row[parseInt(selectedVal)];
-      //   document.getElementById('scvdisplay').classList.remove("text-muted");
-      //   document.getElementById('action').disabled = false;
-      //   document.getElementById('reason').disabled = false;
-      //   document.getElementById('notes').readOnly = false;
+        document.getElementById('scvdisplay').classList.remove("text-muted");
+        document.getElementById('action').disabled = false;
+        document.getElementById('reason').disabled = false;
+        document.getElementById('notes').readOnly = false;
       }
       else {
         selectedRow = { submitter : "<i>none selected</i>", scv    : "", subm_date : "", condition : "",
           origin : "<i>origin</i>", review : "<i>rev stat</i>", method : "<i>method</i>", interp : "<i>interp</i>", eval_date : "<i>eval dt</i>" };
-      //   document.getElementById('scvdisplay').classList.add("text-muted");
-      //   document.getElementById('action').disabled = true;
-      //   document.getElementById('action').value = "";
-      //   document.getElementById('reason').disabled = true;
-      //   document.getElementById('reason').value = "";
-      //   document.getElementById('notes').readOnly = true;
-      //   document.getElementById('notes').value = "";
+        document.getElementById('scvdisplay').classList.add("text-muted");
+        document.getElementById('action').disabled = true;
+        document.getElementById('action').value = "";
+        document.getElementById('reason').disabled = true;
+        document.getElementById('reason').value = "";
+        document.getElementById('notes').readOnly = true;
+        document.getElementById('notes').value = "";
       }
       document.getElementById('scv').value = selectedRow.scv;
       document.getElementById('interp').value = selectedRow.interp;
@@ -117,18 +134,28 @@ window.addEventListener('DOMContentLoaded', () => {
 
   });
 
+  function initializeContent(tabs) {
+    chrome.tabs.sendMessage(
+        tabs[0].id,
+        {from: 'popup', subject: 'DOMInfo'},
+        (domInfo) => {
+          if (!chrome.runtime.lastError) {
+            // do you work, that's it. No more unchecked error
+            setDOMInfo(domInfo);
+          } else {
+            alert("reload tab, connection lost");
+            window.close();
+          }
+        });
+  }
+
   // ...query for the active tab...
   chrome.tabs.query({
     active: true,
     currentWindow: true
   }, tabs => {
     // ...and send a request for the DOM info...
-    chrome.tabs.sendMessage(
-        tabs[0].id,
-        {from: 'popup', subject: 'DOMInfo'},
-        // ...also specifying a callback to be called
-        //    from the receiving end (content script).
-        setDOMInfo);
+    initializeContent(tabs);
   });
 
 

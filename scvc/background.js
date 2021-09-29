@@ -24,9 +24,10 @@ function onGAPILoad() {
     apiKey: API_KEY,
     discoveryDocs: DISCOVERY_DOCS,
   }).then(function () {
-    console.log('gapi initialized')
+    console.log('gapi initialized');
   }, function(error) {
-    console.log('error on initialize', error)
+    console.log('error on initialize', error);
+    alert('error on initialize...'+error);
   });
 }
 
@@ -34,11 +35,12 @@ function onGAPILoad() {
 chrome.extension.onMessage.addListener(
   function(request, sender, sendResponse) {
 
-    // verify that the request contains data, otherwise do not write.
-    if (!request.scv) return false;
+    // verify that the request originated from the chrome-extension popup.html form
+    if (!sender.url.includes("chrome-extension")) return false;
 
     // Get the users email
     chrome.identity.getProfileUserInfo(function(userinfo){
+      alert("userinfo..."+JSON.stringify(userinfo));
       request.user_email=userinfo.email;
     });
 
@@ -80,6 +82,7 @@ chrome.extension.onMessage.addListener(
       }, function(error) {
         // On error
         console.log('error appending values', error)
+        alert("error here!!..."+JSON.stringify(error));
       });
     })
 
