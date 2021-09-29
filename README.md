@@ -3,6 +3,9 @@ Chrome extension to allow curators to capture SCV data to a google sheet directl
 
 ## Release Notes
 
+### v1.5.5 changes
+* Added a notification on submit if the user's profile is not sync'd with their google account.
+
 ### v1.5.4 changes
 * Improved error handling and alerting to users when reload is needed
 * Upgraded bootstrap css library from beta to 5.1.1

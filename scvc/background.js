@@ -40,8 +40,12 @@ chrome.extension.onMessage.addListener(
 
     // Get the users email
     chrome.identity.getProfileUserInfo(function(userinfo){
-      alert("userinfo...\n"+JSON.stringify(userinfo));
-      request.user_email=userinfo.email;
+      if (!userinfo.email) {
+        alert("No email captured. Please set your browser profile to sync with your google account to bypass this message in the future.");
+      }
+      else {
+        request.user_email=userinfo.email;
+      }
     });
 
     // Get the token
