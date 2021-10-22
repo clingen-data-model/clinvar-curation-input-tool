@@ -3,6 +3,16 @@ Chrome extension to allow curators to capture SCV data to a google sheet directl
 
 ## Release Notes
 
+### v1.6 changes
+This is the version intended for use in the Oct/Nov '21 VCEP Pilot project
+* Exclusion Reason List Updates
+  * Consolidated "P/LP claim without supporting evidence provided" and "VUS claim without supporting evidence" into "Claim without supporting evidence provided"
+  * Changed "Review by VCEP, no evidence has been provided to dispute this classification" to "Conflicts with expert reviewed submission without evidence to support different classification"
+  * Changed "Unnecessary benign claim when other interpretations are pathogenic" to "Unnecessary benign claim for distinct condition when other interpretations are pathogenic"
+  * Removed "Reviewed by VCEP, VCEP needs to recurate variant based on new evidence"
+  * Added "Clinical significance appears to be a case-level interpretation inconsistent with variant classification"
+
+
 ### v1.5.5 changes
 * Added a notification on submit if the user's profile is not sync'd with their google account.
 
