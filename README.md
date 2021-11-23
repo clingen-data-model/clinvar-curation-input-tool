@@ -3,6 +3,26 @@ Chrome extension to allow curators to capture SCV data to a google sheet directl
 
 ## Release Notes
 
+### v1.7 changes
+* Change Action 'Exclude' to 'Non-contributory'
+* Disable entry of 'Reason' when 'No Change' action is selected
+* Change background page to persist in order to eliminate lost connections
+* Modify Reason list to reflect categories from SC/ESP presentation
+  * Submission errors:
+    * New submission from submitter that appears to have been intended to update this older submission
+    * Submitter acknowledged an error and the submission will be updated or removed
+  * Inappropriate submissions:
+    * Clinical significance appears to be a case-level interpretation inconsistent with variant classification
+  * Unnecessary conflicting submissions:
+    * VUS/LB/B claim when a mutually exclusive disease association is P/LP
+    * Unnecessary VUS/LB/B claim for distinct condition when other interpretations are pathogenic
+  * Lack of contradictory evidence when other submissions show valid evidence:
+    * Older claim that does not account for recent evidence
+    * P or LP claim with insufficient evidence to meet at least LP based on ACMG guidelines
+    * Claim without supporting evidence provided
+    * Conflicts with expert reviewed submission without evidence to support different classification
+  * Other
+
 ### v1.6 changes
 This is the version intended for use in the Oct/Nov '21 VCEP Pilot project
 * Exclusion Reason List Updates

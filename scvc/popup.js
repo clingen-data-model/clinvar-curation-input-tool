@@ -87,7 +87,6 @@ window.addEventListener('DOMContentLoaded', () => {
         selectedRow = domInfo.row[parseInt(selectedVal)];
         document.getElementById('scvdisplay').classList.remove("text-muted");
         document.getElementById('action').disabled = false;
-        document.getElementById('reason').disabled = false;
         document.getElementById('notes').readOnly = false;
       }
       else {
@@ -130,6 +129,14 @@ window.addEventListener('DOMContentLoaded', () => {
       document.getElementById('override-field').value = "";
       document.getElementById('override-value').disabled = true;
       document.getElementById('override-value').value = "";
+    }
+
+    if ( selectedVal == "Non-contributory" ) {
+      document.getElementById('reason').disabled = false;
+    }
+    else {
+      document.getElementById('reason').disabled = true;
+      document.getElementById('reason').value = "";
     }
 
   });

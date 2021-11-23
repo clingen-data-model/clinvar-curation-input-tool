@@ -27,7 +27,7 @@
         <div class="form-group">
           <label for="scvselect">Select an SCV</label>
           <select id="scvselect" name="scvselect" class="form-control" >
-                <option value="">Choose one...</option>
+                <option selected value="">Choose...</option>
           </select>
         </div>
       </div>
@@ -73,8 +73,9 @@
               <div class="col-sm">
                  <label for="action">Action</label>
                  <select id="action" name="action" class="form-control" disabled>
-                   <option value="Exclude">Exclude</option>
+                   <option selected value="">Choose...</option>
                    <option value="No Change">No Change</option>
+                   <option value="Non-contributory">Non-contributory</option>
                    <option value="Override">Override</option>
                  </select>
               </div>
@@ -83,7 +84,7 @@
                 <div class="row">
                  <label for="override-field">Override Field</label>
                  <select id="override-field" name="override-field" class="form-control" disabled>
-                   <option value="">Choose one...</option>
+                   <option selected value="">Choose...</option>
                    <option value="Allele Origin">Allele Origin</option>
                    <option value="Collection Method">Collection Method</option>
                    <option value="Condition">Condition</option>
@@ -106,22 +107,30 @@
               <div class="col-sm-12">
                 <label for="reason">Reason</label>
                 <select id="reason" name="reason" class="form-control" disabled>
-                  <option value="">Choose one...</option>
-                  <option value="Claim without supporting evidence provided">Claim without supporting evidence provided</option>
-                  <option value="Clinical significance appears to be a case-level interpretation inconsistent with variant classification">Clinical significance appears to be a case-level interpretation inconsistent with variant classification</option>
-                  <option value="Conflicts with expert reviewed submission without evidence to support different classification">Conflicts with expert reviewed submission without evidence to support different classification</option>
-                  <option value="New submission from submitter that appears to have been intended to update this older submission">New submission from submitter that appears to have been intended to update this older submission</option>
-                  <option value="Older claim that does not account for recent evidence">Older claim that does not account for recent evidence</option>
-                  <option value="P or LP claim with insufficient evidence to meet at least LP based on ACMG guidelines">P or LP claim with insufficient evidence to meet at least LP based on ACMG guidelines</option>
-                  <option value="Submitter acknowledged an error and the submission will be updated or removed.">Submitter acknowledged an error and the submission will be updated or removed</option>
-                  <option value="Unnecessary benign claim for distinct condition when other interpretations are pathogenic">Unnecessary benign claim for distinct condition when other interpretations are pathogenic</option>
-                  <option value="VUS/LB/B claim when a mutually exclusive disease association is P/LP">VUS/LB/B claim when a mutually exclusive disease association is P/LP</option>
+                  <option selected value="">Choose...</option>
+                  <optgroup label="Submission errors:">
+                    <option value="New submission from submitter that appears to have been intended to update this older submission">New submission from submitter that appears to have been intended to update this older submission</option>
+                    <option value="Submitter acknowledged an error and the submission will be updated or removed.">Submitter acknowledged an error and the submission will be updated or removed</option>
+                  </optgroup>
+                  <optgroup label="Inappropriate submissions:">
+                    <option value="Clinical significance appears to be a case-level interpretation inconsistent with variant classification">Clinical significance appears to be a case-level interpretation inconsistent with variant classification</option>
+                  </optgroup>
+                  <optgroup label="Unnecessary conflicting submissions:">
+                    <option value="VUS/LB/B claim when a mutually exclusive disease association is P/LP">VUS/LB/B claim when a mutually exclusive disease association is P/LP</option>
+                    <option value="Unnecessary VUS/LB/B claim for distinct condition when other interpretations are pathogenic">Unnecessary VUS/LB/B claim for distinct condition when other interpretations are pathogenic</option>
+                  </optgroup>
+                  <optgroup label="Lack of contradictory evidence when other submissions show valid evidence:">
+                    <option value="Older claim that does not account for recent evidence">Older claim that does not account for recent evidence</option>
+                    <option value="P or LP claim with insufficient evidence to meet at least LP based on ACMG guidelines">P or LP claim with insufficient evidence to meet at least LP based on ACMG guidelines</option>
+                    <option value="Claim without supporting evidence provided">Claim without supporting evidence provided</option>
+                    <option value="Conflicts with expert reviewed submission without evidence to support different classification">Conflicts with expert reviewed submission without evidence to support different classification</option>
+                  </optgroup>
                   <option value="Other">Other</option>
                 </select>
               </div>
             </div>
           </div>
-
+        
           <div class="form-group pb-2">
             <div class="row">
               <div class="col-sm-12">
