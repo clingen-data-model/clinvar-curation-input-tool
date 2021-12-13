@@ -118,6 +118,75 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 
   document.getElementById("action").addEventListener("change", function() {
+
+    var nonContribtoryReasonOptions = {
+      'Submission errors': [
+        'New submission from submitter that appears to have been intended to update this older submission',
+        'Submitter acknowledged an error and the submission will be updated or removed'],
+      'Inappropriate submissions': [
+        'Clinical significance appears to be a case-level interpretation inconsistent with variant classification'],
+      'Unnecessary conflicting submissions': [
+        'VUS/LB/B claim when a mutually exclusive disease association is P/LP',
+        'Unnecessary VUS/LB/B claim for distinct condition when other interpretations are pathogenic'],
+      'Lack of contradictory evidence when other submissions show valid evidence': [
+        'Older claim that does not account for recent evidence',
+        'P or LP claim with insufficient evidence to meet at least LP based on ACMG guidelines',
+        'Claim without supporting evidence provided',
+        'Conflicts with expert reviewed submission without evidence to support different classification']
+    };
+    var followUpReasonOptions = {
+      '': [
+        'Contact submitter for clarification',
+        'Flag for another curator to review',
+        'Send to VCEP to review']
+    };
+    var reasonsByAction = {
+      'Non-contributory': nonContribtoryReasonOptions,
+      'Follow Up': followUpReasonOptions
+    };
+
+    function setReasonsByAction(action) {
+      var reason = document.getElementById('reason');
+
+      // reset
+      reason.innerHTML = "";
+      var opt1 = document.createElement("option");
+      opt1.text = 'Choose...';
+      opt1.value = "";
+      opt1.selected = true;
+      reason.add( opt1 );
+
+      //loop through reasonsByAction and add options reason selector
+      if (reasonsByAction[action])
+        Object.entries(reasonsByAction[action]).forEach( addOptGroup );
+
+      // add "other"
+      var opt2 = document.createElement("option");
+      opt2.text = "Other";
+      opt2.value = "Other";
+      reason.add( opt2 );
+
+      function addOptGroup(grp, index) {
+        var optgroup;
+
+        if (grp[0]) {
+          optgroup = document.createElement("optgroup");
+          optgroup.label = grp[0];
+          reason.add( optgroup );
+        }
+
+        for (let i = 0; i < grp[1].length; i++) {
+          var option = document.createElement("option");
+          option.text = grp[1][i];
+          option.value = grp[1][i];
+          if (optgroup)
+            optgroup.appendChild( option );
+          else
+            reason.add( option );
+        }
+      }
+    }
+
     var selectedVal = document.getElementById("action").value;
 
     if ( selectedVal == "Override" ) {
@@ -131,7 +200,10 @@ window.addEventListener('DOMContentLoaded', () => {
       document.getElementById('override-value').value = "";
     }
 
-    if ( selectedVal == "Non-contributory" ) {
+    /* populate reason list according to action */
+    setReasonsByAction(selectedVal);
+
+    if ( selectedVal != "" ) {
       document.getElementById('reason').disabled = false;
     }
     else {
