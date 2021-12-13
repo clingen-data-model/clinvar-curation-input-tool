@@ -3,6 +3,14 @@ Chrome extension to allow curators to capture SCV data to a google sheet directl
 
 ## Release Notes
 
+### v1.8 changes
+* Add new action 'Follow Up' with the following reason codes:
+  * Contact submitter for clarification
+  * Flag for another curator to review
+  * Send to VCEP to review
+  * Other
+* Filter Reason lists based on Selected Action code.
+
 ### v1.7 changes
 * Change Action 'Exclude' to 'Non-contributory'
 * Disable entry of 'Reason' when 'No Change' action is selected
