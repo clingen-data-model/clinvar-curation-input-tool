@@ -5,7 +5,7 @@
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-F3w7mX95PdgyTmZZMECAngseQB83DfGTowi0iMjiWaeVhAn4FJkqJByhZMI3AhiU" crossorigin="anonymous">
 
-    <title>Clinvar Test Extension</title>
+    <title>Clinvar Curation Extension</title>
     <script type="text/javascript" src="popup.js"></script>
   </head>
 
@@ -25,26 +25,42 @@
 
       <div class="row p-2 border border-primary border-bottom-0">
         <div class="form-group">
-          <label for="scvselect">Select an SCV</label>
+          <label for="scvselect">Select an SCV or VCV</label>
           <select id="scvselect" name="scvselect" class="form-control" >
                 <option selected value="">Choose...</option>
           </select>
         </div>
       </div>
 
-      <div id="scvdisplay" class="row border border-primary border-top-0 text-muted">
-        <div class="col-sm text-center">
-          <div id="interp_ro" class="border-bottom"><i>interp</i></div>
-          <div id="review_ro" class="border-bottom"><i>rev stat</i></div>
-          <div id="eval_date_ro"><i>eval dt</i></div>
+      <div id="outerdisplay">
+
+        <div id="scvdisplay" class="row border border-primary border-top-0 text-muted">
+          <div class="col-sm text-center">
+            <div id="interp_ro" class="border-bottom"><i>interp</i></div>
+            <div id="review_ro" class="border-bottom"><i>rev stat</i></div>
+            <div id="eval_date_ro"><i>eval dt</i></div>
+          </div>
+          <div class="col-sm text-center border border-top-0 border-bottom-0">
+            <div id="submitter_ro" class="border-bottom"><i>no submitter selected</i></div>
+            <div id="orig_meth_ro" class="row border-primary border-top-0">
+              <div class="col-sm text-center">
+                <div id="origin_ro"><i>origin</i></div>
+              </div>
+              <div class="col-sm text-center border border-top-0 border-bottom-0">
+                <div id="method_ro"><i>method</i></div>
+              </div>
+            </div>
+          </div>
         </div>
-        <div class="col-sm-5 text-center border border-top-0 border-bottom-0">
-          <div id="submitter_ro"><i>none selected</i></div>
+
+        <div id="vcvdisplay" class="row border border-primary border-top-0 text-muted d-none" >
+          <div class="col-sm text-center">
+            <div id="vcv_interp_ro" class="border-bottom"><i>vcv interp</i></div>
+            <div id="vcv_review_ro" class="border-bottom"><i>vcv rev stat</i></div>
+            <div id="vcv_eval_date_ro"><i>vcv eval dt</i></div>
+          </div>
         </div>
-        <div class="col-sm text-center">
-          <div id="origin_ro" class="border-bottom"><i>origin</i></div>
-          <div id="method_ro"><i>method</i></div>
-        </div>
+
       </div>
     </div>
 
@@ -64,8 +80,12 @@
           <input type="hidden" id="variant_name" name="variant_name"/>
           <input type="hidden" id="variation_id" name="variation_id"/>
           <input type="hidden" id="vcv" name="vcv"/>
+          <input type="hidden" id="vcv_interp" name="vcv_interp"/>
+          <input type="hidden" id="vcv_review" name="vcv_review"/>
+          <input type="hidden" id="vcv_eval_date" name="vcv_eval_date"/>
           <input type="hidden" id="spreadsheet" name="spreadsheet"/>
-          <input type="hidden" id="sheet" name="sheet"/>
+          <input type="hidden" id="scv_range" name="scv_range"/>
+          <input type="hidden" id="vcv_range" name="vcv_range"/>
           <input type="hidden" id="scv" name="scv"/>
 
           <div class="form-group">
@@ -74,10 +94,10 @@
                  <label for="action">Action</label>
                  <select id="action" name="action" class="form-control" disabled>
                    <option selected value="">Choose...</option>
-                   <option value="No Change">No Change</option>
-                   <option value="Non-contributory">Non-contributory</option>
-                   <option value="Follow Up">Follow Up</option>
-                   <option value="Override">Override</option>
+                   <option id="no-chg-opt" value="No Change">No Change</option>
+                   <option id="follow-up-opt" value="Follow Up">Follow Up</option>
+                   <option id="non-contrib-opt" value="Non-contributory">Non-contributory</option>
+                   <option id="override-opt" value="Override">Override</option>
                  </select>
               </div>
 

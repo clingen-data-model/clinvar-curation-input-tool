@@ -1,5 +1,6 @@
 const SPREADSHEET_ID = '1pzuWR409vSmoFX9inmoU6el6vjG0SniB1KrxWLeVpaA';
-const SHEET = 'Variants';
+const SCV_RANGE = 'SCVs';
+const VCV_RANGE = 'VCVs';
 
 // Inform the background page that
 // this tab should have a page-action.
@@ -19,16 +20,30 @@ chrome.runtime.onMessage.addListener((msg, sender, response) => {
     var subm_scv_re = /(.*)(\n.*)*\nAccession: (.*)\nSubmitted: \((.*)\)/i;
     var interp_re = /(.*)\n\((.*)\)/i;
     var subm_id_re = /\/clinvar\/submitters\/([0-9]*)\//i;
+    var vcv_interp_re = /\s*(.*)[\x200B]*\s*/i;
+    var vcv_review_re = /\s*(.*)\s*/i;
 
-    var domInfo = {spreadsheet: SPREADSHEET_ID, sheet: SHEET, vcv : "", name : "", variation_id : "", row: []};
-
+    var domInfo = {
+      spreadsheet: SPREADSHEET_ID,
+      scv_range: SCV_RANGE,
+      vcv_range: VCV_RANGE,
+      vcv : "",
+      name : "",
+      variation_id : "",
+      vcv_interp : "",
+      vcv_review : "",
+      vcv_eval_date : "",
+      row: []
+    };
     domInfo.vcv  = document.querySelectorAll('.variant-box dd')[4].innerText;
     domInfo.name = document.querySelectorAll('#id_first h4')[0].innerText;
     domInfo.variation_id = document.querySelectorAll('.variant-box dd')[5].innerText;
-
+    domInfo.vcv_interp = document.querySelectorAll('.variant-box dd')[0].innerText.match(vcv_interp_re)[1];
+    domInfo.vcv_review = document.querySelectorAll('.variant-box dd')[1].innerText.match(vcv_review_re)[1];
+    domInfo.vcv_eval_date = document.querySelectorAll('.variant-box dd')[3].innerText;
     var scvarray = document.querySelectorAll('#assertion-list tbody tr')
-
     scvarray.forEach(myFunction);
+
     function myFunction(value, index, array) {
         var interp_match = value.cells[0].innerText.match(interp_re);
         var review_method_match = value.cells[1].innerText.match(review_method_re);
@@ -49,7 +64,6 @@ chrome.runtime.onMessage.addListener((msg, sender, response) => {
             eval_date : interp_match[2]
         });
     }
-
     // Directly respond to the sender (popup),
     // through the specified callback.
     response(domInfo);

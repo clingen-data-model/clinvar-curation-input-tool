@@ -5,12 +5,16 @@ function setDOMInfo(info) {
   chrome.storage.local.set({'vcvdata': JSON.stringify(info)});
 
   document.getElementById('vcv').value = info.vcv;
+  document.getElementById('vcv_interp').value = info.vcv_interp;
+  document.getElementById('vcv_review').value = info.vcv_review;
+  document.getElementById('vcv_eval_date').value = info.vcv_eval_date;
   document.getElementById('vcvid').innerText = info.vcv;
   document.getElementById('name').innerText = info.name;
   document.getElementById('variant_name').value = info.name;
   document.getElementById('variation_id').value = info.variation_id;
   document.getElementById('spreadsheet').value = info.spreadsheet;
-  document.getElementById('sheet').value = info.sheet;
+  document.getElementById('scv_range').value = info.scv_range;
+  document.getElementById('vcv_range').value = info.vcv_range;
   document.getElementById('gsheetlink').href = "https://docs.google.com/spreadsheets/d/"+info.spreadsheet+"/";
 
   function truncateString(str, num) {
@@ -24,6 +28,12 @@ function setDOMInfo(info) {
 
   //loop through scvs and add to scvselector
   info.row.forEach( addOptions );
+
+  // add the vcv to the end of the scvselector to support the "no change" VCV annotation
+  var vcvOpt = document.createElement("option");
+  vcvOpt.text = info.vcv + " (" + info.vcv_interp + ")"
+  vcvOpt.value = info.row.length      // this should be the last
+  scvselect.add(vcvOpt)
 
   function addOptions(row, index) {
     var option = document.createElement("option");
@@ -39,7 +49,8 @@ window.addEventListener('DOMContentLoaded', () => {
 
       var data = {
         spreadsheet: document.getElementById("spreadsheet").value,
-        sheet: document.getElementById("sheet").value,
+        scv_range: document.getElementById("scv_range").value,
+        vcv_range: document.getElementById("vcv_range").value,
         vcv: document.getElementById("vcv").value,
         name: document.getElementById("variant_name").value,
         variation_id: document.getElementById("variation_id").value,
@@ -52,11 +63,12 @@ window.addEventListener('DOMContentLoaded', () => {
         notes: document.getElementById("notes").value,
         user_email: "",
         override_field: document.getElementById("override-field").value,
-        override_value: document.getElementById("override-value").value
+        override_value: document.getElementById("override-value").value,
+        vcv_interp: document.getElementById("vcv_interp").value
       }
 
-      if (!data.scv) {
-        alert("An SCV is required. Please select an SCV before submitting.");
+      if (!data.scv && !data.vcv) {
+        alert("An SCV/VCV selection is required. Please select one from the dropdown before submitting.");
         // document.getElementById('message').innerText = "SCV must be selected first.";
         return;
       }
@@ -81,24 +93,78 @@ window.addEventListener('DOMContentLoaded', () => {
     chrome.storage.local.get("vcvdata", function(result) {
       domInfo = JSON.parse(result.vcvdata);
 
-      var selectedRow;
+      var selectedRow = {
+        submitter : "<i>no submitter selected</i>",
+        scv       : "",
+        subm_date : "",
+        condition : "",
+        origin    : "<i>origin</i>",
+        review    : "<i>rev stat</i>",
+        method    : "<i>method</i>",
+        interp    : "<i>interp</i>",
+        eval_date : "<i>eval dt</i>",
+        vcv_interp    : "<i>interp</i>",
+        vcv_eval_date : "<i>eval dt</i>",
+        vcv_review    : "<i>vcv rev stat</i>"
+      };
+
       var selectedVal = document.getElementById("scvselect").value;
-      if ( selectedVal != "" ) {
-        selectedRow = domInfo.row[parseInt(selectedVal)];
-        document.getElementById('scvdisplay').classList.remove("text-muted");
-        document.getElementById('action').disabled = false;
-        document.getElementById('notes').readOnly = false;
-      }
-      else {
-        selectedRow = { submitter : "<i>none selected</i>", scv    : "", subm_date : "", condition : "",
-          origin : "<i>origin</i>", review : "<i>rev stat</i>", method : "<i>method</i>", interp : "<i>interp</i>", eval_date : "<i>eval dt</i>" };
+      var lastSelectVal = document.querySelector('#scvselect option:last-child').value;
+
+      if ( !selectedVal ) {
         document.getElementById('scvdisplay').classList.add("text-muted");
+        document.getElementById('scvdisplay').classList.remove("d-none");
+        document.getElementById('vcvdisplay').classList.add("text-muted");
+        document.getElementById('vcvdisplay').classList.add("d-none");
         document.getElementById('action').disabled = true;
         document.getElementById('action').value = "";
         document.getElementById('reason').disabled = true;
         document.getElementById('reason').value = "";
         document.getElementById('notes').readOnly = true;
         document.getElementById('notes').value = "";
+        document.getElementById('non-contrib-opt').disabled = false;
+        document.getElementById('override-opt').disabled = false;
+      }
+      else if (selectedVal === lastSelectVal ) {
+        selectedRow.vcv_interp = domInfo.vcv_interp;
+        selectedRow.vcv_eval_date = domInfo.vcv_eval_date;
+        selectedRow.vcv_review = domInfo.vcv_review;
+        document.getElementById('scvdisplay').classList.add("text-muted");
+        document.getElementById('scvdisplay').classList.add("d-none");
+        document.getElementById('vcvdisplay').classList.remove("text-muted");
+        document.getElementById('vcvdisplay').classList.remove("d-none");
+        document.getElementById('action').disabled = false;
+        document.getElementById('action').value = "";
+        document.getElementById('reason').disabled = true;
+        document.getElementById('reason').value = "";
+        document.getElementById('notes').readOnly = false;
+        document.getElementById('notes').value = "";
+        document.getElementById('non-contrib-opt').disabled = true;
+        document.getElementById('override-opt').disabled = true;
+      }
+      else {
+        let scvRow = domInfo.row[parseInt(selectedVal)];
+        selectedRow.submitter = scvRow.submitter;
+        selectedRow.scv = scvRow.scv;
+        selectedRow.subm_date = scvRow.subm_date;
+        selectedRow.condition = scvRow.condition;
+        selectedRow.origin = scvRow.origin;
+        selectedRow.review = scvRow.review;
+        selectedRow.method = scvRow.method;
+        selectedRow.interp = scvRow.interp;
+        selectedRow.eval_date = scvRow.eval_date;
+        document.getElementById('scvdisplay').classList.remove("text-muted");
+        document.getElementById('scvdisplay').classList.remove("d-none");
+        document.getElementById('vcvdisplay').classList.add("text-muted");
+        document.getElementById('vcvdisplay').classList.add("d-none");
+        document.getElementById('action').disabled = false;
+        document.getElementById('action').value = "";
+        document.getElementById('reason').disabled = true;
+        document.getElementById('reason').value = "";
+        document.getElementById('notes').readOnly = false;
+        document.getElementById('notes').value = "";
+        document.getElementById('non-contrib-opt').disabled = false;
+        document.getElementById('override-opt').disabled = false;
       }
       document.getElementById('scv').value = selectedRow.scv;
       document.getElementById('interp').value = selectedRow.interp;
@@ -114,6 +180,12 @@ window.addEventListener('DOMContentLoaded', () => {
       document.getElementById('method_ro').innerHTML = selectedRow.method;
       document.getElementById('eval_date').value = selectedRow.eval_date;
       document.getElementById('eval_date_ro').innerHTML = selectedRow.eval_date;
+      document.getElementById('vcv_interp').value = selectedRow.vcv_interp;
+      document.getElementById('vcv_interp_ro').innerHTML = selectedRow.vcv_interp;
+      document.getElementById('vcv_review').value = selectedRow.vcv_review;
+      document.getElementById('vcv_review_ro').innerHTML = selectedRow.vcv_review;
+      document.getElementById('vcv_eval_date').value = selectedRow.vcv_eval_date;
+      document.getElementById('vcv_eval_date_ro').innerHTML = selectedRow.vcv_eval_date;
     });
   });
 
@@ -222,7 +294,7 @@ window.addEventListener('DOMContentLoaded', () => {
             // do you work, that's it. No more unchecked error
             setDOMInfo(domInfo);
           } else {
-            alert("reload tab, connection lost");
+            alert("reload tab, connection lost\n"+chrome.runtime.lastError.message);
             window.close();
           }
         });

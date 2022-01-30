@@ -56,27 +56,49 @@ chrome.extension.onMessage.addListener(
         'access_token': token,
       });
 
-      const body = {values: [[
-        request.vcv,
-        request.name,
-        request.scv,
-        request.submitter,
-        request.interp,
-        request.action,
-        request.reason,
-        request.notes,
-        new Date(), // Timestamp
-        request.submitter_id,
-        request.variation_id,
-        request.user_email,
-        request.override_field,
-        request.override_value
-      ]]};
+      let body = {};
+      let range = "";
+
+      if (request.scv) {
+        range = request.scv_range;
+        body = {values: [[
+                request.vcv,
+                request.name,
+                request.scv,
+                request.submitter,
+                request.interp,
+                request.action,
+                request.reason,
+                request.notes,
+                new Date(), // Timestamp
+                request.submitter_id,
+                request.variation_id,
+                request.user_email,
+                request.override_field,
+                request.override_value
+              ]]};
+      }
+      else {
+        range = request.vcv_range;
+        body = {values: [[
+                request.vcv,
+                request.name,
+                request.vcv_interp,
+                request.action,
+                request.reason,
+                request.notes,
+                new Date(), // Timestamp
+                request.variation_id,
+                request.user_email,
+                request.override_field,
+                request.override_value
+              ]]};
+      }
 
       // Append values to the spreadsheet
       gapi.client.sheets.spreadsheets.values.append({
         spreadsheetId: request.spreadsheet,
-        range: request.sheet,
+        range: range,
         valueInputOption: 'USER_ENTERED',
         resource: body
       }).then((response) => {

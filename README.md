@@ -3,6 +3,9 @@ Chrome extension to allow curators to capture SCV data to a google sheet directl
 
 ## Release Notes
 
+### v1.9 changes
+* Add ability to select VCV to the drop down list for No change & Follow up actions
+
 ### v1.8 changes
 * Add new action 'Follow Up' with the following reason codes:
   * Contact submitter for clarification
