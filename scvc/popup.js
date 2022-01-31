@@ -97,6 +97,7 @@ window.addEventListener('DOMContentLoaded', () => {
         submitter : "<i>no submitter selected</i>",
         scv       : "",
         subm_date : "",
+        submitter_id : "",
         condition : "",
         origin    : "<i>origin</i>",
         review    : "<i>rev stat</i>",
@@ -147,6 +148,7 @@ window.addEventListener('DOMContentLoaded', () => {
         selectedRow.submitter = scvRow.submitter;
         selectedRow.scv = scvRow.scv;
         selectedRow.subm_date = scvRow.subm_date;
+        selectedRow.submitter_id = scvRow.submitter_id;
         selectedRow.condition = scvRow.condition;
         selectedRow.origin = scvRow.origin;
         selectedRow.review = scvRow.review;
