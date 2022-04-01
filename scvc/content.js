@@ -14,14 +14,27 @@ chrome.runtime.onMessage.addListener((msg, sender, response) => {
 
   // First, validate the message's structure.
   if ((msg.from === 'popup') && (msg.subject === 'DOMInfo')) {
+    function getMatch(text, re, grp) {
+      var result;
+      result = text.match(re);
+      if (result === null) {
+          return "";
+      }
+      return result[grp];
+    }
     // Collect the necessary data.
     var cond_origin_re = /(.*)\nAllele origin: (.*)/i;
     var review_method_re = /(.*)\n.*\n*Method: (.*)/i;
     var subm_scv_re = /(.*)(\n.*)*\nAccession: (.*)\nSubmitted: \((.*)\)/i;
     var interp_re = /(.*)\n\((.*)\)/i;
     var subm_id_re = /\/clinvar\/submitters\/([0-9]*)\//i;
-    var vcv_interp_re = /\s*(.*)[\x200B]*\s*/i;
-    var vcv_review_re = /\s*(.*)\s*/i;
+
+    var vcv_interp_re = /<dt>Interpretation:<\/dt>\s*<dd.*>\s*(.*)[\x200B]*\s*<p>/i
+    var vcv_revstat_re = /<dt>Review status:<\/dt>\s*<dd>.*(practice guideline|reviewed by expert panel|no assertion provided|no interpretation for the single variant|criteria provided, multiple submitters, no conflicts|criteria provided, single submitter|criteria provided, conflicting interpretations|no assertion criteria provided).*\<\/dd>\s*/is
+    var vcv_most_recent_re = /<dt>Submissions:<\/dt>\s*<dd>\s*[0-9]*\s*\(Most recent: (\w{3} \d+\, \d{4})\)\s*<\/dd>/i
+    var vcv_last_eval_re = /<dt>Last evaluated:<\/dt>\s*<dd>\s*(\w{3} \d+\,\d{4})\s*<\/dd>\s*/i
+    var vcv_accession_re = /<dt>Accession:<\/dt>\s*<dd>\s*(VCV[0-9]*\.[0-9]*)\s*<\/dd>\s*/i
+    var vcv_variation_id_re = /<dt>Variation ID:<\/dt>\s*<dd>\s*(\d+)\s*<\/dd>\s*/i
 
     var domInfo = {
       spreadsheet: SPREADSHEET_ID,
@@ -32,18 +45,23 @@ chrome.runtime.onMessage.addListener((msg, sender, response) => {
       variation_id : "",
       vcv_interp : "",
       vcv_review : "",
+      vcv_most_recent : "",
       vcv_eval_date : "",
       row: []
     };
-    domInfo.vcv  = document.querySelectorAll('.variant-box dd')[4].innerText;
-    domInfo.name = document.querySelectorAll('#id_first h4')[0].innerText;
-    domInfo.variation_id = document.querySelectorAll('.variant-box dd')[5].innerText;
-    domInfo.vcv_interp = document.querySelectorAll('.variant-box dd')[0].innerText.match(vcv_interp_re)[1];
-    domInfo.vcv_review = document.querySelectorAll('.variant-box dd')[1].innerText.match(vcv_review_re)[1];
-    domInfo.vcv_eval_date = document.querySelectorAll('.variant-box dd')[3].innerText;
-    var scvarray = document.querySelectorAll('#assertion-list tbody tr')
-    scvarray.forEach(myFunction);
 
+    var variantBox = document.evaluate(".//div[contains(concat(' ', @class, ' '),' variant-box ')]/dl", document, null, XPathResult.ANY_TYPE, null );
+    var variantBoxHTML = variantBox.iterateNext().innerHTML;
+    domInfo.vcv             = getMatch(variantBoxHTML, vcv_accession_re, 1);
+    domInfo.vcv_review      = getMatch(variantBoxHTML, vcv_revstat_re, 1);
+    domInfo.vcv_most_recent = getMatch(variantBoxHTML, vcv_most_recent_re, 1);
+    domInfo.vcv_eval_date   = getMatch(variantBoxHTML, vcv_last_eval_re, 1);
+    domInfo.variation_id    = getMatch(variantBoxHTML, vcv_variation_id_re, 1);
+    domInfo.vcv_interp      = getMatch(variantBoxHTML, vcv_interp_re, 1);
+
+    domInfo.name = document.querySelectorAll('#id_first h4')[0].innerText;
+    var scvarray = document.querySelectorAll('#assertion-list tbody tr');
+    scvarray.forEach(myFunction);
     function myFunction(value, index, array) {
         var interp_match = value.cells[0].innerText.match(interp_re);
         var review_method_match = value.cells[1].innerText.match(review_method_re);
