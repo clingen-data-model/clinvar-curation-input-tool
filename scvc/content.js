@@ -25,13 +25,13 @@ chrome.runtime.onMessage.addListener((msg, sender, response) => {
     // Collect the necessary data.
     var cond_origin_re = /(.*)\nAllele origin: (.*)/i;
     var review_method_re = /(.*)\n.*\n*Method: (.*)/i;
-    var subm_scv_re = /(.*)(\n.*)*\nAccession: (.*)\nSubmitted: \((.*)\)/i;
+    var subm_scv_re = /(.*)(\n.*)*\nAccession: (.*)\nFirst in ClinVar: (.*)\nLast updated: (.*)/i;
     var interp_re = /(.*)\n\((.*)\)/i;
     var subm_id_re = /\/clinvar\/submitters\/([0-9]*)\//i;
 
     var vcv_interp_re = /<dt>Interpretation:<\/dt>\s*<dd.*>\s*(.*)[\x200B]*\s*<p>/i
     var vcv_revstat_re = /<dt>Review status:<\/dt>\s*<dd>.*(practice guideline|reviewed by expert panel|no assertion provided|no interpretation for the single variant|criteria provided, multiple submitters, no conflicts|criteria provided, single submitter|criteria provided, conflicting interpretations|no assertion criteria provided).*\<\/dd>\s*/is
-    var vcv_most_recent_re = /<dt>Submissions:<\/dt>\s*<dd>\s*[0-9]*\s*\(Most recent: (\w{3} \d+\, \d{4})\)\s*<\/dd>/i
+    var vcv_most_recent_re = /<dt>Most recent Submission:<\/dt>\s*<dd>\s*(\w{3} \d+\, \d{4})\s*<\/dd>/i
     var vcv_last_eval_re = /<dt>Last evaluated:<\/dt>\s*<dd>\s*(\w{3} \d+\,\d{4})\s*<\/dd>\s*/i
     var vcv_accession_re = /<dt>Accession:<\/dt>\s*<dd>\s*(VCV[0-9]*\.[0-9]*)\s*<\/dd>\s*/i
     var vcv_variation_id_re = /<dt>Variation ID:<\/dt>\s*<dd>\s*(\d+)\s*<\/dd>\s*/i
@@ -73,7 +73,7 @@ chrome.runtime.onMessage.addListener((msg, sender, response) => {
             submitter : subm_scv_match[1],
             scv    : subm_scv_match[3],
             submitter_id : subm_id,
-            subm_date : subm_scv_match[4],
+            subm_date : subm_scv_match[5],
             condition : cond_origin_match[1],
             origin : cond_origin_match[2],
             review : review_method_match[1],
