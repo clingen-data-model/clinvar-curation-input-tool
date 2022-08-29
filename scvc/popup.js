@@ -212,6 +212,7 @@ window.addEventListener('DOMContentLoaded', () => {
       '': [
         'Contact submitter for clarification',
         'Flag for another curator to review',
+        'Flag for submitter review',
         'Send to VCEP for full review',
         'Send to VCEP for triage']
     };
