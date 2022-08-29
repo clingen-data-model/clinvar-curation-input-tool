@@ -3,9 +3,11 @@ Chrome extension to allow curators to capture SCV data to a google sheet directl
 
 ## Release Notes
 
+### v1.9.4 changes
+* Updating "Follow up" reasons in Chrome extension #37 (https://github.com/clingen-data-model/clinvar-scv-curator-ext/issues/37)
+
 ### v1.9.3 changes
 * Updating "Follow up" reasons in Chrome extension #35 (https://github.com/clingen-data-model/clinvar-scv-curator-ext/issues/35)
-
 
 ### v1.9.2 changes
 * (bug fix) ClinVar recently updated the html display which the chrome extension depends on. Minor change to pick up the 'most recent submission date' at the variation level and the 'Last updated' date (or last submission date) from the SCV level. (https://github.com/clingen-data-model/clinvar-scv-curator-ext/issues/32)
