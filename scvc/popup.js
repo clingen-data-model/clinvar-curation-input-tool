@@ -205,16 +205,16 @@ window.addEventListener('DOMContentLoaded', () => {
       'Lack of contradictory evidence when other submissions show valid evidence': [
         'Older claim that does not account for recent evidence',
         'P or LP claim with insufficient evidence to meet at least LP based on ACMG guidelines',
-        'Claim without supporting evidence provided',
+        'Claim with insufficient supporting evidence',
+        'Outlier claim with insufficient supporting evidence',
         'Conflicts with expert reviewed submission without evidence to support different classification']
     };
     var followUpReasonOptions = {
       '': [
-        'Contact submitter for clarification',
-        'Flag for another curator to review',
-        'Flag for submitter review',
-        'Send to VCEP for full review',
-        'Send to VCEP for triage']
+        'Send for submitter review',
+        'Send for another curator to review',
+        'Send for VCEP triage',
+        'Send for VCEP full review']
     };
     var reasonsByAction = {
       'Non-contributory': nonContribtoryReasonOptions,
