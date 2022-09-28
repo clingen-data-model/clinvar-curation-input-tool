@@ -73,9 +73,9 @@ chrome.extension.onMessage.addListener(
                 new Date(), // Timestamp
                 request.submitter_id,
                 request.variation_id,
-                request.user_email,
-                request.override_field,
-                request.override_value
+                request.user_email
+                // request.override_field,
+                // request.override_value
               ]]};
       }
       else {
@@ -89,9 +89,9 @@ chrome.extension.onMessage.addListener(
                 request.notes,
                 new Date(), // Timestamp
                 request.variation_id,
-                request.user_email,
-                request.override_field,
-                request.override_value
+                request.user_email
+                // request.override_field,
+                // request.override_value
               ]]};
       }
 
