@@ -62,8 +62,8 @@ window.addEventListener('DOMContentLoaded', () => {
         reason: document.getElementById("reason").value,
         notes: document.getElementById("notes").value,
         user_email: "",
-        override_field: document.getElementById("override-field").value,
-        override_value: document.getElementById("override-value").value,
+        // override_field: document.getElementById("override-field").value,
+        // override_value: document.getElementById("override-value").value,
         vcv_interp: document.getElementById("vcv_interp").value
       }
 
@@ -124,7 +124,7 @@ window.addEventListener('DOMContentLoaded', () => {
         document.getElementById('notes').readOnly = true;
         document.getElementById('notes').value = "";
         document.getElementById('non-contrib-opt').disabled = false;
-        document.getElementById('override-opt').disabled = false;
+        // document.getElementById('override-opt').disabled = false;
       }
       else if (selectedVal === lastSelectVal ) {
         selectedRow.vcv_interp = domInfo.vcv_interp;
@@ -141,7 +141,7 @@ window.addEventListener('DOMContentLoaded', () => {
         document.getElementById('notes').readOnly = false;
         document.getElementById('notes').value = "";
         document.getElementById('non-contrib-opt').disabled = true;
-        document.getElementById('override-opt').disabled = true;
+        // document.getElementById('override-opt').disabled = true;
       }
       else {
         let scvRow = domInfo.row[parseInt(selectedVal)];
@@ -166,7 +166,7 @@ window.addEventListener('DOMContentLoaded', () => {
         document.getElementById('notes').readOnly = false;
         document.getElementById('notes').value = "";
         document.getElementById('non-contrib-opt').disabled = false;
-        document.getElementById('override-opt').disabled = false;
+        // document.getElementById('override-opt').disabled = false;
       }
       document.getElementById('scv').value = selectedRow.scv;
       document.getElementById('interp').value = selectedRow.interp;
@@ -200,7 +200,6 @@ window.addEventListener('DOMContentLoaded', () => {
       'Inappropriate submissions': [
         'Clinical significance appears to be a case-level interpretation inconsistent with variant classification'],
       'Unnecessary conflicting submissions': [
-        'VUS/LB/B claim when a mutually exclusive disease association is P/LP',
         'Unnecessary VUS/LB/B claim for distinct condition when other interpretations are pathogenic'],
       'Lack of contradictory evidence when other submissions show valid evidence': [
         'Older claim that does not account for recent evidence',
@@ -265,16 +264,17 @@ window.addEventListener('DOMContentLoaded', () => {
 
     var selectedVal = document.getElementById("action").value;
 
-    if ( selectedVal == "Override" ) {
-      document.getElementById('override-field').disabled = false;
-      document.getElementById('override-value').disabled = false;
-    }
-    else {
-      document.getElementById('override-field').disabled = true;
-      document.getElementById('override-field').value = "";
-      document.getElementById('override-value').disabled = true;
-      document.getElementById('override-value').value = "";
-    }
+    // NOTE: commenting out the Override option per rel 1.9.6
+    // if ( selectedVal == "Override" ) {
+    //   document.getElementById('override-field').disabled = false;
+    //   document.getElementById('override-value').disabled = false;
+    // }
+    // else {
+    //   document.getElementById('override-field').disabled = true;
+    //   document.getElementById('override-field').value = "";
+    //   document.getElementById('override-value').disabled = true;
+    //   document.getElementById('override-value').value = "";
+    // }
 
     /* populate reason list according to action */
     setReasonsByAction(selectedVal);
