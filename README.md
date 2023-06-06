@@ -2,6 +2,8 @@
 Chrome extension to allow curators to capture SCV data to a google sheet directly from clinvar website.
 
 ## Release Notes
+### v1.9.7 changes
+* Update the chrome extension manifest from v2 to v3.
 
 ### v1.9.6 changes
 * Remove the non-contributory reason "VUS/LB/B claim when a mutually exclusive disease association is P/LP" [#42](https://github.com/clingen-data-model/clinvar-scv-curator-ext/issues/42)

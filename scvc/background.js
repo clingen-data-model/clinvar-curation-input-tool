@@ -1,3 +1,10 @@
+// This file is no longer used with the migration to Manifest V3.
+// But keeping for posterity as it served as a starting point for
+// service-worker.js. TON
+chrome.runtime.onInstalled.addListener(() => {
+  console.log('===== BACKGROUND Installed or updated!');
+});
+
 const API_KEY = 'AIzaSyADs3YruA9LTaRjc7hS94SQvKbQXJSpMp0';
 const DISCOVERY_DOCS = ["https://sheets.googleapis.com/$discovery/rest?version=v4"];
 
