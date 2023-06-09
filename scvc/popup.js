@@ -88,23 +88,25 @@ window.addEventListener('DOMContentLoaded', () => {
         //     open(location, '_self').close();
         // }
 
-        // chrome.runtime.sendMessage(data, function(response) {
-        //     if (response.success == false) {
-        //         alert("Spreadsheet update failed: " + response.message)
-        //     }
-        // });
+        chrome.runtime.sendMessage(data, function(response) {
+            if (response.success == false) {
+                alert("Spreadsheet update failed: " + response.message)
+            }
+	    open(location, '_self').close();
+        });
 
-        chrome.runtime.sendMessage(data)
-            .then((response) => {
-                if (response.success == false) {
-                    alert("Spreadsheet update failed: " + response.message)
-                }
-            });
+        // chrome.runtime.sendMessage(data)
+        //     .then((response) => {
+        //         if (response.success == false) {
+        //             alert("Spreadsheet update failed: " + response.message)
+        //         }
+        //     });
 
         // this is the equivalent of window.close().
         // window.close() works when stepping through with the debugger.
         // window.close() does not work when not in the debugger.
-        open(location, '_self').close();
+        // open(location, '_self').close();
+	// setTimeoout(window.close, 2000);
     });
 
     document.getElementById("scvselect").addEventListener("change", function() {
