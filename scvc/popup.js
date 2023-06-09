@@ -47,7 +47,7 @@ function setDOMInfo(info) {
 // Once the DOM is ready...
 window.addEventListener('DOMContentLoaded', () => {
     // console.log('=====POPUP.JS DOMContentLoded window listener:', new Date().getTime())
-    document.getElementById("annotations").addEventListener("submit", async function() {
+    document.getElementById("annotations").addEventListener("submit", function() {
 
         var data = {
             spreadsheet: document.getElementById("spreadsheet").value,
@@ -73,21 +73,42 @@ window.addEventListener('DOMContentLoaded', () => {
         if (!document.getElementById("scvselect").value) {
             alert("An SCV/VCV selection is required. Please select one from the dropdown before submitting.");
             // document.getElementById('message').innerText = "SCV must be selected first.";
-            return true;
+            return;
         }
+
+        // send data to service-worker to update the sheet and process
+        // the reponse.
+        //var response = await chrome.runtime.sendMessage(data);
+        // console.log("===== POPUP.JS response", response);
+        // debugger;
+        // if (response.success == false) {
+        //     alert("Spreadsheet update failed: " + response.message)
+        // }
+        // else {
+        //     open(location, '_self').close();
+        // }
+
+        // chrome.runtime.sendMessage(data, function(response) {
+        //     if (response.success == false) {
+        //         alert("Spreadsheet update failed: " + response.message)
+        //     }
+        // });
 
         chrome.runtime.sendMessage(data)
             .then((response) => {
-                if (response.success) {
-		    window.close();
-		}
-            })
-	    .catch(error => {
-		alert("Recieved error:", error)});
+                if (response.success == false) {
+                    alert("Spreadsheet update failed: " + response.message)
+                }
+            });
+
+        // this is the equivalent of window.close().
+        // window.close() works when stepping through with the debugger.
+        // window.close() does not work when not in the debugger.
+        open(location, '_self').close();
     });
 
     document.getElementById("scvselect").addEventListener("change", function() {
-	// console.log('=====POPUP.JS scvselect event listener:', new Date().getTime())
+        // console.log('=====POPUP.JS scvselect event listener:', new Date().getTime())
         chrome.storage.local.get("vcvdata", function(result) {
             domInfo = JSON.parse(result.vcvdata);
 
@@ -189,7 +210,7 @@ window.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById("action").addEventListener("change", function() {
-	// console.log('=====POPUP.JS action event listener:', new Date().getTime())
+        // console.log('=====POPUP.JS action event listener:', new Date().getTime())
         var nonContribtoryReasonOptions = {
             'Submission errors': [
                 'New submission from submitter that appears to have been intended to update this older submission',

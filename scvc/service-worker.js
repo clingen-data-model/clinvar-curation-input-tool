@@ -117,9 +117,10 @@ chrome.runtime.onMessage.addListener(
                 };
             }
 
-            let url = `${base_url}/${spreadsheet_id}/values/${range}:append?${options}`;
-            console.log("===== URL", url);
+            const url = `${base_url}/${spreadsheet_id}/values/${range}:append?${options}`;
+            // console.log("===== URL", url);
 
+            // Manifest V3 migration requires using fetch.
             // Three steps to using fetch.
             // 1. Call fetch with the URL
             // 2. Get the response object returned asynchronously by step 1
@@ -127,31 +128,37 @@ chrome.runtime.onMessage.addListener(
             //    body of the response
             // 3. Get the body that is returned asynchronously and process.
             fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'content-type': 'application/json',
-                },
-                body: JSON.stringify(body)
-            }).then(response => {
-                // Here, the response promise may not be fully resolved
-                // it may not have the body, just headers and status
-                // response.ok is truthy when status between 200-299
-                if (response.ok) {
-                    return response.json();
-                } else {
-                    throw new Error(`Unsuccessful status returned from server: ${response.status}`);
-                }
-            }).then(results => {
-                // Here, the response.json() promise is fully resolved
-                console.log(`${results.updates.updatedCells} cells appended.`);
-                sendResponse({
-                    success: true
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'content-type': 'application/json',
+                    },
+                    body: JSON.stringify(body)
+                }).then(response => {
+                    // Here, the response promise may not be fully resolved
+                    // it may not have the body, just headers and status
+                    // response.ok is truthy when status between 200-299
+                    if (response.ok) {
+                        return response.json();
+                    } else {
+                        throw new Error(`Unsuccessful status returned from server: ${response.status}`);
+                    }
+                }).then(results => {
+                    // Here, the response.json() promise is fully resolved
+                    var message = `${results.updates.updatedCells} cells appended.`;
+                    console.log(message);
+                    sendResponse({
+                        success: true,
+                        messsage: message
+                    });
+                })
+                .catch(error => {
+                    console.log('error appending values', error, url)
+                    sendResponse({
+                        success: false,
+                        message: error.message
+                    });
                 });
-            })
-            //.catch(error => {
-            //    console.log('error appending values', error, url)
-            //});
         });
 
         return true;
