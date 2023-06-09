@@ -2,7 +2,7 @@
 Chrome extension to allow curators to capture SCV data to a google sheet directly from clinvar website.
 
 ## Release Notes
-### v1.9.7 changes
+### v2.0 changes
 * Update the chrome extension manifest from v2 to v3.
 
 ### v1.9.6 changes
