@@ -1,29 +1,32 @@
 {
-  "name": "ClinVar Curator",
-  "version": "1.9.6",
-  "description": "Capture SCV/VCV notes from ClinVar variant screen in a google sheet.",
-  "manifest_version": 2,
-  "key" : "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwC5g4vkDlMPFTsByPnG9WI9lY+IPWddES8SK3cxCuBQE5qSdgEgtDhrRLhXSvcIdUUCDwD7JzEPdQ0IhC3APwsKQJPQlDRweZvyFaTJOm6r5Blp3HvLphDuKZQwUoEzMuXK7IAby05kXPZTMSHas+0m00hHoR8ls//tqKoYt7N/lVj6Mry6nSpr5wFU17HPO8MksyxFlNDhu5OYcgOdTNjUiWthjZ8Xxd0ajdaR1QRoqVCQduUTSAzeptQ1+zYZtEX7+HF8jfZqc5BQDa5GoCuDyTvFvQAHl3Phz3zMWpvcGWR3jCMHD5zthiO8NKX+h2fXbGGrYhuwtQmHLWmTAsQIDAQAB",
-  "oauth2": {
-    "client_id": "974091131481-ffhgjpl8vh91e5qber2486eikrhf42ec.apps.googleusercontent.com",
-    "scopes":["https://www.googleapis.com/auth/spreadsheets"]
-  },
-  "content_security_policy": "script-src 'self' https://apis.google.com/; object-src 'self'",
-  "page_action": {
-    "default_title": "Clinvar Curator",
-    "default_popup": "popup.html"
-  },
-  "background": {
-    "page": "background.html",
-    "persistent": true
-  },
-  "permissions": [
-    "https://www.ncbi.nlm.nih.gov/clinvar/variation/*","identity", "identity.email", "storage", "declarativeContent"
-  ],
-  "content_scripts": [{
-    "matches": ["https://www.ncbi.nlm.nih.gov/clinvar/variation/*"],
-    "js": ["content.js"],
-    "run_at": "document_end",
-    "all_frames": false
-  }]
+    "name": "ClinVar Curator",
+    "version": "2.0",
+    "description": "Capture SCV/VCV notes from ClinVar variant screen in a google sheet.",
+    "manifest_version": 3,
+    "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwC5g4vkDlMPFTsByPnG9WI9lY+IPWddES8SK3cxCuBQE5qSdgEgtDhrRLhXSvcIdUUCDwD7JzEPdQ0IhC3APwsKQJPQlDRweZvyFaTJOm6r5Blp3HvLphDuKZQwUoEzMuXK7IAby05kXPZTMSHas+0m00hHoR8ls//tqKoYt7N/lVj6Mry6nSpr5wFU17HPO8MksyxFlNDhu5OYcgOdTNjUiWthjZ8Xxd0ajdaR1QRoqVCQduUTSAzeptQ1+zYZtEX7+HF8jfZqc5BQDa5GoCuDyTvFvQAHl3Phz3zMWpvcGWR3jCMHD5zthiO8NKX+h2fXbGGrYhuwtQmHLWmTAsQIDAQAB",
+    "oauth2": {
+        "client_id": "974091131481-ffhgjpl8vh91e5qber2486eikrhf42ec.apps.googleusercontent.com",
+        "scopes": ["https://www.googleapis.com/auth/spreadsheets"]
+    },
+    "content_security_policy": {
+        "extension_pages": "script-src 'self'; object-src 'self'"
+    },
+    "action": {
+        "default_title": "Clinvar Curator",
+        "default_popup": "popup.html"
+    },
+    "background": {
+        "service_worker": "service-worker.js",
+        "type": "module"
+    },
+    "permissions": [
+        "identity", "identity.email", "storage", "declarativeContent", "tabs"
+    ],
+    "host_permissions": ["https://www.ncbi.nlm.nih.gov/clinvar/variation/*"],
+    "content_scripts": [{
+        "matches": ["https://www.ncbi.nlm.nih.gov/clinvar/variation/*"],
+        "js": ["content.js"],
+        "run_at": "document_end",
+        "all_frames": false
+    }]
 }
