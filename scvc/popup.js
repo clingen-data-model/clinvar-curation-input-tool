@@ -76,24 +76,25 @@ window.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // send data to service-worker to update the sheet and process
-        // the reponse.
-        //var response = await chrome.runtime.sendMessage(data);
-        // console.log("===== POPUP.JS response", response);
-        // debugger;
-        // if (response.success == false) {
-        //     alert("Spreadsheet update failed: " + response.message)
-        // }
-        // else {
-        //     open(location, '_self').close();
-        // }
-
         chrome.runtime.sendMessage(data, function(response) {
             if (response.success == false) {
-                alert("Spreadsheet update failed: " + response.message)
+                console.error("Spreadsheet update failed: " + response.message);
+                alert("Spreadsheet update failed: " + response.message);
+            } else {
+                console.log("Spreadsheet update successful: " + response.message);
             }
-	    open(location, '_self').close();
         });
+
+
+
+        // chrome.runtime.sendMessage(data, function(response) {
+        //     if (response.success == false) {
+        //         console.log("Spreadsheet update failed: " + response.message);
+        //         alert("Spreadsheet update failed: " + response.message);
+        //     } else {
+        //         console.log("Spreadsheet update successful: " + response.message);
+        //     }
+        // });
 
         // chrome.runtime.sendMessage(data)
         //     .then((response) => {
@@ -106,7 +107,7 @@ window.addEventListener('DOMContentLoaded', () => {
         // window.close() works when stepping through with the debugger.
         // window.close() does not work when not in the debugger.
         // open(location, '_self').close();
-	// setTimeoout(window.close, 2000);
+        // setTimeoout(window.close, 2000);
     });
 
     document.getElementById("scvselect").addEventListener("change", function() {
