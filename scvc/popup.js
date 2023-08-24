@@ -30,7 +30,7 @@ function setDOMInfo(info) {
     //loop through scvs and add to scvselector
     info.row.forEach(addOptions);
 
-// NOTE: commenting out the VCV option per rel 1.9.7
+// NOTE: commenting out the VCV option per rel 2.0.1
 //     // add the vcv to the end of the scvselector to support the "no change" VCV annotation
 //     var vcvOpt = document.createElement("option");
 //     vcvOpt.text = info.vcv + " (" + info.vcv_interp + ")"
@@ -147,7 +147,7 @@ window.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('notes').value = "";
                 document.getElementById('non-contrib-opt').disabled = false;
                 // document.getElementById('override-opt').disabled = false;
-// NOTE: commenting out the VCV option per rel 1.9.7              
+// NOTE: commenting out the VCV option per rel 2.0.1             
 //             } else if (selectedVal === lastSelectVal) {
 //                 selectedRow.vcv_interp = domInfo.vcv_interp;
 //                 selectedRow.vcv_eval_date = domInfo.vcv_eval_date;
@@ -233,7 +233,7 @@ window.addEventListener('DOMContentLoaded', () => {
                 'Conflicts with expert reviewed submission without evidence to support different classification'
             ]
         };
-// NOTE: commenting out the Follow Up option per rel 1.9.7
+// NOTE: commenting out the Follow Up option per rel 2.0.1
 //         var followUpReasonOptions = {
 //             '': [
 //                 'Send for submitter review',
