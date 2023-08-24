@@ -3,6 +3,12 @@ Chrome extension to allow curators to capture SCV data to a google sheet directl
 
 ## Release Notes
 
+### v1.9.7 changes
+* Modify text of several Non-contributory reasons (and update historical data to match modified text) [#58](https://github.com/clingen-data-model/clinvar-scv-curator-ext/issues/58)
+* Update Non-contributory action reasons (remove some, modify text of others) [#57](https://github.com/clingen-data-model/clinvar-scv-curator-ext/issues/57)
+* Remove Follow Up option [#57](https://github.com/clingen-data-model/clinvar-scv-curator-ext/issues/57)
+* Remove ability to annotate a VCV [#57](https://github.com/clingen-data-model/clinvar-scv-curator-ext/issues/57)
+
 ### v1.9.6 changes
 * Remove the non-contributory reason "VUS/LB/B claim when a mutually exclusive disease association is P/LP" [#42](https://github.com/clingen-data-model/clinvar-scv-curator-ext/issues/42)
 * Remove Override option [#41](https://github.com/clingen-data-model/clinvar-scv-curator-ext/issues/41)

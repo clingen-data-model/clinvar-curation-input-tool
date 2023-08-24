@@ -29,11 +29,12 @@ function setDOMInfo(info) {
   //loop through scvs and add to scvselector
   info.row.forEach( addOptions );
 
-  // add the vcv to the end of the scvselector to support the "no change" VCV annotation
-  var vcvOpt = document.createElement("option");
-  vcvOpt.text = info.vcv + " (" + info.vcv_interp + ")"
-  vcvOpt.value = info.row.length      // this should be the last
-  scvselect.add(vcvOpt)
+  // NOTE: commenting out the VCV option per rel 1.9.7
+  // // add the vcv to the end of the scvselector to support the "no change" VCV annotation
+  // var vcvOpt = document.createElement("option");
+  // vcvOpt.text = info.vcv + " (" + info.vcv_interp + ")"
+  // vcvOpt.value = info.row.length      // this should be the last
+  // scvselect.add(vcvOpt)
 
   function addOptions(row, index) {
     var option = document.createElement("option");
@@ -68,7 +69,7 @@ window.addEventListener('DOMContentLoaded', () => {
       }
 
       if (!data.scv && !data.vcv) {
-        alert("An SCV/VCV selection is required. Please select one from the dropdown before submitting.");
+        alert("An SCV selection is required. Please select one from the dropdown before submitting.");
         // document.getElementById('message').innerText = "SCV must be selected first.";
         return;
       }
@@ -126,23 +127,24 @@ window.addEventListener('DOMContentLoaded', () => {
         document.getElementById('non-contrib-opt').disabled = false;
         // document.getElementById('override-opt').disabled = false;
       }
-      else if (selectedVal === lastSelectVal ) {
-        selectedRow.vcv_interp = domInfo.vcv_interp;
-        selectedRow.vcv_eval_date = domInfo.vcv_eval_date;
-        selectedRow.vcv_review = domInfo.vcv_review;
-        document.getElementById('scvdisplay').classList.add("text-muted");
-        document.getElementById('scvdisplay').classList.add("d-none");
-        document.getElementById('vcvdisplay').classList.remove("text-muted");
-        document.getElementById('vcvdisplay').classList.remove("d-none");
-        document.getElementById('action').disabled = false;
-        document.getElementById('action').value = "";
-        document.getElementById('reason').disabled = true;
-        document.getElementById('reason').value = "";
-        document.getElementById('notes').readOnly = false;
-        document.getElementById('notes').value = "";
-        document.getElementById('non-contrib-opt').disabled = true;
-        // document.getElementById('override-opt').disabled = true;
-      }
+      // NOTE: commenting out the VCV option per rel 1.9.7
+      // else if (selectedVal === lastSelectVal ) {
+      //   selectedRow.vcv_interp = domInfo.vcv_interp;
+      //   selectedRow.vcv_eval_date = domInfo.vcv_eval_date;
+      //   selectedRow.vcv_review = domInfo.vcv_review;
+      //   document.getElementById('scvdisplay').classList.add("text-muted");
+      //   document.getElementById('scvdisplay').classList.add("d-none");
+      //   document.getElementById('vcvdisplay').classList.remove("text-muted");
+      //   document.getElementById('vcvdisplay').classList.remove("d-none");
+      //   document.getElementById('action').disabled = false;
+      //   document.getElementById('action').value = "";
+      //   document.getElementById('reason').disabled = true;
+      //   document.getElementById('reason').value = "";
+      //   document.getElementById('notes').readOnly = false;
+      //   document.getElementById('notes').value = "";
+      //   document.getElementById('non-contrib-opt').disabled = true;
+      //   // document.getElementById('override-opt').disabled = true;
+      // }
       else {
         let scvRow = domInfo.row[parseInt(selectedVal)];
         selectedRow.submitter = scvRow.submitter;
@@ -196,28 +198,29 @@ window.addEventListener('DOMContentLoaded', () => {
     var nonContribtoryReasonOptions = {
       'Submission errors': [
         'New submission from submitter that appears to have been intended to update this older submission',
-        'Submitter acknowledged an error and the submission will be updated or removed'],
+        'Other submission error'],
       'Inappropriate submissions': [
         'Clinical significance appears to be a case-level interpretation inconsistent with variant classification'],
       'Unnecessary conflicting submissions': [
-        'Unnecessary VUS/LB/B claim for distinct condition when other interpretations are pathogenic'],
+        'Unnecessary conflicting claim for distinct condition when other classifications are more relevant'],
       'Lack of contradictory evidence when other submissions show valid evidence': [
         'Older claim that does not account for recent evidence',
-        'P or LP claim with insufficient evidence to meet at least LP based on ACMG guidelines',
         'Claim with insufficient supporting evidence',
         'Outlier claim with insufficient supporting evidence',
         'Conflicts with expert reviewed submission without evidence to support different classification']
     };
-    var followUpReasonOptions = {
-      '': [
-        'Send for submitter review',
-        'Send for another curator to review',
-        'Send for VCEP triage',
-        'Send for VCEP full review']
-    };
+    // NOTE: commenting out the Follow Up option per rel 1.9.7
+    // var followUpReasonOptions = {
+    //   '': [
+    //     'Send for submitter review',
+    //     'Send for another curator to review',
+    //     'Send for VCEP triage',
+    //     'Send for VCEP full review']
+    // };
     var reasonsByAction = {
-      'Non-contributory': nonContribtoryReasonOptions,
-      'Follow Up': followUpReasonOptions
+      'Non-contributory': nonContribtoryReasonOptions
+      // ,
+      // 'Follow Up': followUpReasonOptions
     };
 
     function setReasonsByAction(action) {
