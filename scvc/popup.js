@@ -30,11 +30,12 @@ function setDOMInfo(info) {
     //loop through scvs and add to scvselector
     info.row.forEach(addOptions);
 
-    // // add the vcv to the end of the scvselector to support the "no change" VCV annotation
-    // var vcvOpt = document.createElement("option");
-    // vcvOpt.text = info.vcv + " (" + info.vcv_interp + ")"
-    // vcvOpt.value = info.row.length // this should be the last
-    // scvselect.add(vcvOpt)
+// NOTE: commenting out the VCV option per rel 2.0.1
+//     // add the vcv to the end of the scvselector to support the "no change" VCV annotation
+//     var vcvOpt = document.createElement("option");
+//     vcvOpt.text = info.vcv + " (" + info.vcv_interp + ")"
+//     vcvOpt.value = info.row.length // this should be the last
+//     scvselect.add(vcvOpt)
 
     function addOptions(row, index) {
         var option = document.createElement("option");
@@ -42,6 +43,7 @@ function setDOMInfo(info) {
         option.value = index;
         scvselect.add(option);
     }
+
 };
 
 // Once the DOM is ready...
@@ -69,9 +71,9 @@ window.addEventListener('DOMContentLoaded', () => {
             vcv_interp: document.getElementById("vcv_interp").value
         }
 
-        // ensure that user has selected a vcv or an scv
+        // ensure that user has selected an scv
         if (!document.getElementById("scvselect").value) {
-            alert("An SCV/VCV selection is required. Please select one from the dropdown before submitting.");
+            alert("An SCV selection is required. Please select one from the dropdown before submitting.");
             // document.getElementById('message').innerText = "SCV must be selected first.";
             return;
         }
@@ -84,8 +86,6 @@ window.addEventListener('DOMContentLoaded', () => {
                 console.log("Spreadsheet update successful: " + response.message);
             }
         });
-
-
 
         // chrome.runtime.sendMessage(data, function(response) {
         //     if (response.success == false) {
@@ -147,22 +147,23 @@ window.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('notes').value = "";
                 document.getElementById('non-contrib-opt').disabled = false;
                 // document.getElementById('override-opt').disabled = false;
-            // } else if (selectedVal === lastSelectVal) {
-            //     selectedRow.vcv_interp = domInfo.vcv_interp;
-            //     selectedRow.vcv_eval_date = domInfo.vcv_eval_date;
-            //     selectedRow.vcv_review = domInfo.vcv_review;
-            //     document.getElementById('scvdisplay').classList.add("text-muted");
-            //     document.getElementById('scvdisplay').classList.add("d-none");
-            //     document.getElementById('vcvdisplay').classList.remove("text-muted");
-            //     document.getElementById('vcvdisplay').classList.remove("d-none");
-            //     document.getElementById('action').disabled = false;
-            //     document.getElementById('action').value = "";
-            //     document.getElementById('reason').disabled = true;
-            //     document.getElementById('reason').value = "";
-            //     document.getElementById('notes').readOnly = false;
-            //     document.getElementById('notes').value = "";
-            //     document.getElementById('non-contrib-opt').disabled = true;
-            //     // document.getElementById('override-opt').disabled = true;
+// NOTE: commenting out the VCV option per rel 2.0.1             
+//             } else if (selectedVal === lastSelectVal) {
+//                 selectedRow.vcv_interp = domInfo.vcv_interp;
+//                 selectedRow.vcv_eval_date = domInfo.vcv_eval_date;
+//                 selectedRow.vcv_review = domInfo.vcv_review;
+//                 document.getElementById('scvdisplay').classList.add("text-muted");
+//                 document.getElementById('scvdisplay').classList.add("d-none");
+//                 document.getElementById('vcvdisplay').classList.remove("text-muted");
+//                 document.getElementById('vcvdisplay').classList.remove("d-none");
+//                 document.getElementById('action').disabled = false;
+//                 document.getElementById('action').value = "";
+//                 document.getElementById('reason').disabled = true;
+//                 document.getElementById('reason').value = "";
+//                 document.getElementById('notes').readOnly = false;
+//                 document.getElementById('notes').value = "";
+//                 document.getElementById('non-contrib-opt').disabled = true;
+//                 // document.getElementById('override-opt').disabled = true;
             } else {
                 let scvRow = domInfo.row[parseInt(selectedVal)];
                 selectedRow.submitter = scvRow.submitter;
@@ -232,18 +233,19 @@ window.addEventListener('DOMContentLoaded', () => {
                 'Conflicts with expert reviewed submission without evidence to support different classification'
             ]
         };
-        // var followUpReasonOptions = {
-        //     '': [
-        //         'Send for submitter review',
-        //         'Send for another curator to review',
-        //         'Send for VCEP triage',
-        //         'Send for VCEP full review'
-        //     ]
-        // };
+// NOTE: commenting out the Follow Up option per rel 2.0.1
+//         var followUpReasonOptions = {
+//             '': [
+//                 'Send for submitter review',
+//                 'Send for another curator to review',
+//                 'Send for VCEP triage',
+//                 'Send for VCEP full review'
+//             ]
+//         };
         var reasonsByAction = {
             'Non-contributory': nonContribtoryReasonOptions
-            // ,
-            // 'Follow Up': followUpReasonOptions
+//             ,
+//             'Follow Up': followUpReasonOptions
         };
 
         function setReasonsByAction(action) {
