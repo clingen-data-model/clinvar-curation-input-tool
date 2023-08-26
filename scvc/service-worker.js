@@ -1,27 +1,3 @@
-// Manifest V3 introduces a new service worker lifecycle that differs
-// from the Manifest v2 persistent background worker.
-// The following lines offer some lifecycle debugging help.
-
-// self.addEventListener('install', function(event) {
-//     console.log('===== SERVICE-WORKER received install event', event)
-// });
-
-// self.addEventListener('activate', function(event) {
-//     console.log('===== SERVICE-WORKER received activate event', event);
-// });
-
-// self.addEventListener('terminate', function(event) {
-//     console.log('===== SERVICE-WORKER received terminate event', event)
-// });
-
-// self.addEventListener('idle', function(event) {
-//     console.log('===== SERVICE-WORKER received idle event', event)
-// });
-
-// chrome.runtime.onInstalled.addListener(() => {
-//     console.log('===== SERVICE-WORKER Installed or updated!');
-// });
-
 // Create a rule that will show the page action when the conditions are met.
 const kMatchRule = {
     // Declare the rule conditions.
@@ -96,25 +72,25 @@ chrome.runtime.onMessage.addListener(
                         ]
                     ]
                 };
-            } else {
-                range = request.vcv_range;
-                body = {
-                    values: [
-                        [
-                            request.vcv,
-                            request.name,
-                            request.vcv_interp,
-                            request.action,
-                            request.reason,
-                            request.notes,
-                            new Date(), // Timestamp
-                            request.variation_id,
-                            request.user_email
-                            // request.override_field,
-                            // request.override_value
-                        ]
-                    ]
-                };
+            // } else {
+            //     range = request.vcv_range;
+            //     body = {
+            //         values: [
+            //             [
+            //                 request.vcv,
+            //                 request.name,
+            //                 request.vcv_interp,
+            //                 request.action,
+            //                 request.reason,
+            //                 request.notes,
+            //                 new Date(), // Timestamp
+            //                 request.variation_id,
+            //                 request.user_email
+            //                 // request.override_field,
+            //                 // request.override_value
+            //             ]
+            //         ]
+            //     };
             }
 
             const url = `${base_url}/${spreadsheet_id}/values/${range}:append?${options}`;
