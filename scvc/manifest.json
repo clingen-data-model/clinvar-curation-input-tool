@@ -1,6 +1,6 @@
 {
     "name": "ClinVar Curator",
-    "version": "2.0.1",
+    "version": "2.0.2",
     "description": "Capture SCV notes from ClinVar variant screen in a google sheet.",
     "manifest_version": 3,
     "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwC5g4vkDlMPFTsByPnG9WI9lY+IPWddES8SK3cxCuBQE5qSdgEgtDhrRLhXSvcIdUUCDwD7JzEPdQ0IhC3APwsKQJPQlDRweZvyFaTJOm6r5Blp3HvLphDuKZQwUoEzMuXK7IAby05kXPZTMSHas+0m00hHoR8ls//tqKoYt7N/lVj6Mry6nSpr5wFU17HPO8MksyxFlNDhu5OYcgOdTNjUiWthjZ8Xxd0ajdaR1QRoqVCQduUTSAzeptQ1+zYZtEX7+HF8jfZqc5BQDa5GoCuDyTvFvQAHl3Phz3zMWpvcGWR3jCMHD5zthiO8NKX+h2fXbGGrYhuwtQmHLWmTAsQIDAQAB",
