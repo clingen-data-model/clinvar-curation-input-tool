@@ -197,11 +197,10 @@ window.addEventListener('DOMContentLoaded', () => {
       'Submission errors': [
         'New submission from submitter that appears to have been intended to update this older submission',
         'Other submission error'],
-      'Inappropriate submissions': [
-        'Clinical significance appears to be a case-level interpretation inconsistent with variant classification'],
-      'Unnecessary conflicting submissions': [
+      'Unnecessary Conflicting or Case-level Interpretation Submissions': [
+        'Clinical significance appears to be a case-level interpretation inconsistent with variant classification',
         'Unnecessary conflicting claim for distinct condition when other classifications are more relevant'],
-      'Lack of contradictory evidence when other submissions show valid evidence': [
+      'Old/Outlier/Unsupported Submissions': [
         'Older claim that does not account for recent evidence',
         'Claim with insufficient supporting evidence',
         'Outlier claim with insufficient supporting evidence',

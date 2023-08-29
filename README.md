@@ -2,6 +2,9 @@
 Chrome extension to allow curators to capture SCV data to a google sheet directly from clinvar website.
 
 ## Release Notes
+### v1.9.8 changes
+* Update Non-contributory category headings (missed in 1.9.7) [#57](https://github.com/clingen-data-model/clinvar-scv-curator-ext/issues/57)
+
 ### v1.9.7 changes
 * Modify text of several Non-contributory reasons (and update historical data to match modified text) [#58](https://github.com/clingen-data-model/clinvar-scv-curator-ext/issues/58)
 * Update Non-contributory action reasons (remove some, modify text of others) [#57](https://github.com/clingen-data-model/clinvar-scv-curator-ext/issues/57)
