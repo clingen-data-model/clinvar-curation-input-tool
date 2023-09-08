@@ -1,5 +1,11 @@
-# clinvar-scv-curator-ext
-Chrome extension to allow curators to capture SCV data to a google sheet directly from clinvar website.
+# clinvar-curation-input-tool
+This repository contains the ClinVar Curation Chrome Extension application and all input and output data designs.
+The chrome extension is used by the ClinGen curation workflow (link) ...
+- The chrome extension scrapes the ClinVar UI html to produce a form that allows the curators to capture actions and reasons related to clinvar submissions (SCVs) that may be in need of re-assessment or removal in the spirit of working to improve the quality of ClinVar data without being fully dependent on submitters to rectify historical anomolies and outdated information.
+- The output of the chrome extension is captured in a secured google sheet that is available to admins associated with this project
+- The google sheet containing these curations is then utilized by the downstream systems to generate QC reports, statitistics and submissions of these curations to be regularly submitted to NCBI clinvar to support the eventual integration into the actual ClinVar dataset.
+
+
 
 ## Release Notes
 ### v2.0.2 changes
