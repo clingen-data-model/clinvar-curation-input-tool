@@ -74,25 +74,7 @@ chrome.extension.onMessage.addListener(
                 request.submitter_id,
                 request.variation_id,
                 request.user_email
-                // request.override_field,
-                // request.override_value
               ]]};
-      // }
-      // else {
-      //   range = request.vcv_range;
-      //   body = {values: [[
-      //           request.vcv,
-      //           request.name,
-      //           request.vcv_interp,
-      //           request.action,
-      //           request.reason,
-      //           request.notes,
-      //           new Date(), // Timestamp
-      //           request.variation_id,
-      //           request.user_email
-      //           // request.override_field,
-      //           // request.override_value
-      //         ]]};
       }
 
       // Append values to the spreadsheet

@@ -71,7 +71,6 @@
           <input type="hidden" id="submitter" name="submitter"/>
           <input type="hidden" id="submitter_id" name="submitter_id"/>
           <input type="hidden" id="subm_date" name="subm_date"/>
-          <input type="hidden" id="condition" name="condition"/>
           <input type="hidden" id="origin" name="origin"/>
           <input type="hidden" id="review" name="review"/>
           <input type="hidden" id="method" name="method"/>
@@ -95,33 +94,9 @@
                  <select id="action" name="action" class="form-control" disabled>
                    <option selected value="">Choose...</option>
                    <option id="no-chg-opt" value="No Change">No Change</option>
-                   <!-- <option id="follow-up-opt" value="Follow Up">Follow Up</option> -->
-                   <option id="non-contrib-opt" value="Non-contributory">Non-contributory</option>
-                   <!-- <option id="override-opt" value="Override">Override</option> -->
+                   <option id="non-contrib-opt" value="Flagging Candidate">Flagging Candidate</option>
                  </select>
               </div>
-
-              <!-- NOTE: commenting out the Override option since rel 1.9.6
-              <div id="override" class="col-sm">
-                <div class="row">
-                 <label for="override-field">Override Field</label>
-                 <select id="override-field" name="override-field" class="form-control" disabled>
-                   <option selected value="">Choose...</option>
-                   <option value="Allele Origin">Allele Origin</option>
-                   <option value="Collection Method">Collection Method</option>
-                   <option value="Condition">Condition</option>
-                   <option value="Inheritance">Inheritance</option>
-                   <option value="Review Status">Review Status</option>
-                   <option value="Significance">Significance</option>
-                   <option value="Other">Other (see notes)...</option>
-                 </select>
-                </div>
-                <div class="row">
-                 <label for="override-value">New Value</label>
-                 <input id="override-value" name="override-value" class="form-control" disabled>
-                </div>
-              </div> 
-              -->
             </div>
           </div>
 

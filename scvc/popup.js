@@ -29,12 +29,6 @@ function setDOMInfo(info) {
   //loop through scvs and add to scvselector
   info.row.forEach( addOptions );
 
-//   // add the vcv to the end of the scvselector to support the "no change" VCV annotation
-//   var vcvOpt = document.createElement("option");
-//   vcvOpt.text = info.vcv + " (" + info.vcv_interp + ")"
-//   vcvOpt.value = info.row.length      // this should be the last
-//   scvselect.add(vcvOpt)
-
   function addOptions(row, index) {
     var option = document.createElement("option");
     option.text = row.scv + " (" +row.interp + ") " + truncateString(row.submitter, 15);
@@ -62,14 +56,11 @@ window.addEventListener('DOMContentLoaded', () => {
         reason: document.getElementById("reason").value,
         notes: document.getElementById("notes").value,
         user_email: "",
-        // override_field: document.getElementById("override-field").value,
-        // override_value: document.getElementById("override-value").value,
         vcv_interp: document.getElementById("vcv_interp").value
       }
 
-      if (!data.scv && !data.vcv) {
+      if (!data.scv) {
         alert("An SCV selection is required. Please select one from the dropdown before submitting.");
-        // document.getElementById('message').innerText = "SCV must be selected first.";
         return;
       }
 
@@ -98,7 +89,6 @@ window.addEventListener('DOMContentLoaded', () => {
         scv       : "",
         subm_date : "",
         submitter_id : "",
-        condition : "",
         origin    : "<i>origin</i>",
         review    : "<i>rev stat</i>",
         method    : "<i>method</i>",
@@ -110,7 +100,6 @@ window.addEventListener('DOMContentLoaded', () => {
       };
 
       var selectedVal = document.getElementById("scvselect").value;
-      var lastSelectVal = document.querySelector('#scvselect option:last-child').value;
 
       if ( !selectedVal ) {
         document.getElementById('scvdisplay').classList.add("text-muted");
@@ -124,32 +113,13 @@ window.addEventListener('DOMContentLoaded', () => {
         document.getElementById('notes').readOnly = true;
         document.getElementById('notes').value = "";
         document.getElementById('non-contrib-opt').disabled = false;
-        // document.getElementById('override-opt').disabled = false;
       }
-    //   else if (selectedVal === lastSelectVal ) {
-    //     selectedRow.vcv_interp = domInfo.vcv_interp;
-    //     selectedRow.vcv_eval_date = domInfo.vcv_eval_date;
-    //     selectedRow.vcv_review = domInfo.vcv_review;
-    //     document.getElementById('scvdisplay').classList.add("text-muted");
-    //     document.getElementById('scvdisplay').classList.add("d-none");
-    //     document.getElementById('vcvdisplay').classList.remove("text-muted");
-    //     document.getElementById('vcvdisplay').classList.remove("d-none");
-    //     document.getElementById('action').disabled = false;
-    //     document.getElementById('action').value = "";
-    //     document.getElementById('reason').disabled = true;
-    //     document.getElementById('reason').value = "";
-    //     document.getElementById('notes').readOnly = false;
-    //     document.getElementById('notes').value = "";
-    //     document.getElementById('non-contrib-opt').disabled = true;
-    //     // document.getElementById('override-opt').disabled = true;
-    //   }
       else {
         let scvRow = domInfo.row[parseInt(selectedVal)];
         selectedRow.submitter = scvRow.submitter;
         selectedRow.scv = scvRow.scv;
         selectedRow.subm_date = scvRow.subm_date;
         selectedRow.submitter_id = scvRow.submitter_id;
-        selectedRow.condition = scvRow.condition;
         selectedRow.origin = scvRow.origin;
         selectedRow.review = scvRow.review;
         selectedRow.method = scvRow.method;
@@ -166,7 +136,6 @@ window.addEventListener('DOMContentLoaded', () => {
         document.getElementById('notes').readOnly = false;
         document.getElementById('notes').value = "";
         document.getElementById('non-contrib-opt').disabled = false;
-        // document.getElementById('override-opt').disabled = false;
       }
       document.getElementById('scv').value = selectedRow.scv;
       document.getElementById('interp').value = selectedRow.interp;
@@ -206,17 +175,8 @@ window.addEventListener('DOMContentLoaded', () => {
         'Outlier claim with insufficient supporting evidence',
         'Conflicts with expert reviewed submission without evidence to support different classification']
     };
-    // var followUpReasonOptions = {
-    //   '': [
-    //     'Send for submitter review',
-    //     'Send for another curator to review',
-    //     'Send for VCEP triage',
-    //     'Send for VCEP full review']
-    // };
     var reasonsByAction = {
-      'Non-contributory': nonContribtoryReasonOptions
-    //   ,
-    //   'Follow Up': followUpReasonOptions
+      'Flagging Candidate': nonContribtoryReasonOptions
     };
 
     function setReasonsByAction(action) {
@@ -262,18 +222,6 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
     var selectedVal = document.getElementById("action").value;
-
-    // NOTE: commenting out the Override option per rel 1.9.6
-    // if ( selectedVal == "Override" ) {
-    //   document.getElementById('override-field').disabled = false;
-    //   document.getElementById('override-value').disabled = false;
-    // }
-    // else {
-    //   document.getElementById('override-field').disabled = true;
-    //   document.getElementById('override-field').value = "";
-    //   document.getElementById('override-value').disabled = true;
-    //   document.getElementById('override-value').value = "";
-    // }
 
     /* populate reason list according to action */
     setReasonsByAction(selectedVal);
