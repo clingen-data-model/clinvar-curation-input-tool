@@ -8,6 +8,11 @@ The chrome extension is used by the ClinGen curation workflow (link) ...
 
 
 ## Release Notes
+### v1.10 changes
+This version required some considerable modifications to deal with the html changes to the ClinVar HTML in handling the new section at the bottom called "Flagged Submissions".
+* Chrome extension broke due to new "Flagged Submission" UI. [#69](https://github.com/clingen-data-model/clinvar-curation-input-tool/issues/69) 
+* In the chrome extension change 'non-contributory' to 'flagging candidate' [#68](https://github.com/clingen-data-model/clinvar-curation-input-tool/issues/68)
+
 ### v2.0.2 changes
 * Updated category headings that were missed in the 2.0.1 release [#57](https://github.com/clingen-data-model/clinvar-scv-curator-ext/issues/57)
 
