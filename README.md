@@ -5,10 +5,10 @@ The chrome extension is used by the ClinGen curation workflow (link) ...
 - The output of the chrome extension is captured in a secured google sheet that is available to admins associated with this project
 - The google sheet containing these curations is then utilized by the downstream systems to generate QC reports, statitistics and submissions of these curations to be regularly submitted to NCBI clinvar to support the eventual integration into the actual ClinVar dataset.
 
-
+This "main" branch is for the v2.x which split from v1.x after 1.9.6.  The latest changes to v1.x can be found in the 1.10 branch.
 
 ## Release Notes
-### v1.10 changes
+### v1.10 changes (see branch 1.10 for code)
 This version required some considerable modifications to deal with the html changes to the ClinVar HTML in handling the new section at the bottom called "Flagged Submissions".
 * Chrome extension broke due to new "Flagged Submission" UI. [#69](https://github.com/clingen-data-model/clinvar-curation-input-tool/issues/69) 
 * In the chrome extension change 'non-contributory' to 'flagging candidate' [#68](https://github.com/clingen-data-model/clinvar-curation-input-tool/issues/68)
