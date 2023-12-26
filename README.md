@@ -2,6 +2,10 @@
 Chrome extension to allow curators to capture SCV data to a google sheet directly from clinvar website.
 
 ## Release Notes
+### v1.11 changes
+* Changed data repository google sheet to prevent user direct access in order to prevent user's from changing data after capture.
+* Fixed bug in capturing submitter name introduced in v1.10.
+
 ### v1.10 changes
 This version required some considerable modifications to deal with the html changes to the ClinVar HTML in handling the new section at the bottom called "Flagged Submissions".
 * Chrome extension broke due to new "Flagged Submission" UI. [#69](https://github.com/clingen-data-model/clinvar-curation-input-tool/issues/69) 
