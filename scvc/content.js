@@ -1,4 +1,5 @@
-const SPREADSHEET_ID = '1pzuWR409vSmoFX9inmoU6el6vjG0SniB1KrxWLeVpaA';
+//const SPREADSHEET_ID = '1pzuWR409vSmoFX9inmoU6el6vjG0SniB1KrxWLeVpaA';
+const SPREADSHEET_ID = '1dUnmBZSnz3aeB948b7pIq0iT7_FuCDvtv6FXaVsNcOo';
 const SCV_RANGE = 'SCVs';
 const VCV_RANGE = 'VCVs';
 
@@ -27,7 +28,7 @@ chrome.runtime.onMessage.addListener((msg, sender, response) => {
     // Collect the necessary data.
     var cond_origin_re = /\W*Allele origin:.*?(\w+([\,\s]+\w+)*)/is;
     var review_method_re = /(practice guideline|reviewed by expert panel|no assertion provided|no interpretation for the single variant|criteria provided, multiple submitters, no conflicts|criteria provided, single submitter|criteria provided, conflicting interpretations|no assertion criteria provided|Flagged submission)\s(Method:\s([\w\,\s]+))*/is;
-    var subm_scv_re = /\W*"https:\/\/www\.ncbi\.nlm\.nih\.gov\/\/clinvar\/submitters\/(\d+)\/">(.+)\<.*?Accession:.*?(SCV\d+\.\d+).*?First in ClinVar:\W(\w+\s\d+\,\s\d+).*?Last updated:.*?(\w+\s\d+\,\s\d+)/is;
+    var subm_scv_re = /\W*"https:\/\/www\.ncbi\.nlm\.nih\.gov\/\/clinvar\/submitters\/(\d+)\/">(.+)<\/a>.*?Accession:.*?(SCV\d+\.\d+).*?First in ClinVar:\W(\w+\s\d+\,\s\d+).*?Last updated:.*?(\w+\s\d+\,\s\d+)/is;
     var interp_re = /\W*(\w+([\s\/\-\,]*\w+)*).*?\(([\w\s\,\-]+)\)/is;
     
     var vcv_interp_re = /Interpretation:.*?<dd.*?>.*?(\w+([\s\/\-\,]*\w+)*)/is;
