@@ -67,36 +67,19 @@ window.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-        chrome.runtime.sendMessage(data, function(response) {
-            if (response.success == false) {
-                console.error("Spreadsheet update failed: " + response.message);
-                alert("Spreadsheet update failed: " + response.message);
-            } else {
-                console.log("Spreadsheet update successful: " + response.message);
-            }
-        });
+      chrome.runtime.sendMessage(data, function(response) {
+        var lastError = chrome.runtime.lastError;
+        if (lastError) {
+            alert('error...'+lastError.message);
+            // 'Could not establish connection. Receiving end does not exist.'
+            return;
+        }
 
-        // chrome.runtime.sendMessage(data, function(response) {
-        //     if (response.success == false) {
-        //         console.log("Spreadsheet update failed: " + response.message);
-        //         alert("Spreadsheet update failed: " + response.message);
-        //     } else {
-        //         console.log("Spreadsheet update successful: " + response.message);
-        //     }
-        // });
+        alert("message response..."+JSON.stringify(response));
+        console.log('response', response);
+      });
 
-        // chrome.runtime.sendMessage(data)
-        //     .then((response) => {
-        //         if (response.success == false) {
-        //             alert("Spreadsheet update failed: " + response.message)
-        //         }
-        //     });
-
-        // this is the equivalent of window.close().
-        // window.close() works when stepping through with the debugger.
-        // window.close() does not work when not in the debugger.
-        // open(location, '_self').close();
-        // setTimeoout(window.close, 2000);
+      window.close();
     });
 
     document.getElementById("scvselect").addEventListener("change", function() {
