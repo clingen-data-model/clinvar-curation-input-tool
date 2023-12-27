@@ -8,10 +8,23 @@ The chrome extension is used by the ClinGen curation workflow (link) ...
 This "main" branch is for the v2.x which split from v1.x after 1.9.6.  The latest changes to v1.x can be found in the 1.10 branch.
 
 ## Release Notes
-### v1.10 changes (see branch 1.10 for code)
+### v1.11 changes
+* Changed data repository google sheet to prevent user direct access in order to prevent user's from changing data after capture.
+* Fixed bug in capturing submitter name introduced in v1.10.
+
+### v1.10 changes
 This version required some considerable modifications to deal with the html changes to the ClinVar HTML in handling the new section at the bottom called "Flagged Submissions".
 * Chrome extension broke due to new "Flagged Submission" UI. [#69](https://github.com/clingen-data-model/clinvar-curation-input-tool/issues/69) 
 * In the chrome extension change 'non-contributory' to 'flagging candidate' [#68](https://github.com/clingen-data-model/clinvar-curation-input-tool/issues/68)
+
+### v1.9.8 changes
+* Update Non-contributory category headings (missed in 1.9.7) [#57](https://github.com/clingen-data-model/clinvar-scv-curator-ext/issues/57)
+
+### v1.9.7 changes
+* Modify text of several Non-contributory reasons (and update historical data to match modified text) [#58](https://github.com/clingen-data-model/clinvar-scv-curator-ext/issues/58)
+* Update Non-contributory action reasons (remove some, modify text of others) [#57](https://github.com/clingen-data-model/clinvar-scv-curator-ext/issues/57)
+* Remove Follow Up option [#57](https://github.com/clingen-data-model/clinvar-scv-curator-ext/issues/57)
+* Remove ability to annotate a VCV [#57](https://github.com/clingen-data-model/clinvar-scv-curator-ext/issues/57)
 
 ### v2.0.2 changes
 * Updated category headings that were missed in the 2.0.1 release [#57](https://github.com/clingen-data-model/clinvar-scv-curator-ext/issues/57)
