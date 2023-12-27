@@ -6,8 +6,8 @@ const VCV_RANGE = 'VCVs';
 // Inform the background page that
 // this tab should have a page-action.
 chrome.runtime.sendMessage({
-  from: 'content',
-  subject: 'showPageAction',
+    from: 'content',
+    subject: 'showPageAction',
 });
 
 // Listen for messages from the popup.
@@ -38,19 +38,19 @@ chrome.runtime.onMessage.addListener((msg, sender, response) => {
     var vcv_accession_re = /Accession:.*?(VCV\d+\.\d+)/is;
     var vcv_variation_id_re = /Variation ID:.*?(\d+)/is;
 
-    var domInfo = {
-      spreadsheet: SPREADSHEET_ID,
-      scv_range: SCV_RANGE,
-      vcv_range: VCV_RANGE,
-      vcv : "",
-      name : "",
-      variation_id : "",
-      vcv_interp : "",
-      vcv_review : "",
-      vcv_most_recent : "",
-      vcv_eval_date : "",
-      row: []
-    };
+        var domInfo = {
+            spreadsheet: SPREADSHEET_ID,
+            scv_range: SCV_RANGE,
+            vcv_range: VCV_RANGE,
+            vcv: "",
+            name: "",
+            variation_id: "",
+            vcv_interp: "",
+            vcv_review: "",
+            vcv_most_recent: "",
+            vcv_eval_date: "",
+            row: []
+        };
 
     var variantBox = document.evaluate(".//div[contains(concat(' ', @class, ' '),' variant-box ')]/dl", document, null, XPathResult.ANY_TYPE, null );
     var variantBoxHTML = variantBox.iterateNext().innerHTML;

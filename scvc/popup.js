@@ -1,8 +1,9 @@
-// Update the relevant fields with the new data.
-
 function setDOMInfo(info) {
 
-  chrome.storage.local.set({'vcvdata': JSON.stringify(info)});
+    // console.log('=====POPUP.JS setDOMInfo DOMInfo:', info, new Date().getTime())
+    chrome.storage.local.set({
+        'vcvdata': JSON.stringify(info)
+    });
 
   document.getElementById('vcv').value = info.vcv;
   document.getElementById('vcv_interp').value = info.vcv_interp;
@@ -17,29 +18,31 @@ function setDOMInfo(info) {
   document.getElementById('vcv_range').value = info.vcv_range;
   // document.getElementById('gsheetlink').href = "https://docs.google.com/spreadsheets/d/"+info.spreadsheet+"/";
 
-  function truncateString(str, num) {
-    if (str.length <= num) {
-      return str
+    function truncateString(str, num) {
+        if (str.length <= num) {
+            return str
+        }
+        return str.slice(0, num) + '...'
     }
-    return str.slice(0, num) + '...'
-  }
 
-  var scvselect = document.getElementById("scvselect");
+    var scvselect = document.getElementById("scvselect");
 
   //loop through scvs and add to scvselector
   info.row.forEach( addOptions );
 
-  function addOptions(row, index) {
-    var option = document.createElement("option");
-    option.text = row.scv + " (" +row.interp + ") " + truncateString(row.submitter, 15);
-    option.value = index;
-    scvselect.add(option);
-  }
+    function addOptions(row, index) {
+        var option = document.createElement("option");
+        option.text = row.scv + " (" + row.interp + ") " + truncateString(row.submitter, 15);
+        option.value = index;
+        scvselect.add(option);
+    }
+
 };
 
 // Once the DOM is ready...
 window.addEventListener('DOMContentLoaded', () => {
-  document.getElementById("annotations").addEventListener("submit", function() {
+    // console.log('=====POPUP.JS DOMContentLoded window listener:', new Date().getTime())
+    document.getElementById("annotations").addEventListener("submit", function() {
 
       var data = {
         spreadsheet: document.getElementById("spreadsheet").value,
@@ -64,25 +67,42 @@ window.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      chrome.runtime.sendMessage(data, function(response) {
-        var lastError = chrome.runtime.lastError;
-        if (lastError) {
-            alert('error...'+lastError.message);
-            // 'Could not establish connection. Receiving end does not exist.'
-            return;
-        }
+        chrome.runtime.sendMessage(data, function(response) {
+            if (response.success == false) {
+                console.error("Spreadsheet update failed: " + response.message);
+                alert("Spreadsheet update failed: " + response.message);
+            } else {
+                console.log("Spreadsheet update successful: " + response.message);
+            }
+        });
 
-        alert("message response..."+JSON.stringify(response));
-        console.log('response', response);
-      });
+        // chrome.runtime.sendMessage(data, function(response) {
+        //     if (response.success == false) {
+        //         console.log("Spreadsheet update failed: " + response.message);
+        //         alert("Spreadsheet update failed: " + response.message);
+        //     } else {
+        //         console.log("Spreadsheet update successful: " + response.message);
+        //     }
+        // });
 
-      window.close();
-  });
+        // chrome.runtime.sendMessage(data)
+        //     .then((response) => {
+        //         if (response.success == false) {
+        //             alert("Spreadsheet update failed: " + response.message)
+        //         }
+        //     });
 
-  document.getElementById("scvselect").addEventListener("change", function() {
+        // this is the equivalent of window.close().
+        // window.close() works when stepping through with the debugger.
+        // window.close() does not work when not in the debugger.
+        // open(location, '_self').close();
+        // setTimeoout(window.close, 2000);
+    });
 
-    chrome.storage.local.get("vcvdata", function(result) {
-      domInfo = JSON.parse(result.vcvdata);
+    document.getElementById("scvselect").addEventListener("change", function() {
+        // console.log('=====POPUP.JS scvselect event listener:', new Date().getTime())
+        chrome.storage.local.get("vcvdata", function(result) {
+            domInfo = JSON.parse(result.vcvdata);
 
       var selectedRow = {
         submitter : "<i>no submitter selected</i>",
@@ -179,86 +199,87 @@ window.addEventListener('DOMContentLoaded', () => {
       'Flagging Candidate': nonContribtoryReasonOptions
     };
 
-    function setReasonsByAction(action) {
-      var reason = document.getElementById('reason');
+        function setReasonsByAction(action) {
+            var reason = document.getElementById('reason');
 
-      // reset
-      reason.innerHTML = "";
-      var opt1 = document.createElement("option");
-      opt1.text = 'Choose...';
-      opt1.value = "";
-      opt1.selected = true;
-      reason.add( opt1 );
+            // reset
+            reason.innerHTML = "";
+            var opt1 = document.createElement("option");
+            opt1.text = 'Choose...';
+            opt1.value = "";
+            opt1.selected = true;
+            reason.add(opt1);
 
-      //loop through reasonsByAction and add options reason selector
-      if (reasonsByAction[action])
-        Object.entries(reasonsByAction[action]).forEach( addOptGroup );
+            //loop through reasonsByAction and add options reason selector
+            if (reasonsByAction[action])
+                Object.entries(reasonsByAction[action]).forEach(addOptGroup);
 
-      // add "other"
-      var opt2 = document.createElement("option");
-      opt2.text = "Other";
-      opt2.value = "Other";
-      reason.add( opt2 );
+            // add "other"
+            var opt2 = document.createElement("option");
+            opt2.text = "Other";
+            opt2.value = "Other";
+            reason.add(opt2);
 
-      function addOptGroup(grp, index) {
-        var optgroup;
+            function addOptGroup(grp, index) {
+                var optgroup;
 
-        if (grp[0]) {
-          optgroup = document.createElement("optgroup");
-          optgroup.label = grp[0];
-          reason.add( optgroup );
+                if (grp[0]) {
+                    optgroup = document.createElement("optgroup");
+                    optgroup.label = grp[0];
+                    reason.add(optgroup);
+                }
+
+                for (let i = 0; i < grp[1].length; i++) {
+                    var option = document.createElement("option");
+                    option.text = grp[1][i];
+                    option.value = grp[1][i];
+                    if (optgroup)
+                        optgroup.appendChild(option);
+                    else
+                        reason.add(option);
+                }
+            }
         }
-
-        for (let i = 0; i < grp[1].length; i++) {
-          var option = document.createElement("option");
-          option.text = grp[1][i];
-          option.value = grp[1][i];
-          if (optgroup)
-            optgroup.appendChild( option );
-          else
-            reason.add( option );
-        }
-      }
-    }
 
     var selectedVal = document.getElementById("action").value;
 
-    /* populate reason list according to action */
-    setReasonsByAction(selectedVal);
+        /* populate reason list according to action */
+        setReasonsByAction(selectedVal);
 
-    if ( selectedVal != "" ) {
-      document.getElementById('reason').disabled = false;
+        if (selectedVal != "") {
+            document.getElementById('reason').disabled = false;
+        } else {
+            document.getElementById('reason').disabled = true;
+            document.getElementById('reason').value = "";
+        }
+        return true;
+    });
+
+    function initializeContent(tabs) {
+        tabId = tabs[0].id;
+        chrome.tabs.sendMessage(
+            tabs[0].id, {
+                from: 'popup',
+                subject: 'DOMInfo'
+            },
+            (domInfo) => {
+                // console.log('=====POPUP.JS initializeContent DOMInfo:', domInfo, new Date().getTime())
+                if (!chrome.runtime.lastError) {
+                    // do you work, that's it. No more unchecked error
+                    setDOMInfo(domInfo);
+                } else {
+                    alert("reload tab, connection lost\n" + chrome.runtime.lastError.message);
+                    window.close();
+                }
+            });
     }
-    else {
-      document.getElementById('reason').disabled = true;
-      document.getElementById('reason').value = "";
-    }
 
-  });
-
-  function initializeContent(tabs) {
-    chrome.tabs.sendMessage(
-        tabs[0].id,
-        {from: 'popup', subject: 'DOMInfo'},
-        (domInfo) => {
-          if (!chrome.runtime.lastError) {
-            // do you work, that's it. No more unchecked error
-            setDOMInfo(domInfo);
-          } else {
-            alert("reload tab, connection lost\n"+chrome.runtime.lastError.message);
-            window.close();
-          }
-        });
-  }
-
-  // ...query for the active tab...
-  chrome.tabs.query({
-    active: true,
-    currentWindow: true
-  }, tabs => {
-    // ...and send a request for the DOM info...
-    initializeContent(tabs);
-  });
-
-
+    // ...query for the active tab...
+    chrome.tabs.query({
+        active: true,
+        currentWindow: true
+    }, tabs => {
+        // ...and send a request for the DOM info...
+        initializeContent(tabs);
+    });
 });

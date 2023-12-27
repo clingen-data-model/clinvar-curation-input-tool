@@ -1,5 +1,11 @@
-# clinvar-scv-curator-ext
-Chrome extension to allow curators to capture SCV data to a google sheet directly from clinvar website.
+# clinvar-curation-input-tool
+This repository contains the ClinVar Curation Chrome Extension application and all input and output data designs.
+The chrome extension is used by the ClinGen curation workflow (link) ...
+- The chrome extension scrapes the ClinVar UI html to produce a form that allows the curators to capture actions and reasons related to clinvar submissions (SCVs) that may be in need of re-assessment or removal in the spirit of working to improve the quality of ClinVar data without being fully dependent on submitters to rectify historical anomolies and outdated information.
+- The output of the chrome extension is captured in a secured google sheet that is available to admins associated with this project
+- The google sheet containing these curations is then utilized by the downstream systems to generate QC reports, statitistics and submissions of these curations to be regularly submitted to NCBI clinvar to support the eventual integration into the actual ClinVar dataset.
+
+This "main" branch is for the v2.x which split from v1.x after 1.9.6.  The latest changes to v1.x can be found in the 1.10 branch.
 
 ## Release Notes
 ### v1.11 changes
@@ -19,6 +25,18 @@ This version required some considerable modifications to deal with the html chan
 * Update Non-contributory action reasons (remove some, modify text of others) [#57](https://github.com/clingen-data-model/clinvar-scv-curator-ext/issues/57)
 * Remove Follow Up option [#57](https://github.com/clingen-data-model/clinvar-scv-curator-ext/issues/57)
 * Remove ability to annotate a VCV [#57](https://github.com/clingen-data-model/clinvar-scv-curator-ext/issues/57)
+
+### v2.0.2 changes
+* Updated category headings that were missed in the 2.0.1 release [#57](https://github.com/clingen-data-model/clinvar-scv-curator-ext/issues/57)
+
+### v2.0.1 changes
+* Modify text of several Non-contributory reasons (and update historical data to match modified text) [#58](https://github.com/clingen-data-model/clinvar-scv-curator-ext/issues/58)
+* Update Non-contributory action reasons (remove some, modify text of others) [#57](https://github.com/clingen-data-model/clinvar-scv-curator-ext/issues/57)
+* Remove Follow Up option [#57](https://github.com/clingen-data-model/clinvar-scv-curator-ext/issues/57)
+* Remove ability to annotate a VCV [#57](https://github.com/clingen-data-model/clinvar-scv-curator-ext/issues/57)
+
+### v2.0 changes
+* Update the chrome extension manifest from v2 to v3.
 
 ### v1.9.6 changes
 * Remove the non-contributory reason "VUS/LB/B claim when a mutually exclusive disease association is P/LP" [#42](https://github.com/clingen-data-model/clinvar-scv-curator-ext/issues/42)
