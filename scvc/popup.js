@@ -4,7 +4,6 @@ function setDOMInfo(info) {
     chrome.storage.local.set({
         'vcvdata': JSON.stringify(info)
     });
-
   document.getElementById('vcv').value = info.vcv;
   document.getElementById('vcv_interp').value = info.vcv_interp;
   document.getElementById('vcv_review').value = info.vcv_review;
@@ -16,7 +15,6 @@ function setDOMInfo(info) {
   document.getElementById('spreadsheet').value = info.spreadsheet;
   document.getElementById('scv_range').value = info.scv_range;
   document.getElementById('vcv_range').value = info.vcv_range;
-  // document.getElementById('gsheetlink').href = "https://docs.google.com/spreadsheets/d/"+info.spreadsheet+"/";
 
     function truncateString(str, num) {
         if (str.length <= num) {
@@ -36,7 +34,6 @@ function setDOMInfo(info) {
         option.value = index;
         scvselect.add(option);
     }
-
 };
 
 // Once the DOM is ready...

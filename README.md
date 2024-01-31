@@ -5,9 +5,10 @@ The chrome extension is used by the ClinGen curation workflow (link) ...
 - The output of the chrome extension is captured in a secured google sheet that is available to admins associated with this project
 - The google sheet containing these curations is then utilized by the downstream systems to generate QC reports, statitistics and submissions of these curations to be regularly submitted to NCBI clinvar to support the eventual integration into the actual ClinVar dataset.
 
-This "main" branch is for the v2.x which split from v1.x after 1.9.6.  The latest changes to v1.x can be found in the 1.10 branch.
-
 ## Release Notes
+### v1.12 changes
+* Reworked extension to find data in new UI released by ClinVar on Jan 29, 2024. [#72](https://github.com/clingen-data-model/clinvar-curation-input-tool/issues/72)
+
 ### v1.11 changes
 * Changed data repository google sheet to prevent user direct access in order to prevent user's from changing data after capture.
 * Fixed bug in capturing submitter name introduced in v1.10.
