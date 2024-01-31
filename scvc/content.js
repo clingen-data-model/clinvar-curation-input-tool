@@ -24,7 +24,6 @@ chrome.runtime.onMessage.addListener((msg, sender, response) => {
       }
       return result[grp];
     }
-
     // Collect the necessary data.
     var cond_origin_re = /\W*Allele origin:.*?(\w+([\,\s]+\w+)*)/is;
     var review_method_re = /(practice guideline|reviewed by expert panel|no assertion provided|no interpretation for the single variant|criteria provided, multiple submitters, no conflicts|criteria provided, single submitter|criteria provided, conflicting interpretations|no assertion criteria provided|Flagged submission).*?Method:.*?([\w\,\s]+)*/is;
@@ -72,6 +71,7 @@ chrome.runtime.onMessage.addListener((msg, sender, response) => {
     function myFunction(value, index, array) {
       var interp_match = value.cells[0].innerHTML.match(interp_re);
       var review_method_match = value.cells[1].innerHTML.match(review_method_re);
+
       var cond_origin_match = value.cells[2].innerHTML.match(cond_origin_re);
       var subm_scv_match = value.cells[3].innerHTML.match(subm_scv_re);
 

@@ -15,7 +15,7 @@ function setDOMInfo(info) {
   document.getElementById('spreadsheet').value = info.spreadsheet;
   document.getElementById('scv_range').value = info.scv_range;
   document.getElementById('vcv_range').value = info.vcv_range;
-  
+
     function truncateString(str, num) {
         if (str.length <= num) {
             return str
