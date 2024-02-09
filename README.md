@@ -6,6 +6,9 @@ The chrome extension is used by the ClinGen curation workflow (link) ...
 - The google sheet containing these curations is then utilized by the downstream systems to generate QC reports, statitistics and submissions of these curations to be regularly submitted to NCBI clinvar to support the eventual integration into the actual ClinVar dataset.
 
 ## Release Notes
+### v1.12.1 changes
+* Patched bug due to introduction of changed terms in ClinVar review_status' on Jan 29, 2024. `no assertion provided` was changed to `no classification provided`.
+
 ### v1.12 changes
 * Reworked extension to find data in new UI released by ClinVar on Jan 29, 2024. [#72](https://github.com/clingen-data-model/clinvar-curation-input-tool/issues/72)
 
