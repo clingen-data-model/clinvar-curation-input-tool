@@ -26,7 +26,7 @@ chrome.runtime.onMessage.addListener((msg, sender, response) => {
     }
     // Collect the necessary data.
     var cond_origin_re = /\W*Allele origin:.*?(\w+([\,\s]+\w+)*)/is;
-    var review_method_re = /(practice guideline|reviewed by expert panel|no assertion provided|no interpretation for the single variant|criteria provided, multiple submitters, no conflicts|criteria provided, single submitter|criteria provided, conflicting interpretations|no assertion criteria provided|Flagged submission).*?Method:.*?([\w\,\s]+)*/is;
+    var review_method_re = /(practice guideline|reviewed by expert panel|no assertion provided|no interpretation for the single variant|criteria provided, multiple submitters, no conflicts|criteria provided, single submitter|criteria provided, conflicting interpretations|no assertion criteria provided|no classification provided|Flagged submission).*?Method:.*?([\w\,\s]+)*/is;
     var subm_scv_re = /\W*"https:\/\/www\.ncbi\.nlm\.nih\.gov\/\/clinvar\/submitters\/(\d+)\/">(.+)<\/a>.*?Accession:.*?(SCV\d+\.\d+).*?First in ClinVar:\W(\w+\s\d+\,\s\d+).*?Last updated:.*?(\w+\s\d+\,\s\d+)/is;
     var interp_re = /\W*<div.*?<div.*?(\w+([\s\/\-\,]*\w+)*).*?\(([\w\s\,\-]+)\)/is;
     
