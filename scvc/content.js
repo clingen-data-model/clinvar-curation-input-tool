@@ -27,7 +27,7 @@ chrome.runtime.onMessage.addListener((msg, sender, response) => {
     // Collect the necessary data.
     var cond_origin_re = /\W*Allele origin:.*?(\w+([\,\s]+\w+)*)/is;
     var review_method_re = /(practice guideline|reviewed by expert panel|no assertion provided|no interpretation for the single variant|criteria provided, multiple submitters, no conflicts|criteria provided, single submitter|criteria provided, conflicting interpretations|no assertion criteria provided|no classification provided|Flagged submission).*?Method:.*?([\w\,\s]+)*/is;
-    var subm_scv_re = /\W*"https:\/\/www\.ncbi\.nlm\.nih\.gov\/\/clinvar\/submitters\/(\d+)\/">(.+)<\/a>.*?Accession:.*?(SCV\d+\.\d+).*?First in ClinVar:\W(\w+\s\d+\,\s\d+).*?Last updated:.*?(\w+\s\d+\,\s\d+)/is;
+    var subm_scv_re = /\W*\/clinvar\/submitters\/(\d+)\/".*>(.+)<\/a>.*?Accession:.*?(SCV\d+\.\d+).*?First in ClinVar:\W(\w+\s\d+\,\s\d+).*?Last updated:.*?(\w+\s\d+\,\s\d+)/is;
     var interp_re = /\W*<div.*?<div.*?(\w+([\s\/\-\,]*\w+)*).*?\(([\w\s\,\-]+)\)/is;
     
     var vcv_interp_re = /\W*<div class="single-item-value">.*?(\w+([\s\/\-\,]*\w+)*)/is;
@@ -72,7 +72,7 @@ chrome.runtime.onMessage.addListener((msg, sender, response) => {
       var interp_match = value.cells[0].innerHTML.match(interp_re);
       var review_method_match = value.cells[1].innerHTML.match(review_method_re);
 
-      var cond_origin_match = value.cells[2].innerHTML.match(cond_origin_re);
+      var cond_origin_match = value.cells[2].innerHTML.match(cond_origin_re);      // alert(value.cells[3].innerHTML);
       var subm_scv_match = value.cells[3].innerHTML.match(subm_scv_re);
 
       domInfo.row.push({
