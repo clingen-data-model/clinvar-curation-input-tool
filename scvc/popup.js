@@ -69,7 +69,7 @@ window.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      if (data.action = "Flagging Candidate" && !data.reason) {
+      if (data.action == "Flagging Candidate" && !data.reason) {
         alert("A reason is required for Flagging Candidates. Please select one from the dropdown before submitting.");
         return;
       }
