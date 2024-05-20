@@ -64,6 +64,16 @@ window.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
+      if (!data.action) {
+        alert("An action is required. Please select one from the dropdown before submitting.");
+        return;
+      }
+
+      if (data.action = "Flagging Candidate" && !data.reason) {
+        alert("A reason is required for Flagging Candidates. Please select one from the dropdown before submitting.");
+        return;
+      }
+
       chrome.runtime.sendMessage(data, function(response) {
         var lastError = chrome.runtime.lastError;
         if (lastError) {
