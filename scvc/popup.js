@@ -170,6 +170,7 @@ window.addEventListener('DOMContentLoaded', () => {
         'Clinical significance appears to be a case-level interpretation inconsistent with variant classification',
         'Unnecessary conflicting claim for distinct condition when other classifications are more relevant'],
       'Old/Outlier/Unsupported Submissions': [
+        'Older and outlier claim with insufficient supporting evidence',
         'Older claim that does not account for recent evidence',
         'Claim with insufficient supporting evidence',
         'Outlier claim with insufficient supporting evidence',
