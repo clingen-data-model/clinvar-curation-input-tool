@@ -7,6 +7,9 @@ The chrome extension is used by the ClinGen curation workflow (link) ...
 
 ## Release Notes
 
+### v1.13 changes
+* Added new combo flagging candidate reason 'Older and Outlier claim with insufficient supporting evidence'.
+
 ### v1.12.2 bug fix
 * Patched a bug causing the inability to read the SCV data in the Submitter column. This was introduced by a change in the underlying ClinVar UI during the 2/21/2024 release.
 
