@@ -52,7 +52,7 @@ chrome.runtime.onMessage.addListener((msg, sender, response) => {
     
     var variantBox = document.evaluate("//div[@id='new-variant-details']//dl", document, null, XPathResult.ANY_TYPE, null );
     var variantBoxHTML = variantBox.iterateNext().innerHTML;
-    var germlineBox = document.evaluate("//div[@class='germline-section']/div[3]", document, null, XPathResult.ANY_TYPE, null );
+    var germlineBox = document.evaluate("//div[@class='germline-section']/div[2]", document, null, XPathResult.ANY_TYPE, null );
     var germlineBoxHTML = germlineBox.iterateNext().innerHTML;
 
     domInfo.name            = document.querySelectorAll('#variant-details-table div div dl dd p')[0].innerText;
