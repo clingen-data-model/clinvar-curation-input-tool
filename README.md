@@ -7,6 +7,9 @@ The chrome extension is used by the ClinGen curation workflow (link) ...
 
 ## Release Notes
 
+### v1.14
+* Fixed very minor bug introduced by a ClinVar UI html change to the VCV Germline DIV element. This minor change was introduced by ClinVar on 6/3/2024 and impacted the vcv_revstat and vcv_interp matching logic in content.js.
+
 ### v1.13 changes
 * Added new combo flagging candidate reason 'Older and Outlier claim with insufficient supporting evidence'.
 * Added requirement check that an action is selected.
