@@ -27,11 +27,8 @@ chrome.runtime.onMessage.addListener((msg, sender, response) => {
     // Collect the necessary data.
     var cond_origin_re = /\W*Allele origin:.*?(\w+([\,\s]+\w+)*)/is;
     var review_method_re = /(practice guideline|reviewed by expert panel|no assertion provided|no interpretation for the single variant|criteria provided, multiple submitters, no conflicts|criteria provided, single submitter|criteria provided, conflicting interpretations|no assertion criteria provided|no classification provided|Flagged submission).*?Method:.*?([\w\,\s]+)*/is;
-    var subm_scv_re = /\W*\/clinvar\/submitters\/(\d+)\/".*>(.+)<\/a>.*?Accession:.*?(SCV\d+\.\d+).*?First in ClinVar:\W(\w+\s\d+\,\s\d+).*?Last updated:.*?(\w+\s\d+\,\s\d+)/is;
+    var subm_scv_re = /\W*\/clinvar\/submitters\/(\d+)\/".*?>(.+?)<\/a>.*?Accession:.*?(SCV\d+\.\d+).*?First in ClinVar:\W(\w+\s\d+\,\s\d+).*?Last updated:.*?(\w+\s\d+\,\s\d+)/is;
     var interp_re = /\W*<div.*?<div.*?(\w+([\s\/\-\,]*\w+)*).*?\(([\w\s\,\-]+)\)/is;
-    
-    var vcv_interp_re = /\W*<div class="single-item-value">.*?(\w+([\s\/\-\,]*\w+)*)/is;
-    var vcv_revstat_re = /\W*<div class="section-cnt">.*?<span>.*?(\w+([\s\/\-\,]*\w+)*)/is;
     
     var vcv_accession_re = /Accession:.*?(VCV\d+\.\d+)/is;
     var vcv_variation_id_re = /Variation ID:.*?(\d+)/is;
@@ -52,14 +49,35 @@ chrome.runtime.onMessage.addListener((msg, sender, response) => {
     
     var variantBox = document.evaluate("//div[@id='new-variant-details']//dl", document, null, XPathResult.ANY_TYPE, null );
     var variantBoxHTML = variantBox.iterateNext().innerHTML;
-    var germlineBox = document.evaluate("//div[@class='germline-section']/div[2]", document, null, XPathResult.ANY_TYPE, null );
-    var germlineBoxHTML = germlineBox.iterateNext().innerHTML;
+
+    // for 3 and 4 start vcvs the review status and classification are found with the following
+    var vcvClassificationText = document.evaluate("//div[@class='germline-section']//div[@class='classi-text']", document, null, XPathResult.ANY_TYPE, null );  
+    var vcvReviewStatus = document.evaluate("//div[@class='germline-section']//div[@class='review-text']", document, null, XPathResult.ANY_TYPE, null );
+
+    var vcvClassificationTextNode = vcvClassificationText.iterateNext();
+    var vcvReviewStatusNode = vcvReviewStatus.iterateNext();
+
+    if (!vcvClassificationTextNode) {
+      // for 2 star and below the vcvs review status and classifiction are found with the following
+      vcvClassificationText = document.evaluate("//div[@class='germline-section']//div[@class='single-item-value']", document, null, XPathResult.ANY_TYPE, null );
+      vcvReviewStatus = document.evaluate("//div[@class='germline-section']//div[@class='section-cnt']//span", document, null, XPathResult.ANY_TYPE, null );  
+      vcvClassificationTextNode = vcvClassificationText.iterateNext();
+      vcvReviewStatusNode = vcvReviewStatus.iterateNext();
+    }
+    
+    if (!vcvClassificationTextNode) {
+      // for vcv with no germline scvs there is no classification and review status
+      vcvClassificationText = document.evaluate("//div[@class='germline-section']/p[@class='without-classification']", document, null, XPathResult.ANY_TYPE, null );
+      vcvReviewStatus = document.evaluate("//div[@class='germline-section']/p[@class='without-classification']", document, null, XPathResult.ANY_TYPE, null );  
+      vcvClassificationTextNode = vcvClassificationText.iterateNext();
+      vcvReviewStatusNode = vcvReviewStatus.iterateNext();
+    }
 
     domInfo.name            = document.querySelectorAll('#variant-details-table div div dl dd p')[0].innerText;
     domInfo.vcv             = getMatch(variantBoxHTML, vcv_accession_re, 1);
     domInfo.variation_id    = getMatch(variantBoxHTML, vcv_variation_id_re, 1);
-    domInfo.vcv_review      = getMatch(germlineBoxHTML, vcv_revstat_re, 1);
-    domInfo.vcv_interp      = getMatch(germlineBoxHTML, vcv_interp_re, 1);
+    domInfo.vcv_review      = vcvReviewStatusNode.textContent.trim();
+    domInfo.vcv_interp      = vcvClassificationTextNode.textContent.trim();
 
     var timelineArray = document.querySelectorAll('table.timeline-table tbody tr td');
     domInfo.vcv_most_recent = timelineArray[2].innerHTML;

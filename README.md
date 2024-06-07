@@ -7,6 +7,9 @@ The chrome extension is used by the ClinGen curation workflow (link) ...
 
 ## Release Notes
 
+### v1.15
+* Fixed addeition minor UI changes related to EP and PG related VCVs from the 03.Jun.24 HTML updates from clinvar. see bug [#83](https://github.com/clingen-data-model/clinvar-curation-input-tool/issues/83) for more info.
+
 ### v1.14
 * Fixed very minor bug introduced by a ClinVar UI html change to the VCV Germline DIV element. This minor change was introduced by ClinVar on 6/3/2024 and impacted the vcv_revstat and vcv_interp matching logic in content.js.
 
