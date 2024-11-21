@@ -73,7 +73,8 @@ chrome.extension.onMessage.addListener(
                 new Date(), // Timestamp
                 request.submitter_id,
                 request.variation_id,
-                request.user_email
+                request.user_email,
+                request.review_status
               ]]};
       }
 
