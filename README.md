@@ -7,6 +7,10 @@ The chrome extension is used by the ClinGen curation workflow (link) ...
 
 ## Release Notes
 
+### v1.16
+* Issue #89 - add new flagging candidate reason resulting from discordance project
+* Issue #90 - add new 'Remove Flagged Submission' action
+
 ### v1.15
 * Fixed addeition minor UI changes related to EP and PG related VCVs from the 03.Jun.24 HTML updates from clinvar. see bug [#83](https://github.com/clingen-data-model/clinvar-curation-input-tool/issues/83) for more info.
 
