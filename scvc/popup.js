@@ -56,7 +56,8 @@ window.addEventListener('DOMContentLoaded', () => {
         reason: document.getElementById("reason").value,
         notes: document.getElementById("notes").value,
         user_email: "",
-        vcv_interp: document.getElementById("vcv_interp").value
+        vcv_interp: document.getElementById("vcv_interp").value,
+        review_status: document.getElementById("review").value
       }
 
       if (!data.scv) {
@@ -69,8 +70,8 @@ window.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      if (data.action == "Flagging Candidate" && !data.reason) {
-        alert("A reason is required for Flagging Candidates. Please select one from the dropdown before submitting.");
+      if (data.action != "No Change" && !data.reason) {
+        alert(`A reason is required for '{data.action}'. Please select one from the dropdown before submitting.`);
         return;
       }
 
@@ -172,7 +173,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById("action").addEventListener("change", function() {
 
-    var nonContribtoryReasonOptions = {
+    var flaggingCandidateReasonOptions = {
       'Submission errors': [
         'New submission from submitter that appears to have been intended to update this older submission',
         'Other submission error'],
@@ -184,53 +185,63 @@ window.addEventListener('DOMContentLoaded', () => {
         'Older claim that does not account for recent evidence',
         'Claim with insufficient supporting evidence',
         'Outlier claim with insufficient supporting evidence',
-        'Conflicts with expert reviewed submission without evidence to support different classification']
+        'Conflicts with expert reviewed submission without evidence to support different classification',
+        'P/LP classification for a variant in a gene with insufficient evidence for a gene-disease relationship']
+    };
+    var flaggedSubmissionReasonOptions = {
+      '':[
+        'Other SCVs submitted for VCV record',
+        'Gene-disease relationship classification has changed',
+        'Discussion with submitter',
+        'Curation error'
+      ]
     };
     var reasonsByAction = {
-      'Flagging Candidate': nonContribtoryReasonOptions
+      'Flagging Candidate': flaggingCandidateReasonOptions,
+      'Remove Flagged Submission': flaggedSubmissionReasonOptions,
     };
 
-        function setReasonsByAction(action) {
-            var reason = document.getElementById('reason');
+    function setReasonsByAction(action) {
+        var reason = document.getElementById('reason');
 
-            // reset
-            reason.innerHTML = "";
-            var opt1 = document.createElement("option");
-            opt1.text = 'Choose...';
-            opt1.value = "";
-            opt1.selected = true;
-            reason.add(opt1);
+        // reset
+        reason.innerHTML = "";
+        var opt1 = document.createElement("option");
+        opt1.text = 'Choose...';
+        opt1.value = "";
+        opt1.selected = true;
+        reason.add(opt1);
 
-            //loop through reasonsByAction and add options reason selector
-            if (reasonsByAction[action])
-                Object.entries(reasonsByAction[action]).forEach(addOptGroup);
+        //loop through reasonsByAction and add options reason selector
+        if (reasonsByAction[action])
+            Object.entries(reasonsByAction[action]).forEach(addOptGroup);
 
-            // add "other"
-            var opt2 = document.createElement("option");
-            opt2.text = "Other";
-            opt2.value = "Other";
-            reason.add(opt2);
+        // add "other"
+        var opt2 = document.createElement("option");
+        opt2.text = "Other";
+        opt2.value = "Other";
+        reason.add(opt2);
 
-            function addOptGroup(grp, index) {
-                var optgroup;
+        function addOptGroup(grp, index) {
+            var optgroup;
 
-                if (grp[0]) {
-                    optgroup = document.createElement("optgroup");
-                    optgroup.label = grp[0];
-                    reason.add(optgroup);
-                }
+            if (grp[0]) {
+                optgroup = document.createElement("optgroup");
+                optgroup.label = grp[0];
+                reason.add(optgroup);
+            }
 
-                for (let i = 0; i < grp[1].length; i++) {
-                    var option = document.createElement("option");
-                    option.text = grp[1][i];
-                    option.value = grp[1][i];
-                    if (optgroup)
-                        optgroup.appendChild(option);
-                    else
-                        reason.add(option);
-                }
+            for (let i = 0; i < grp[1].length; i++) {
+                var option = document.createElement("option");
+                option.text = grp[1][i];
+                option.value = grp[1][i];
+                if (optgroup)
+                    optgroup.appendChild(option);
+                else
+                    reason.add(option);
             }
         }
+    }
 
     var selectedVal = document.getElementById("action").value;
 
