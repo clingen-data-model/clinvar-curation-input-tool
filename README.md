@@ -7,6 +7,12 @@ The chrome extension is used by the ClinGen curation workflow (link) ...
 
 ## Release Notes
 
+### v3.0
+* This is a combination of merging and modifying v1.16 and v2.0.2 below.
+* Major update to the internal code and configuration based on Google chrome extension manifest v3 specifications.
+* Removal and replacement of Google API (GAPI) which is no longer supported.
+* Internal code refactoring and improvements for more reliable error handling.
+
 ### v1.16
 * Issue #89 - add new flagging candidate reason resulting from discordance project
 * Issue #90 - add new 'Remove Flagged Submission' action
