@@ -40,38 +40,19 @@ function extractClinVarData() {
         vcv_eval_date: "",
         row: []
     };
-      
+
+    var vcvClassificationText = document.evaluate("//div[@class='germline-section']//div[@class='single-item-value']/text()", document, null, XPathResult.STRING_TYPE, null).stringValue.trim();
+    var vcvReviewStatus = document.evaluate("//div[@class='germline-section']//div[@id='germline-stars-icon']/p/text()", document, null, XPathResult.STRING_TYPE, null).stringValue.trim();
+    vcvReviewStatus = vcvReviewStatus.replace(/\.$/g, '');
+
     var variantBox = document.evaluate("//div[@id='new-variant-details']//dl", document, null, XPathResult.ANY_TYPE, null );
     var variantBoxHTML = variantBox.iterateNext().innerHTML;
-
-    // for 3 and 4 start vcvs the review status and classification are found with the following
-    var vcvClassificationText = document.evaluate("//div[@class='germline-section']//div[@class='classi-text']", document, null, XPathResult.ANY_TYPE, null );  
-    var vcvReviewStatus = document.evaluate("//div[@class='germline-section']//div[@class='review-text']", document, null, XPathResult.ANY_TYPE, null );
-
-    var vcvClassificationTextNode = vcvClassificationText.iterateNext();
-    var vcvReviewStatusNode = vcvReviewStatus.iterateNext();
-  
-    if (!vcvClassificationTextNode) {
-        // for 2 star and below the vcvs review status and classifiction are found with the following
-        vcvClassificationText = document.evaluate("//div[@class='germline-section']//div[@class='single-item-value']", document, null, XPathResult.ANY_TYPE, null );
-        vcvReviewStatus = document.evaluate("//div[@class='germline-section']//div[@class='section-cnt']//span", document, null, XPathResult.ANY_TYPE, null );  
-        vcvClassificationTextNode = vcvClassificationText.iterateNext();
-        vcvReviewStatusNode = vcvReviewStatus.iterateNext();
-    }
-
-    if (!vcvClassificationTextNode) {
-        // for vcv with no germline scvs there is no classification and review status
-        vcvClassificationText = document.evaluate("//div[@class='germline-section']/p[@class='without-classification']", document, null, XPathResult.ANY_TYPE, null );
-        vcvReviewStatus = document.evaluate("//div[@class='germline-section']/p[@class='without-classification']", document, null, XPathResult.ANY_TYPE, null );  
-        vcvClassificationTextNode = vcvClassificationText.iterateNext();
-        vcvReviewStatusNode = vcvReviewStatus.iterateNext();
-    }
   
     clinvarData.name            = document.querySelectorAll('#variant-details-table div div dl dd p')[0].innerText;
     clinvarData.vcv             = getMatch(variantBoxHTML, vcv_accession_re, 1);
     clinvarData.variation_id    = getMatch(variantBoxHTML, vcv_variation_id_re, 1);
-    clinvarData.vcv_review      = vcvReviewStatusNode.textContent.trim();
-    clinvarData.vcv_interp      = vcvClassificationTextNode.textContent.trim();
+    clinvarData.vcv_review      = vcvReviewStatus;
+    clinvarData.vcv_interp      = vcvClassificationText;
   
     var timelineArray = document.querySelectorAll('table.timeline-table tbody tr td');
     clinvarData.vcv_most_recent = timelineArray[2].innerHTML;

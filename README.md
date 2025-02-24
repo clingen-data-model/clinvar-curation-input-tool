@@ -7,6 +7,9 @@ The chrome extension is used by the ClinGen curation workflow (link) ...
 
 ## Release Notes
 
+### v3.1
+* ClinVar UI changes on Feb.24.2025 introduced issues with the top-level VCV information scraping from the html. This has been resolved.
+
 ### v3.0
 * This is a combination of merging and modifying v1.16 and v2.0.2 below.
 * Major update to the internal code and configuration based on Google chrome extension manifest v3 specifications.
