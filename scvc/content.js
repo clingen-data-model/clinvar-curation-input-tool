@@ -4,8 +4,8 @@ const SCV_RANGE = 'SCVs';
 // Inform the background page that
 // this tab should have a page-action.
 chrome.runtime.sendMessage({
-  from: 'content',
-  subject: 'showPageAction',
+    from: 'content',
+    subject: 'showPageAction',
 });
 
 function getMatch(text, re, grp) {
@@ -18,7 +18,7 @@ function getMatch(text, re, grp) {
 }
 
 function extractClinVarData() {
-   
+
     // Collect the necessary data.
     var cond_origin_re = /\W*Allele origin:.*?(\w+([\,\s]+\w+)*)/is;
     var review_method_re = /(practice guideline|reviewed by expert panel|no assertion provided|no interpretation for the single variant|criteria provided, multiple submitters, no conflicts|criteria provided, single submitter|criteria provided, conflicting interpretations|no assertion criteria provided|no classification provided|Flagged submission).*?Method:.*?([\w\,\s]+)*/is;
@@ -47,20 +47,21 @@ function extractClinVarData() {
 
     var variantBox = document.evaluate("//div[@id='new-variant-details']//dl", document, null, XPathResult.ANY_TYPE, null );
     var variantBoxHTML = variantBox.iterateNext().innerHTML;
-  
+
     clinvarData.name            = document.querySelectorAll('#variant-details-table div div dl dd p')[0].innerText;
     clinvarData.vcv             = getMatch(variantBoxHTML, vcv_accession_re, 1);
     clinvarData.variation_id    = getMatch(variantBoxHTML, vcv_variation_id_re, 1);
     clinvarData.vcv_review      = vcvReviewStatus;
     clinvarData.vcv_interp      = vcvClassificationText;
-  
+
     var timelineArray = document.querySelectorAll('table.timeline-table tbody tr td');
     clinvarData.vcv_most_recent = timelineArray[2].innerHTML;
     clinvarData.vcv_eval_date   = timelineArray[3].innerHTML;
-      
-    var scvarray = document.querySelectorAll('#new-submission-germline table tbody tr');
+    
+
+    var scvarray = document.querySelectorAll('.submissions-germline-list tbody tr.germline-sub-col');
     scvarray.forEach(myFunction);
-  
+
     function myFunction(value, index, array) {
         var interp_match = value.cells[0].innerHTML.match(interp_re);
         var review_method_match = value.cells[1].innerHTML.match(review_method_re);
