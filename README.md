@@ -6,6 +6,8 @@ The chrome extension is used by the ClinGen curation workflow (link) ...
 - The google sheet containing these curations is then utilized by the downstream systems to generate QC reports, statitistics and submissions of these curations to be regularly submitted to NCBI clinvar to support the eventual integration into the actual ClinVar dataset.
 
 ## Release Notes
+### v3.2
+* ClinVar UI changes on Jun.09.2025 introduced issues with the germline SCV table information scraping from the html. This has been resolved.
 
 ### v3.1
 * ClinVar UI changes on Feb.24.2025 introduced issues with the top-level VCV information scraping from the html. This has been resolved.
