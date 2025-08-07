@@ -1,0 +1,2293 @@
+<!DOCTYPE html>
+<html lang="en">
+<body>
+
+    <div id="main_content" class="ncbi-base-page-container">
+
+        <div class="sub-header">
+            <div class="usa-grid-full">
+                <div class="usa-width-one-half">
+                    <h1><a href="/clinvar/">ClinVar</a> <span class="uswds-gray tagline">Genomic variation as it relates
+                            to human health</span></h1>
+                </div>
+                <div class="usa-width-one-half">
+                    <form name="submitSearchTerm" class="usa-search" action="/clinvar/" method="get" autocomplete="off">
+                        <div role="search">
+                            <label class="usa-sr-only" for="search-field">Search ClinVar</label>
+                            <input id="search-field" name="term" type="search" value="590935">
+                            <button type="submit">
+                                <span class="usa-search-submit-text">Search<span class="long-search-button">
+                                        ClinVar</span></span>
+                            </button>
+                            <a class="help" href="https://www.ncbi.nlm.nih.gov/clinvar/docs/help/"><i
+                                    class="fa fa-question-circle" style="font-size:1.7em; padding-top: 0.1em;"></i></a>
+                        </div>
+                    </form>
+                    <a href="https://www.ncbi.nlm.nih.gov/clinvar/advanced/" class="advanced-search">Advanced search</a>
+                </div>
+            </div>
+            <nav class="usa-grid-full subheader-flex">
+                <ul class="usa-unstyled-list nav-menu">
+                    <li class="nav-item">
+                        <a href="/clinvar/intro/">About</a>
+                        <div class="sub-nav">
+                            <ul class="sub-nav-group">
+                                <li><a href="/clinvar/intro/">Introduction</a></li>
+                                <li><a href="">Data authorities</a></li>
+                                <li><a href="">Clinical significance</a></li>
+                                <li><a href="">HGVS expressions</a></li>
+                                <li><a href="">Submitters</a></li>
+                                <li><a href="">Data dictionary</a></li>
+                            </ul>
+                        </div>
+                    </li>
+                    <li class="nav-item">
+                        <a href="/clinvar/docs/maintenance_use/">Access</a>
+                        <div class="sub-nav">
+                            <ul class="sub-nav-group">
+                                <li><a href="/clinvar/docs/maintenance_use/">Access and releases</a></li>
+                                <li><a href="/clinvar/docs/linking">Linking to ClinVar</a></li>
+                            </ul>
+                        </div>
+                    </li>
+                    <li class="nav-item">
+                        <a href="/clinvar/docs/submit/">Submit</a>
+                        <div class="sub-nav">
+                            <ul class="sub-nav-group">
+                                <li><a href="/clinvar/docs/submit/">Submission overview</a></li>
+                                <li><a
+                                        href="https://ftp.ncbi.nlm.nih.gov/pub/clinvar/submission_templates/">Spreadsheets</a>
+                                </li>
+                                <li><a href="/clinvar/docs/spreadsheet/">Instructions for spreadsheets</a></li>
+                                <li><a href="https://submit.ncbi.nlm.nih.gov/subs/variation/">Submission Portal</a></li>
+                                <li><a href="/clinvar/docs/faq_submitters/">FAQ for submissions</a></li>
+                                <li><a href="/clinvar/docs/assertion_criteria/">Assertion criteria</a></li>
+                                <li><a href="/clinvar/docs/review_guidelines/">Expert panels and practice guidelines</a>
+                                </li>
+                            </ul>
+                        </div>
+                    </li>
+                    <li class="nav-item">
+                        <a href="/clinvar/submitters/">Stats</a>
+                        <div class="sub-nav">
+                            <ul class="sub-nav-group">
+                                <li><a href="/clinvar/submitters/">Statistics</a></li>
+                                <li><a href="/clinvar/docs/submitter_list/">List of submitters</a></li>
+                                <li><a href="/clinvar/docs/datasources/">Submitting groups</a></li>
+                            </ul>
+                        </div>
+                    </li>
+                    <li class="nav-item">
+                        <a href="/clinvar/docs/ftp_primer/">FTP</a>
+                        <div class="sub-nav">
+                            <ul class="sub-nav-group">
+                                <li><a href="https://ftp.ncbi.nlm.nih.gov/pub/clinvar/">Go to the FTP site</a></li>
+                                <li><a href="/clinvar/docs/ftp_primer/">Overview</a></li>
+                            </ul>
+                        </div>
+                    </li>
+                    <li class="nav-item">
+                        <a href="/clinvar/docs/help/">Help</a>
+                        <div class="sub-nav">
+                            <ul class="sub-nav-group">
+                                <li><a href="/clinvar/docs/help/">How to search ClinVar</a></li>
+                                <li><a href="/clinvar/docs/variation_report/">Using the ClinVar variation display</a>
+                                </li>
+                                <li><a href="/clinvar/docs/details/">Using the ClinVar record display</a></li>
+                                <li><a href="/clinvar/docs/compare_displays/">Comparing the variation and record
+                                        displays</a></li>
+                                <li><a href="/clinvar/docs/faq/">FAQ</a></li>
+                            </ul>
+                        </div>
+                    </li>
+                </ul>
+                <div class="vote">
+                    <span class="ncbi-vote-helpful" data-ga-category="featured_feedback" data-link-style="icon"></span>
+                </div>
+            </nav>
+        </div>
+
+
+        <main style="margin-left:10px;">
+
+
+            <span class="hidden" id="sidetoc">
+                <span class="title"><a title="Scroll to the top of this page" href="#">On this page</a></span>
+                <ul>
+
+                    <li>
+                        <a href="#germline-somatic-info" data-section="nav menu" data-ga-action="click_on"
+                            data-ga-label="nav summary">Classification Summary</a>
+                    </li>
+
+                    <li>
+                        <a href="#new-variant-details" data-section="nav menu" data-ga-action="click_on"
+                            data-ga-label="nav variant">Variant Details</a>
+                    </li>
+
+                    <li>
+                        <a href="#new-genes" data-section="nav menu" data-ga-action="click_on"
+                            data-ga-label="nav genes">Genes</a>
+                    </li>
+
+                    <li class="label">
+                        Germline
+                    </li>
+
+                    <li class="tocindent">
+                        <a href="#new-conditions-germline" data-section="nav menu" data-ga-action="click_on"
+                            data-ga-label="nav germline conditions">Conditions</a>
+                    </li>
+
+                    <li class="tocindent">
+                        <a href="#new-submission-germline" data-section="nav menu" data-ga-action="click_on"
+                            data-ga-label="nav germline submissions">Submissions</a>
+                    </li>
+
+                    <li class="tocindent">
+                        <a href="#new-germline-citation" data-section="nav menu" data-ga-action="click_on"
+                            data-ga-label="nav germline citations">Citations</a>
+                    </li>
+
+                    <li>
+                        <a href="#new-litvar" data-section="nav menu" data-ga-action="click_on"
+                            data-ga-label="nav text mined citations">Text-mined Citations</a>
+                    </li>
+
+
+                    <li>
+                        <a href="javascript:void(0)" class="toggles" id="germline-switch-toggle-on"
+                            data-section="classification summary" data-ga-action="click_on"
+                            data-ga-label="germline toggle on">&nbsp;</a>
+                    </li>
+                    <li>
+                        <a href="javascript:void(0)" class="toggles" id="germline-switch-toggle-off"
+                            data-section="classification summary" data-ga-action="click_on"
+                            data-ga-label="germline toggle off">&nbsp;</a>
+                    </li>
+                    <li>
+                        <a href="javascript:void(0)" class="toggles" id="somatic-switch-toggle-on"
+                            data-section="classification summary" data-ga-action="click_on"
+                            data-ga-label="somatic toggle on">&nbsp;</a>
+                    </li>
+                    <li>
+                        <a href="javascript:void(0)" class="toggles" id="somatic-switch-toggle-off"
+                            data-section="classification summary" data-ga-action="click_on"
+                            data-ga-label="somatic toggle off">&nbsp;</a>
+                    </li>
+                </ul>
+            </span>
+
+
+
+
+            <div class="usa-grid-full alphabar">
+
+                <div class="usa-width-one-third">
+
+                </div>
+
+            </div>
+            <div class="usa-grid-full usa-color-primary-darker functions-container">
+                <h2 class="usa-color-text usa-color-text-white blue-box">
+                    NM_001200.4(BMP2):c.178A&gt;C (p.Met60Leu)
+
+                </h2>
+                <div class="functions share-links">
+                    <div class="cite-func">
+                        <a href="javascript:void(0);" class="a-subint-comment" id="a-cit-text"
+                            aria-controls="dlg-cit-text">
+                            <button class="blue-box" data-section="classification summary" download
+                                data-ga-action="collect_data" data-ga-label="cite">Cite</button>
+                        </a>
+                    </div>
+                    <div class="follow-func">
+                        <span class="follow-waiting follow-waiting-off"><span><img
+                                    src="/clinvar/static/variation/images/loading.gif"></span></span>
+                        <a class="follow-button follow-button-not" href="#">
+                            <button class="blue-box" data-section="classification summary" download
+                                data-ga-action="collect_data" data-ga-label="follow">
+                                <span class="follow-button-is-label">Following</span>
+                                <span class="follow-button-not-label">&#160;&#160;Follow&#160;&#160;</span>
+                            </button>
+                        </a>
+                        <a id="a-follow-warning" class="follow-warning-off" href="#" class="hoverpopup"
+                            aria-controls="div-follow-warning" aria-expanded="false" aria-haspopup="true">
+                            &#9888;
+                        </a>
+                    </div>
+                    <div class="print-func">
+                        <a href="javascript:void(0);" class="print-button" id="a-print-text"
+                            aria-controls="dlg-cit-text">
+                            <button class="blue-box" data-section="classification summary" data-ga-action="collect_data"
+                                data-ga-label="print">Print</button>
+                        </a>
+                    </div>
+
+                    <div class="download-func">
+                        <a href="" id="a-download-text" aria-controls="dlg-cit-text">
+                            <button class="blue-box" data-section="classification summary" download
+                                data-ga-action="collect_data" data-ga-label="download">Download</button>
+                        </a>
+                    </div>
+                    <div aria-hidden="true" class="dlg-subint-comment" id="dlg-cit-text">
+                        <div class="heading">Cite this record
+                            <button class="ncbi-close-button ok-subint-comment" id="ok-cit-text">
+                                <span class="fa fa-close"><span class="usa-sr-only">Close</span></span>
+                            </button>
+                        </div>
+                        <textarea class="content" id="cite"
+                            readonly>National Center for Biotechnology Information. ClinVar; [VCV000590935.4], https://www.ncbi.nlm.nih.gov/clinvar/variation/VCV000590935.4 (accessed Aug. 7, 2025).</textarea>
+                        <div class="button">
+                            <button class="ok-subint-comment" onclick="citeFunction()">Copy</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+
+
+            <div id="notice-banner"></div>
+
+            <div class="germline-somatic-info" id="germline-somatic-info">
+                <div class="germline-info">
+                    <div class="germline section-title">
+                        Germline
+                    </div>
+                    <div class="germline-section">
+
+
+                        <div class="single-item single-item-first germline-item-first">
+                            <span>
+                                Classification
+                            </span>
+                            <div>
+                                <span class="fa fa-star"></span> <span class="fa fa-star-o"></span> <span
+                                    class="fa fa-star-o"></span> <span class="fa fa-star-o"></span>
+                                <span>
+                                    <span class="total-help-icon">
+
+                                        <a target="_blank" class="germline-help-icon help-icon" data-src=span
+                                            data-y-offset=30 data-section="classification summary"
+                                            data-ga-action="hover" data-ga-label="germline revstat info">
+                                            <span class="fa fa-question-circle"></span>
+                                            <span class="usa-sr-only">Help</span>
+                                        </a>
+
+
+                                        <div id="germline-stars-icon" class="smaller pointer-triangle-parent">
+                                            <p>
+                                                criteria provided, single submitter. <a
+                                                    href='https://www.ncbi.nlm.nih.gov/clinvar/docs/review_status/'>Learn
+                                                    more about how ClinVar calculates review status.</a>
+                                            </p>
+                                            <div class="pointer-triangle-right"></div>
+                                        </div>
+
+                                    </span>
+                                </span>
+                            </div>
+                        </div>
+                        <div class="single-item" style="white-space: nowrap;">
+                            <div class="single-item-value">
+                                Uncertain significance
+
+                            </div>
+                            <div class="contrib-info contrib-smaller">
+                                <span class="contrib-text">
+
+                                    <span class="contrib-count"><a href=" #new-submission-germline ">1 out of
+                                            3</a></span> submissions contributed to this classification
+
+                                </span>
+                                <span class="total-help-icon">
+
+
+                                    <a target="_blank" class="germline-help-icon help-icon" data-src=span
+                                        data-y-offset=87 data-section="classification summary" data-ga-action="hover"
+                                        data-ga-label="germline classification info">
+                                        <span class="fa fa-question-circle"></span>
+                                        <span class="usa-sr-only">Help</span>
+                                    </a>
+
+                                    <div id="germline-classification-icon" class="smaller pointer-triangle-parent">
+                                        <p>
+                                            The aggregate germline classification for this variant, typically for a
+                                            monogenic or Mendelian disorder as in <a
+                                                href='https://pubmed.ncbi.nlm.nih.gov/25741868/'>the ACMG/AMP
+                                                guidelines</a>, or for response to a drug. This value is calculated by
+                                            NCBI based on data from submitters. <a
+                                                href='https://www.ncbi.nlm.nih.gov/clinvar/docs/review_status/'>Read our
+                                                rules for calculating the aggregate classification</a>.
+                                        </p>
+                                        <div class="pointer-triangle-right"></div>
+                                    </div>
+
+
+                                </span>
+                            </div>
+
+                            <div id="submission-counts" style="display:none;">3</div>
+                            <div class="section-fda">
+
+                            </div>
+                        </div>
+
+
+                    </div>
+                    <label class="switch" id="germline-switch">
+                        <a href="#" id="germline-switch-toggle-on" data-section="classification summary"
+                            data-ga-action="click_on" data-ga-label="germline toggle on"></a>
+                        <a href="#" id="germline-switch-toggle-off" data-section="classification summary"
+                            data-ga-action="click_on" data-ga-label="germline toggle off"></a>
+                        <input type="checkbox" checked data-section="classification summary" data-ga-action="click_on"
+                            data-ga-label="germline toggle on">
+                        <span class="slider round"></span>
+                    </label>
+                </div>
+                <div class="somatic-info">
+                    <div class="somatic-section">
+                        <div class="somatic section-title">Somatic</div>
+
+                        <p class="without-classification">No data submitted for somatic clinical impact</p>
+
+                    </div>
+                    <div class="somatic-section oncogenicity">
+                        <div class="somatic section-title">Somatic</div>
+
+                        <p class="without-classification">No data submitted for oncogenicity</p>
+
+                    </div>
+                    <label class="switch" id="somatic-switch">
+                        <input type="checkbox" data-section="classification summary" data-ga-action="click_on"
+                            data-ga-label="somatic toggle on">
+                        <span class="slider round"></span>
+                    </label>
+                </div>
+
+
+            </div>
+
+
+            <div class="sub-panel-choice">
+                <div class="new-variant-details" id="new-variant-details">
+                    <h3>
+                        Variant Details
+                        <a href="javascript:void(0);" class="new-head-icon-down" data-section="variant details"
+                            data-ga-action="click_on" data-ga-label="variant details expand">
+                            <i class="new-icon-down default-icon glyphicon glyphicon-chevron-down fa fa-angle-down"></i>
+                        </a>
+                        <a href="javascript:void(0);" class="new-head-icon-up" data-section="variant details"
+                            data-ga-action="click_on" data-ga-label="variant details collapse">
+                            <i class="new-icon-up default-icon glyphicon glyphicon-chevron-up fa fa-angle-up"></i>
+                        </a>
+
+                    </h3>
+                    <div class="usa-width-three-fourths tabcontent_border expandable" id="variant-details-table">
+                        <div id="id_first" class="js-tabcontent">
+
+
+                            <div>
+
+                                <dl class="dl-leftalign">
+                                    <dt><span>Identifiers</span></dt>
+                                    <dd>
+                                        <p>NM_001200.4(BMP2):c.178A&gt;C (p.Met60Leu)</p>
+                                        <p>
+                                            <span class="link-padding-right">Variation ID: 590935</span>
+
+                                            <span class="link-padding-right accession-info">Accession:
+                                                VCV000590935.4</span>
+                                        </p>
+                                    </dd>
+
+                                    <dt><span>Type and length</span></dt>
+                                    <dd>
+                                        <p>
+                                            <span>single nucleotide variant, </span>
+                                            <span>
+
+
+                                                1 bp
+
+                                            </span>
+                                        </p>
+                                    </dd>
+
+                                    <dt><span>Location</span></dt>
+                                    <dd>
+                                        <p>
+
+                                            <span class="link-padding-right" style="padding-right: 1em;">
+                                                Cytogenetic:
+
+                                                <span>20p12.3</span>
+
+                                            </span>
+
+
+
+                                            <span class="link-padding-right" style="padding-right: 1em;">20:
+
+                                                6770304
+
+                                                <span>
+                                                    (GRCh38)
+                                                </span>
+                                                [
+
+
+                                                <a target="_blank"
+                                                    href="https://www.ncbi.nlm.nih.gov/variation/view/?chr=20&amp;q=&amp;assm=GCF_000001405.38&amp;from=6770304&amp;to=6770304"
+                                                    data-section="variant details" data-ga-action="click_on"
+                                                    data-ga-label="variation viewer">
+                                                    NCBI
+                                                </a>
+
+
+
+                                                &nbsp;&nbsp;
+                                                <a target="_blank"
+                                                    href="https://genome.ucsc.edu/cgi-bin/hgTracks?db=hg38&amp;position=20%3A6770304-6770304"
+                                                    data-section="variant details" data-ga-action="click_on"
+                                                    data-ga-label="UCSC browser">
+                                                    UCSC
+                                                </a>
+
+
+                                                ]
+                                            </span>
+
+                                            <span class="link-padding-right" style="padding-right: 1em;">20:
+
+                                                6750951
+
+                                                <span>
+                                                    (GRCh37)
+                                                </span>
+                                                [
+
+
+                                                <a target="_blank"
+                                                    href="https://www.ncbi.nlm.nih.gov/variation/view/?chr=20&amp;q=&amp;assm=GCF_000001405.25&amp;from=6750951&amp;to=6750951"
+                                                    data-section="variant details" data-ga-action="click_on"
+                                                    data-ga-label="variation viewer">
+                                                    NCBI
+                                                </a>
+
+
+
+                                                &nbsp;&nbsp;
+                                                <a target="_blank"
+                                                    href="https://genome.ucsc.edu/cgi-bin/hgTracks?db=hg19&amp;position=20%3A6750951-6750951"
+                                                    data-section="variant details" data-ga-action="click_on"
+                                                    data-ga-label="UCSC browser">
+                                                    UCSC
+                                                </a>
+
+
+                                                ]
+                                            </span>
+
+
+                                        </p>
+                                    </dd>
+
+
+                                    <dt><span>Timeline in ClinVar</span></dt>
+                                    <dd>
+                                        <table class="timeline-table">
+                                            <thead>
+                                                <tr style="border-top: 1px solid black">
+                                                    <th scope="col" style="border: none;"></th>
+                                                    <th scope="col">
+                                                        First in ClinVar
+                                                        <span class="total-help-icon">
+
+                                                            <a target="_blank" class="timeline-icon help-icon"
+                                                                data-src=th data-y-offset=15
+                                                                data-section="variant details" data-ga-action="hover"
+                                                                data-ga-label="variant first in ClinVar info">
+                                                                <span class="fa fa-question-circle"></span>
+                                                                <span class="usa-sr-only">Help</span>
+                                                            </a>
+
+                                                            <div id="time-appear-icon"
+                                                                class="smaller pointer-triangle-parent">
+                                                                <p>
+                                                                    The date this variant first appeared in ClinVar with
+                                                                    each type of classification.
+                                                                </p>
+                                                                <div class="pointer-triangle-right"></div>
+                                                            </div>
+
+                                                        </span>
+                                                    </th>
+                                                    <th scope="col">
+                                                        Last submission
+                                                        <span class="total-help-icon">
+
+                                                            <a target="_blank" class="timeline-icon help-icon"
+                                                                data-src=th data-y-offset=15
+                                                                data-section="variant details" data-ga-action="hover"
+                                                                data-ga-label="variant last submission info">
+                                                                <span class="fa fa-question-circle"></span>
+                                                                <span class="usa-sr-only">Help</span>
+                                                            </a>
+
+                                                            <div id="time-submission-icon"
+                                                                class="smaller pointer-triangle-parent">
+                                                                <p>
+                                                                    The date of the most recent submission for each type
+                                                                    of classification for this variant.
+                                                                </p>
+                                                                <div class="pointer-triangle-right"></div>
+                                                            </div>
+
+                                                        </span>
+                                                    </th>
+                                                    <th scope="col">
+                                                        Last evaluated
+                                                        <span class="total-help-icon">
+
+                                                            <a target="_blank" class="timeline-icon help-icon"
+                                                                data-src=th data-y-offset=15
+                                                                data-section="variant details" data-ga-action="hover"
+                                                                data-ga-label="variant last evaluated info">
+                                                                <span class="fa fa-question-circle"></span>
+                                                                <span class="usa-sr-only">Help</span>
+                                                            </a>
+
+                                                            <div id="time-evaluated-icon"
+                                                                class="smaller pointer-triangle-parent">
+                                                                <p>
+                                                                    The most recent date that a submitter evaluated this
+                                                                    variant for each type of classification.
+                                                                </p>
+                                                                <div class="pointer-triangle-right"></div>
+                                                            </div>
+
+                                                        </span>
+                                                    </th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+
+
+                                                <tr style="border-top: 1px solid black;">
+
+
+                                                    <td style="border: none;">Germline</td>
+                                                    <td scope="col">Jan 26, 2019</td>
+                                                    <td scope="col">Feb 25, 2025</td>
+                                                    <td scope="col">Jun 30, 2024</td>
+
+                                                </tr>
+
+
+                                                <tr style="border-top: 1px solid black;">
+
+
+                                                </tr>
+
+
+                                                <tr
+                                                    style="border-top: 1px solid black; border-bottom: 1px solid black;">
+
+
+                                                </tr>
+
+                                            </tbody>
+                                        </table>
+                                    </dd>
+
+
+
+                                    <dt class="margin-top">HGVS</dt>
+                                    <dd class="margin-top" style="margin-top: 0.5em">
+
+
+                                        <table class="hgvstable stickyheaders">
+                                            <thead>
+                                                <tr>
+                                                    <th scope="col">Nucleotide</th>
+                                                    <th scope="col">Protein</th>
+                                                    <th scope="col">Molecular<br />consequence</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+
+
+
+                                                <tr>
+
+                                                    <td>
+                                                        <a target="_blank"
+                                                            href="https://www.ncbi.nlm.nih.gov/nuccore/NM_001200.4?report=graph&amp;search=NM_001200.4%3Ac.178A%3EC"
+                                                            data-section="variant details" data-ga-action="click_on"
+                                                            data-ga-label="HGVS">
+                                                            NM_001200.4:c.178A&gt;C
+                                                        </a>
+
+                                                        <a href="https://www.ncbi.nlm.nih.gov/refseq/MANE/"
+                                                            target="_blank" data-section="variant details"
+                                                            data-ga-action="click_on" data-ga-label="MANE label">
+                                                            <span class="usa-label usa-label-sm">MANE&nbsp;Select</span>
+                                                        </a>
+                                                        <span class="total-help-icon">
+
+                                                            <a target="_blank" class="hgvs-icon help-icon" data-src=td
+                                                                data-y-offset=25 data-section="variant details"
+                                                                data-ga-action="hover" data-ga-label="MANE info">
+                                                                <span class="fa fa-question-circle"></span>
+                                                                <span class="usa-sr-only">Help</span>
+                                                            </a>
+
+                                                            <div id="mane-select-icon"
+                                                                class="smaller pointer-triangle-parent">
+                                                                <p>
+                                                                    Transcripts from the Matched Annotation from the
+                                                                    NCBI and EMBL-EBI (<a
+                                                                        href='https://www.ncbi.nlm.nih.gov/refseq/MANE/'>MANE</a>)
+                                                                    collaboration.
+                                                                </p>
+                                                                <div class="pointer-triangle-right"></div>
+                                                            </div>
+
+                                                        </span>
+
+                                                    </td>
+                                                    <td>NP_001191.1:p.Met60Leu</td>
+                                                    <td>
+
+                                                        missense
+
+                                                    </td>
+                                                </tr>
+
+
+
+                                                <tr>
+
+                                                    <td>
+                                                        <a target="_blank"
+                                                            href="https://www.ncbi.nlm.nih.gov/nuccore/NC_000020.11?report=graph&amp;search=NC_000020.11%3Ag.6770304A%3EC"
+                                                            data-section="variant details" data-ga-action="click_on"
+                                                            data-ga-label="HGVS">
+                                                            NC_000020.11:g.6770304A&gt;C
+                                                        </a>
+
+                                                    </td>
+                                                    <td></td>
+                                                    <td>
+
+                                                    </td>
+                                                </tr>
+
+
+
+                                                <tr>
+
+                                                    <td>
+                                                        <a target="_blank"
+                                                            href="https://www.ncbi.nlm.nih.gov/nuccore/NC_000020.10?report=graph&amp;search=NC_000020.10%3Ag.6750951A%3EC"
+                                                            data-section="variant details" data-ga-action="click_on"
+                                                            data-ga-label="HGVS">
+                                                            NC_000020.10:g.6750951A&gt;C
+                                                        </a>
+
+                                                    </td>
+                                                    <td></td>
+                                                    <td>
+
+                                                    </td>
+                                                </tr>
+
+
+
+                                                <tr>
+
+                                                    <td>
+                                                        <a target="_blank"
+                                                            href="https://www.ncbi.nlm.nih.gov/nuccore/NG_023233.1?report=graph&amp;search=NG_023233.1%3Ag.7207A%3EC"
+                                                            data-section="variant details" data-ga-action="click_on"
+                                                            data-ga-label="HGVS">
+                                                            NG_023233.1:g.7207A&gt;C
+                                                        </a>
+
+                                                    </td>
+                                                    <td></td>
+                                                    <td>
+
+                                                    </td>
+                                                </tr>
+
+                                            </tbody>
+                                        </table>
+
+                                    </dd>
+
+
+
+                                    <dt><span>Protein change</span></dt>
+                                    <dd>
+
+
+                                        M60L
+
+
+                                    </dd>
+
+                                    <dt><span>Other names</span></dt>
+
+                                    <dd>-</dd>
+
+
+                                    <dt class="hashelp" title="Sequence Position Deletion Insertion">
+                                        <span>Canonical SPDI</span>
+                                    </dt>
+
+
+                                    <dd>NC_000020.11:6770303:A:C</dd>
+
+
+
+                                    <dt style="max-width: 50em;">
+                                        <span>
+                                            Global minor allele <br />frequency (GMAF)
+                                            <span class="total-help-icon">
+
+                                                <a target="_blank" class="gmaf-help-icon help-icon" data-src=dt
+                                                    data-y-offset=45 data-section="variant details"
+                                                    data-ga-action="hover" data-ga-label="GMAF info">
+                                                    <span class="fa fa-question-circle"></span>
+                                                    <span class="usa-sr-only">Help</span>
+                                                </a>
+
+                                                <div id="gmaf-icon" class="smaller pointer-triangle-parent">
+                                                    <p>
+                                                        The global minor allele frequency calculated by the 1000 Genomes
+                                                        Project. The minor allele at this location is indicated in
+                                                        parentheses and may be different from the allele represented by
+                                                        this VCV record.
+                                                    </p>
+                                                    <div class="pointer-triangle-right"></div>
+                                                </div>
+
+                                            </span>
+                                        </span>
+                                    </dt>
+
+                                    <dd>-</dd>
+
+
+                                    <dt>
+                                        <span class="smaller">
+                                            Allele frequency
+                                            <span class="total-help-icon">
+
+                                                <a target="_blank" class="allele-freq-help-icon help-icon" data-src=dt
+                                                    data-y-offset=30 data-section="variant details"
+                                                    data-ga-action="hover" data-ga-label="allele frequency info">
+                                                    <span class="fa fa-question-circle"></span>
+                                                    <span class="usa-sr-only">Help</span>
+                                                </a>
+
+                                                <div id="allele-freq-icon" class="smaller pointer-triangle-parent">
+                                                    <p>
+                                                        The frequency of the allele represented by this VCV record.
+                                                    </p>
+                                                    <div class="pointer-triangle-right"></div>
+                                                </div>
+
+                                            </span>
+                                        </span>
+                                    </dt>
+
+                                    <dd>
+                                        <div class="allele_freq">
+
+                                            <p>The Genome Aggregation Database (gnomAD) 0.00001</p>
+
+                                            <p>Trans-Omics for Precision Medicine (TOPMed) 0.00002</p>
+
+                                        </div>
+                                    </dd>
+
+
+                                    <dt>
+                                        <span>Links</span>
+                                    </dt>
+
+                                    <dd>
+                                        <div id="links">
+
+
+                                            <a target="_blank"
+                                                href="http://reg.clinicalgenome.org/redmine/projects/registry/genboree_registry/by_caid?caid=CA9758613"
+                                                data-section="variant details" data-ga-action="click_on"
+                                                data-ga-label="ClinGen allele registry links">ClinGen: CA9758613</a>
+
+
+
+
+                                            <a target="_blank" href="https://www.ncbi.nlm.nih.gov/snp/rs773113395"
+                                                data-section="variant details" data-ga-action="click_on"
+                                                data-ga-label="dbSNP links">dbSNP: rs773113395</a>
+
+
+
+
+                                            <a target="_blank" href="https://varsome.com/variant/hg38/rs773113395"
+                                                data-section="variant details" data-ga-action="click_on"
+                                                data-ga-label="VarSome links">VarSome</a>
+
+
+
+                                        </div>
+                                    </dd>
+
+
+
+                                </dl>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+
+                <div class="new-gene-details" id="new-genes">
+                    <h3>
+                        Genes
+                        <a href="javascript:void(0);" class="new-head-icon-down" data-section="genes"
+                            data-ga-action="click_on" data-ga-label="genes expand">
+                            <i class="new-icon-down default-icon glyphicon glyphicon-chevron-down fa fa-angle-down"></i>
+                        </a>
+                        <a href="javascript:void(0);" class="new-head-icon-up" data-section="genes"
+                            data-ga-action="click_on" data-ga-label="genes collapse">
+                            <i class="new-icon-up default-icon glyphicon glyphicon-chevron-up fa fa-angle-up"></i>
+                        </a>
+
+                    </h3>
+
+                    <table class="stickyheaders gene-table expandable" id="gene-table">
+                        <thead>
+                            <tr>
+                                <th rowspan="2" class="left">Gene</th>
+                                <th rowspan="2">OMIM</th>
+                                <th colspan="2">ClinGen Gene Dosage Sensitivity Curation</th>
+                                <th rowspan="2">
+                                    Variation Viewer
+                                    <span class="total-help-icon">
+
+                                        <a target="_blank" class="gene-table-help-icon help-icon" data-src=th
+                                            data-y-offset=-60 data-x-offset=-338 data-section="genes"
+                                            data-ga-action="hover" data-ga-label="genes info VV">
+                                            <span class="fa fa-question-circle"></span>
+                                            <span class="usa-sr-only">Help</span>
+                                        </a>
+
+                                        <div id="variation-viewer-icon" class="smaller pointer-triangle-parent">
+                                            <p>
+                                                Links to Variation Viewer, a genome browser to view variation data from
+                                                NCBI databases.
+                                            </p>
+                                            <div class="pointer-triangle-bottom"></div>
+                                        </div>
+
+                                    </span>
+                                </th>
+                                <th colspan="2">
+                                    Related variants
+                                </th>
+                            </tr>
+                            <tr class="nobold">
+                                <th>HI score
+                                    <span class="total-help-icon">
+
+                                        <a target="_blank" class="usa-grid-full gene-table-help-icon help-icon"
+                                            data-src=th data-y-offset=20 data-section="genes" data-ga-action="hover"
+                                            data-ga-label="genes info HI">
+                                            <span class="fa fa-question-circle"></span>
+                                            <span class="usa-sr-only">Help</span>
+                                        </a>
+
+                                        <div id="hi-score-icon" class="smaller pointer-triangle-parent">
+                                            <p>
+                                                The haploinsufficiency score for the gene, curated by ClinGen’s Dosage
+                                                Sensitivity Curation task team.
+                                            </p>
+                                            <div class="pointer-triangle-right"></div>
+                                        </div>
+
+                                    </span>
+                                </th>
+                                <th>TS score
+                                    <span class="total-help-icon">
+
+                                        <a target="_blank" class="usa-grid-full gene-table-help-icon help-icon"
+                                            data-src=th data-y-offset=20 data-section="genes" data-ga-action="hover"
+                                            data-ga-label="genes info TS">
+                                            <span class="fa fa-question-circle"></span>
+                                            <span class="usa-sr-only">Help</span>
+                                        </a>
+
+                                        <div id="ts-score-icon" class="smaller pointer-triangle-parent">
+                                            <p>
+                                                The triplosensitivity score for the gene, curated by ClinGen’s Dosage
+                                                Sensitivity Curation task team.
+                                            </p>
+                                            <div class="pointer-triangle-right"></div>
+                                        </div>
+
+                                    </span>
+                                </th>
+                                <th>
+                                    Within gene
+                                    <span class="total-help-icon">
+
+                                        <a target="_blank" class="gene-table-help-icon help-icon" data-src=th
+                                            data-y-offset=-40 data-x-offset=-339 data-section="genes"
+                                            data-ga-action="hover" data-ga-label="genes info within gene">
+                                            <span class="fa fa-question-circle"></span>
+                                            <span class="usa-sr-only">Help</span>
+                                        </a>
+
+                                        <div id="within-gene-icon" class="smaller pointer-triangle-parent">
+                                            <p>
+                                                The number of variants in ClinVar that are contained within this gene,
+                                                with a link to view the list of variants.
+                                            </p>
+                                            <div class="pointer-triangle-bottom"></div>
+                                        </div>
+
+                                    </span>
+                                </th>
+                                <th>
+                                    All
+                                    <span class="total-help-icon">
+
+                                        <a target="_blank" class="gene-table-help-icon help-icon" data-src=th
+                                            data-y-offset=-40 data-x-offset=-339 data-section="genes"
+                                            data-ga-action="hover" data-ga-label="genes info all">
+                                            <span class="fa fa-question-circle"></span>
+                                            <span class="usa-sr-only">Help</span>
+                                        </a>
+
+                                        <div id="gene-all-icon" class="smaller pointer-triangle-parent">
+                                            <p>
+                                                The number of variants in ClinVar for this gene, including smaller
+                                                variants within the gene and larger CNVs that overlap or fully contain
+                                                the gene.
+                                            </p>
+                                            <div class="pointer-triangle-bottom"></div>
+                                        </div>
+
+                                    </span>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+
+
+                            <tr>
+                                <td class="left">
+
+
+                                    <a href="https://www.ncbi.nlm.nih.gov/gene/650" target="_blank" data-section="genes"
+                                        data-ga-action="click_on" data-ga-label="NCBI Gene link"><span>BMP2</span></a>
+
+                                </td>
+
+                                <td>
+                                    <span><a href="http://www.omim.org/entry/112261" target="_blank"
+                                            data-section="genes" data-ga-action="click_on"
+                                            data-ga-label="OMIM gene links"><span
+                                                class="fa fa-external-link"></span></a></span>
+                                </td>
+
+                                <td>
+                                    -
+                                </td>
+
+                                <td>
+                                    -
+                                </td>
+
+                                <td>
+                                    <span><a href="https://www.ncbi.nlm.nih.gov/variation/view/?chr=20&amp;q=BMP2&amp;assm=GCF_000001405.38&amp;from=6767686&amp;to=6780246"
+                                            target="_blank" data-section="genes" data-ga-action="click_on"
+                                            data-ga-label="variation viewer for gene"><span>GRCh38</span></a><br /><a
+                                            href="https://www.ncbi.nlm.nih.gov/variation/view/?chr=20&amp;q=BMP2&amp;assm=GCF_000001405.25&amp;from=6748744&amp;to=6760909"
+                                            target="_blank" data-section="genes" data-ga-action="click_on"
+                                            data-ga-label="variation viewer for gene"><span>GRCh37</span></a></span>
+                                </td>
+
+                                <td>
+                                    <span><a href="https://www.ncbi.nlm.nih.gov/clinvar/?term=BMP2%5Bgene%5D+and+%22single+gene%22%5Bproperties%5D"
+                                            data-section="genes" data-ga-action="click_on"
+                                            data-ga-label="within gene"><span>220</span></a></span>
+                                </td>
+
+                                <td>
+                                    <span><a href="https://www.ncbi.nlm.nih.gov/clinvar/?term=BMP2%5Bgene%5D"
+                                            data-section="genes" data-ga-action="click_on"
+                                            data-ga-label="all related variants"><span>253</span></a></span>
+                                </td>
+                            </tr>
+
+
+                        </tbody>
+                    </table>
+
+
+                </div>
+
+
+                <div class="new-conditions-germline" id="new-conditions-germline">
+                    <h3>
+                        Conditions - Germline
+                        <a href="javascript:void(0);" class="new-head-icon-down" data-section="germline conditions"
+                            data-ga-action="click_on" data-ga-label="germline conditions expand">
+                            <i class="new-icon-down default-icon glyphicon glyphicon-chevron-down fa fa-angle-down"></i>
+                        </a>
+                        <a href="javascript:void(0);" class="new-head-icon-up" data-section="germline conditions"
+                            data-ga-action="click_on" data-ga-label="germline conditions collapse">
+                            <i class="new-icon-up default-icon glyphicon glyphicon-chevron-up fa fa-angle-up"></i>
+                        </a>
+
+                    </h3>
+
+
+
+                    <table
+                        class="stickyheaders usa-table-borderless table-top-border align-top conditions-germline-list expandable">
+                        <thead>
+                            <tr>
+                                <th scope="col">Condition
+                                    <span class="total-help-icon">
+
+                                        <a target="_blank" class="germline-cond-help-icon help-icon" data-src=th
+                                            data-y-offset=21 data-section="germline conditions" data-ga-action="hover"
+                                            data-ga-label="germline conditions info">
+                                            <span class="fa fa-question-circle"></span>
+                                            <span class="usa-sr-only">Help</span>
+                                        </a>
+
+                                        <div id="germline-cond-condition-icon" class="smaller pointer-triangle-parent">
+                                            <p>
+                                                The condition for this variant-condition (RCV) record in ClinVar.
+                                            </p>
+                                            <div class="pointer-triangle-right"></div>
+                                        </div>
+
+                                    </span>
+                                </th>
+                                <th scope="col" style="width:20%">Classification
+                                    <span class="total-help-icon">
+
+                                        <a target="_blank" class="germline-cond-help-icon help-icon" data-src=th
+                                            data-y-offset=52 data-section="germline conditions" data-ga-action="hover"
+                                            data-ga-label="germline conditions info classification">
+                                            <span class="fa fa-question-circle"></span>
+                                            <span class="usa-sr-only">Help</span>
+                                        </a>
+
+                                        <div id="germline-cond-classification-icon"
+                                            class="smaller pointer-triangle-parent">
+                                            <p>
+                                                The aggregate germline classification for this variant-condition (RCV)
+                                                record in ClinVar. The number of submissions that contribute to this
+                                                aggregate classification is shown in parentheses.
+                                            </p>
+                                            <div class="pointer-triangle-right"></div>
+                                        </div>
+
+                                    </span>
+                                    <br />(# of submissions)
+                                </th>
+                                <th scope="col" style="width:20%">Review status
+                                    <span class="total-help-icon">
+
+                                        <a target="_blank" class="germline-cond-help-icon help-icon" data-src=th
+                                            data-y-offset=52 data-section="germline conditions" data-ga-action="hover"
+                                            data-ga-label="germline conditions info revstat">
+                                            <span class="fa fa-question-circle"></span>
+                                            <span class="usa-sr-only">Help</span>
+                                        </a>
+
+                                        <div id="germline-cond-review-status-icon"
+                                            class="smaller pointer-triangle-parent">
+                                            <p>
+                                                The aggregate review status for this variant-condition (RCV) record in
+                                                ClinVar. This value is calculated by NCBI based on data from submitters.
+                                                <a href='https://www.ncbi.nlm.nih.gov/clinvar/docs/review_status/'>Read
+                                                    our rules for calculating the review status</a>.
+                                            </p>
+                                            <div class="pointer-triangle-right"></div>
+                                        </div>
+
+                                    </span>
+                                </th>
+                                <th scope="col" style="width:20%">Last evaluated
+                                    <span class="total-help-icon">
+
+                                        <a target="_blank" class="germline-cond-help-icon help-icon" data-src=th
+                                            data-y-offset=21 data-section="germline conditions" data-ga-action="hover"
+                                            data-ga-label="germline conditions info last eval">
+                                            <span class="fa fa-question-circle"></span>
+                                            <span class="usa-sr-only">Help</span>
+                                        </a>
+
+                                        <div id="germline-cond-last-evaluated-icon"
+                                            class="smaller pointer-triangle-parent">
+                                            <p>
+                                                The most recent date that a submitter evaluated this variant for the
+                                                condition.
+                                            </p>
+                                            <div class="pointer-triangle-right"></div>
+                                        </div>
+
+                                    </span>
+                                </th>
+                                <th scope="col" style="width:20%">Variation/condition record
+                                    <span class="total-help-icon">
+
+                                        <a target="_blank" class="germline-cond-help-icon help-icon" data-src=th
+                                            data-y-offset=-40 data-x-offset=-338 data-section="germline conditions"
+                                            data-ga-action="hover" data-ga-label="germline conditions info RCV">
+                                            <span class="fa fa-question-circle"></span>
+                                            <span class="usa-sr-only">Help</span>
+                                        </a>
+
+                                        <div id="germline-cond-variation-record-icon"
+                                            class="smaller pointer-triangle-parent">
+                                            <p>
+                                                The RCV accession number, with most recent version number, for the
+                                                variant-condition record, with a link to the RCV web page.
+                                            </p>
+                                            <div class="pointer-triangle-bottom"></div>
+                                        </div>
+
+                                    </span>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+
+                            <tr class="germline-cond-col">
+                                <td class="interpreted-conditions">
+
+
+                                    <div>
+
+                                        <a href="https://www.ncbi.nlm.nih.gov/medgen/C1384666" target="_blank"
+                                            data-section="germline conditions" data-ga-action="click_on"
+                                            data-ga-label="germline conditions links">Hearing impairment</a>
+
+                                    </div>
+
+
+                                </td>
+                                <td style="width: 15%;">
+                                    Uncertain significance (2)
+                                </td>
+                                <td>
+                                    <div class="stars-html" data-section="germline conditions" data-ga-action="hover"
+                                        data-ga-label="germline conditions revstat"><span class="fa fa-star-o"></span>
+                                        <span class="fa fa-star-o"></span> <span class="fa fa-star-o"></span> <span
+                                            class="fa fa-star-o"></span> </div>
+                                    <div class="stars-description germline-cond-stars-description smaller"
+                                        style="display: none">
+                                        no assertion criteria provided
+                                        <div class="pointer-triangle-review-status"></div>
+                                    </div>
+                                </td>
+                                <td class="nowrap">
+
+                                    Oct 8, 2018
+
+                                </td>
+                                <td><a target="_blank" href="/clinvar/RCV000754562.2/"
+                                        data-section="germline conditions" data-ga-action="click_on"
+                                        data-ga-label="germline conditions RCV links">RCV000754562.2</a></td>
+                            </tr>
+
+                            <tr class="germline-cond-col">
+                                <td class="interpreted-conditions">
+
+
+                                    <div>
+
+                                        <a href="https://www.ncbi.nlm.nih.gov/medgen/C3661900" target="_blank"
+                                            data-section="germline conditions" data-ga-action="click_on"
+                                            data-ga-label="germline conditions links">not provided</a>
+
+                                    </div>
+
+
+                                </td>
+                                <td style="width: 15%;">
+                                    Uncertain significance (1)
+                                </td>
+                                <td>
+                                    <div class="stars-html" data-section="germline conditions" data-ga-action="hover"
+                                        data-ga-label="germline conditions revstat"><span class="fa fa-star"></span>
+                                        <span class="fa fa-star-o"></span> <span class="fa fa-star-o"></span> <span
+                                            class="fa fa-star-o"></span> </div>
+                                    <div class="stars-description germline-cond-stars-description smaller"
+                                        style="display: none">
+                                        criteria provided, single submitter
+                                        <div class="pointer-triangle-review-status"></div>
+                                    </div>
+                                </td>
+                                <td class="nowrap">
+
+                                    Jun 30, 2024
+
+                                </td>
+                                <td><a target="_blank" href="/clinvar/RCV005092122.1/"
+                                        data-section="germline conditions" data-ga-action="click_on"
+                                        data-ga-label="germline conditions RCV links">RCV005092122.1</a></td>
+                            </tr>
+
+                        </tbody>
+
+                    </table>
+
+
+                </div>
+                <div class="new-submissions-germline" id="new-submission-germline">
+                    <h3>
+                        Submissions - Germline
+                        <a href="javascript:void(0);" class="new-head-icon-down" data-section="germline submissions"
+                            data-ga-action="click_on" data-ga-label="germline submissions expand">
+                            <i class="new-icon-down default-icon glyphicon glyphicon-chevron-down fa fa-angle-down"></i>
+                        </a>
+                        <a href="javascript:void(0);" class="new-head-icon-up" data-section="germline submissions"
+                            data-ga-action="click_on" data-ga-label="germline submissions collapse">
+                            <i class="new-icon-up default-icon glyphicon glyphicon-chevron-up fa fa-angle-up"></i>
+                        </a>
+
+                    </h3>
+
+                    <div class="submitted-interpretations-evidence expandable">
+                        <div class="usa-grid-full">
+
+                            <table style="table-layout: fixed"
+                                class="stickyheaders usa-table-borderless align-top table-top-border submissions-germline-list"
+                                id="assertion-list">
+                                <thead>
+                                    <tr>
+                                        <th scope="col" style="width:20%;">Classification
+                                            <span class="total-help-icon">
+
+                                                <a target="_blank" class="germline-sub-help-icon help-icon" data-src=th
+                                                    data-y-offset=21 data-section="germline submissions"
+                                                    data-ga-action="hover"
+                                                    data-ga-label="germline submissions info classification">
+                                                    <span class="fa fa-question-circle"></span>
+                                                    <span class="usa-sr-only">Help</span>
+                                                </a>
+
+                                                <div id="germline-sub-classification-icon"
+                                                    class="smaller pointer-triangle-parent">
+                                                    <p>
+                                                        The submitted germline classification for each SCV record.
+                                                    </p>
+                                                    <div class="pointer-triangle-right"></div>
+                                                </div>
+
+                                            </span>
+                                            <br /><span class="smaller">(Last evaluated)</span>
+                                        </th>
+                                        <th scope="col" style="width:20%;">Review status
+                                            <span class="total-help-icon">
+
+                                                <a target="_blank" class="germline-sub-help-icon help-icon" data-src=th
+                                                    data-y-offset=88 data-section="germline submissions"
+                                                    data-ga-action="hover"
+                                                    data-ga-label="germline submissions info revstat">
+                                                    <span class="fa fa-question-circle"></span>
+                                                    <span class="usa-sr-only">Help</span>
+                                                </a>
+
+                                                <div id="germline-sub-review-status-icon"
+                                                    class="smaller pointer-triangle-parent">
+                                                    <p>
+                                                        Stars represent the review status, or the level of review
+                                                        supporting the submitted (SCV) record. This value is calculated
+                                                        by NCBI based on data from the submitter. <a
+                                                            href='https://www.ncbi.nlm.nih.gov/clinvar/docs/review_status/'>Read
+                                                            our rules for calculating the review status</a>. This column
+                                                        also includes a link to the submitter’s assertion criteria if
+                                                        provided, and the collection method.
+                                                    </p>
+                                                    <div class="pointer-triangle-right"></div>
+                                                </div>
+
+                                            </span>
+                                            <br /><span class="smaller">(Assertion criteria)</span>
+                                        </th>
+                                        <th scope="col" style="width:20%;">Condition
+                                            <span class="total-help-icon">
+
+                                                <a target="_blank" class="germline-sub-help-icon help-icon" data-src=th
+                                                    data-y-offset=55 data-section="germline submissions"
+                                                    data-ga-action="hover"
+                                                    data-ga-label="germline submissions info condition">
+                                                    <span class="fa fa-question-circle"></span>
+                                                    <span class="usa-sr-only">Help</span>
+                                                </a>
+
+                                                <div id="germline-sub-condition-icon"
+                                                    class="smaller pointer-triangle-parent">
+                                                    <p>
+                                                        The condition for the classification, provided by the submitter
+                                                        for this submitted (SCV) record. This column also includes the
+                                                        affected status and allele origin of individuals observed with
+                                                        this variant.
+                                                    </p>
+                                                    <div class="pointer-triangle-right"></div>
+                                                </div>
+
+                                            </span>
+                                        </th>
+                                        <th scope="col" style="width:20%;">Submitter
+                                            <span class="total-help-icon">
+
+                                                <a target="_blank" class="germline-sub-help-icon help-icon" data-src=th
+                                                    data-y-offset=53 data-section="germline submissions"
+                                                    data-ga-action="hover"
+                                                    data-ga-label="germline submissions info submitter">
+                                                    <span class="fa fa-question-circle"></span>
+                                                    <span class="usa-sr-only">Help</span>
+                                                </a>
+
+                                                <div id="germline-sub-submitter-icon"
+                                                    class="smaller pointer-triangle-parent">
+                                                    <p>
+                                                        The submitting organization for this submitted (SCV) record.
+                                                        This column also includes the SCV accession and version number,
+                                                        the date this SCV first appeared in ClinVar, and the date that
+                                                        this SCV was last updated in ClinVar.
+                                                    </p>
+                                                    <div class="pointer-triangle-right"></div>
+                                                </div>
+
+                                            </span>
+                                        </th>
+                                        <th scope="col" style="width:18%;" class="more_info">
+                                            <a href="javascript:void(0);" data-section="germline submissions"
+                                                data-ga-action="click_on" data-ga-label="more_information">Expand all
+                                                rows</a>
+                                            <span class="total-help-icon">
+
+                                                <a target="_blank" class="germline-sub-help-icon help-icon" data-src=th
+                                                    data-y-offset=-40 data-x-offset=-338
+                                                    data-section="germline submissions" data-ga-action="hover"
+                                                    data-ga-label="germline submissions info more info">
+                                                    <span class="fa fa-question-circle"></span>
+                                                    <span class="usa-sr-only">Help</span>
+                                                </a>
+
+                                                <div id="germline-sub-more-information-icon"
+                                                    class="smaller pointer-triangle-parent">
+                                                    <p>
+                                                        This column includes more information supporting the
+                                                        classification, including citations, the comment on
+                                                        classification, and detailed evidence provided as observations
+                                                        of the variant by the submitter.
+                                                    </p>
+                                                    <div class="pointer-triangle-bottom"></div>
+                                                </div>
+
+                                            </span>
+                                        </th>
+                                        <th scope="col" style="width:2%;">
+                                            <a href="javascript:void(0);" class="a-head-icon-down"
+                                                data-section="germline submissions" data-ga-action="click_on"
+                                                data-ga-label="germline submissions expand all rows"><i
+                                                    class="head-icon-down default-icon glyphicon glyphicon-chevron-down fa fa-angle-down"
+                                                    title="Expand all rows"></i></a>
+                                            <a href="javascript:void(0);" class="a-head-icon-up"
+                                                data-section="germline submissions" data-ga-action="click_on"
+                                                data-ga-label="germline submissions collapse all rows"><i
+                                                    class="head-icon-up default-icon glyphicon glyphicon-chevron-up fa fa-angle-up"
+                                                    title="Collapse all rows"></i></a>
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+
+
+
+                                    <tr class="germline-sub-col">
+                                        <td>
+                                            <div class="germline-submission"
+                                                style="display: flex;align-items: center;gap:0.5em;">
+                                                <div>
+                                                    Uncertain significance
+                                                    <div class="smaller"></div>
+
+                                                    <div class="smaller">(Jun 30, 2024)</div>
+                                                </div>
+                                            </div>
+                                            <div class="contributing">
+
+                                                <div class="status">
+                                                    <div class="badge contributing">C</div>
+                                                    <div class="smaller contributing-text">Contributing to aggregate
+                                                        classification</div>
+                                                </div>
+
+                                            </div>
+
+                                        </td>
+                                        <td>
+                                            <div class="stars-html" data-section="germline submissions"
+                                                data-ga-action="hover" data-ga-label="germline submissions revstat">
+                                                <span class="fa fa-star"></span> <span class="fa fa-star-o"></span>
+                                                <span class="fa fa-star-o"></span> <span class="fa fa-star-o"></span>
+                                            </div>
+                                            <div class="stars-description germline-submissions-stars-description smaller"
+                                                style="display: none">
+                                                criteria provided, single submitter
+                                                <div class="pointer-triangle-review-status"></div>
+                                            </div>
+
+                                            <div class="smaller">(<a target="_blank"
+                                                    href="https://www.ncbi.nlm.nih.gov/pubmed/28492532"
+                                                    data-section="germline submissions" data-ga-action="click_on"
+                                                    data-ga-label="germline submissions AC">Invitae Variant
+                                                    Classification Sherloc (09022015)</a>)</div>
+
+
+
+
+
+
+
+
+                                        </td>
+                                        <td>
+
+
+
+
+                                            <a target="_blank" href="https://www.ncbi.nlm.nih.gov/medgen/C3661900/"
+                                                data-section="germline submissions" data-ga-action="click_on"
+                                                data-ga-label="germline submissions conditions links">not provided</a>
+
+
+
+
+
+
+
+
+
+
+                                            <div class="smaller">
+                                                Affected status: unknown
+                                            </div>
+
+
+                                            <div class="smaller">
+                                                Allele origin:
+
+
+
+                                                germline
+
+
+
+                                            </div>
+                                        </td>
+                                        <td>
+
+                                            <a href="/clinvar/submitters/500031/" data-section="germline submissions"
+                                                data-ga-action="click_on"
+                                                data-ga-label="germline submissions submitter links">Labcorp Genetics
+                                                (formerly Invitae), Labcorp</a>
+
+
+
+                                            <div class="smaller">
+
+
+
+
+                                                Accession: SCV005831843.1
+
+                                                <br />First in ClinVar: Feb 25, 2025
+                                                <br />Last updated: Feb 25, 2025
+
+
+                                            </div>
+                                        </td>
+                                        <td>
+
+
+                                            <dl class="submit-evidence">
+
+
+                                                <dt>Publications:</dt>
+
+
+                                                <dd class="pub-short-url">
+                                                    <a href="/pubmed/30872814/" class="pubmed-form"
+                                                        data-section="germline submissions" data-ga-action="click_on"
+                                                        data-ga-label="germline submissions submitted citations">
+                                                        PubMed (1)
+                                                    </a>
+                                                    <div class="pubmed-details">
+                                                        PubMed:
+
+
+
+                                                        <a href="https://pubmed.ncbi.nlm.nih.gov/30872814/">30872814</a>
+
+
+
+                                                    </div>
+                                                </dd>
+
+
+
+
+
+
+
+
+                                            </dl>
+
+
+                                            <div class="smaller">
+
+                                                <span style="font-size: 17px;">Comment</span>:
+
+
+
+                                                <span style="text-indent: 8px;">
+                                                    <div class="truncated_comment">This sequence change replaces
+                                                        methionine, which is neutral and non-polar, with leucine, which
+                                                        is neutral and non-polar, at codon 60 of the BMP2 protein
+                                                        (p.Met60Leu). … <a href="javascript:void(0)"
+                                                            class="evidence_more" data-section="germline submissions"
+                                                            data-ga-action="click_on"
+                                                            data-ga-label="germline submission row expand more">(more)</a>
+                                                    </div>
+                                                    <div class="full_comment collapsed">This sequence change replaces
+                                                        methionine, which is neutral and non-polar, with leucine, which
+                                                        is neutral and non-polar, at codon 60 of the BMP2 protein
+                                                        (p.Met60Leu). This variant is present in population databases
+                                                        (rs773113395, gnomAD 0.002%). This missense change has been
+                                                        observed in individual(s) with clinical features of BMP2-related
+                                                        conditions (PMID: 30872814). ClinVar contains an entry for this
+                                                        variant (Variation ID: 590935). An algorithm developed to
+                                                        predict the effect of missense changes on protein structure and
+                                                        function (PolyPhen-2) suggests that this variant is likely to be
+                                                        disruptive. In summary, the available evidence is currently
+                                                        insufficient to determine the role of this variant in disease.
+                                                        Therefore, it has been classified as a Variant of Uncertain
+                                                        Significance. <a href="javascript:void(0)" class="evidence_less"
+                                                            data-section="germline submissions"
+                                                            data-ga-action="click_on"
+                                                            data-ga-label="germline submissions row collapse less">(less)</a>
+                                                    </div>
+                                                </span>
+
+
+                                            </div>
+
+
+
+
+                                            <div class="obs-single">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                            </div>
+
+
+
+                                        </td>
+                                        <td>
+                                            <a href="javascript:void(0);" class="a-row-icon-down"
+                                                data-section="germline submissions" data-ga-action="click_on"
+                                                data-ga-label="germline submissions row expand arrow"
+                                                title="Expand row"><i
+                                                    class="row-icon-down default-icon glyphicon glyphicon-chevron-down fa fa-angle-down"></i></a>
+                                            <a href="javascript:void(0);" class="a-row-icon-up"
+                                                data-section="germline submissions" data-ga-action="click_on"
+                                                data-ga-label="germline submissions row collapse arrow"><i
+                                                    class="row-icon-up default-icon glyphicon glyphicon-chevron-up fa fa-angle-up"
+                                                    title="Collapse row"></i></a>
+                                        </td>
+                                    </tr>
+                                    <tr class="evidence-full-display">
+                                        <td></td>
+                                        <td colspan="5"></td>
+                                    </tr>
+
+
+
+
+
+                                    <tr class="germline-sub-col">
+                                        <td>
+                                            <div class="germline-submission"
+                                                style="display: flex;align-items: center;gap:0.5em;">
+                                                <div>
+                                                    Uncertain significance
+                                                    <div class="smaller"></div>
+
+                                                    <div class="smaller">(Oct 08, 2018)</div>
+                                                </div>
+                                            </div>
+                                            <div class="contributing">
+
+                                                <div class="status">
+                                                    <div class="badge not-contributing">N</div>
+                                                    <div class="smaller contributing-text">Not contributing to aggregate
+                                                        classification</div>
+                                                </div>
+
+                                            </div>
+
+                                        </td>
+                                        <td>
+                                            <div class="stars-html" data-section="germline submissions"
+                                                data-ga-action="hover" data-ga-label="germline submissions revstat">
+                                                <span class="fa fa-star-o"></span> <span class="fa fa-star-o"></span>
+                                                <span class="fa fa-star-o"></span> <span class="fa fa-star-o"></span>
+                                            </div>
+                                            <div class="stars-description germline-submissions-stars-description smaller"
+                                                style="display: none">
+                                                no assertion criteria provided
+                                                <div class="pointer-triangle-review-status"></div>
+                                            </div>
+
+
+
+
+
+
+
+
+                                        </td>
+                                        <td>
+
+
+
+
+                                            Partial deafness
+                                            <br />
+
+
+                                            <br />
+
+                                            <a target="_blank" href="https://www.ncbi.nlm.nih.gov/medgen/C1384666/"
+                                                data-section="germline submissions" data-ga-action="click_on"
+                                                data-ga-label="germline submissions conditions links">Hearing
+                                                impairment</a>
+
+
+
+
+
+
+
+
+
+
+                                            <div class="smaller">
+                                                Affected status: yes
+                                            </div>
+
+
+                                            <div class="smaller">
+                                                Allele origin:
+
+
+
+                                                germline
+
+
+
+                                            </div>
+                                        </td>
+                                        <td>
+
+                                            <a href="/clinvar/submitters/505853/" data-section="germline submissions"
+                                                data-ga-action="click_on"
+                                                data-ga-label="germline submissions submitter links">Center for
+                                                Statistical Genetics, Columbia University</a>
+
+
+
+                                            <div class="smaller">
+
+
+
+
+                                                Accession: SCV000853300.2
+
+                                                <br />First in ClinVar: Jan 26, 2019
+                                                <br />Last updated: Jan 26, 2019
+
+
+                                            </div>
+                                        </td>
+                                        <td>
+
+
+                                            <dl class="submit-evidence">
+
+
+                                                <dt>Publications:</dt>
+
+
+                                                <dd class="pub-short-url">
+                                                    <a href="/pubmed/30872814/" class="pubmed-form"
+                                                        data-section="germline submissions" data-ga-action="click_on"
+                                                        data-ga-label="germline submissions submitted citations">
+                                                        PubMed (1)
+                                                    </a>
+                                                    <div class="pubmed-details">
+                                                        PubMed:
+
+
+
+                                                        <a href="https://pubmed.ncbi.nlm.nih.gov/30872814/">30872814</a>
+
+
+
+                                                    </div>
+                                                </dd>
+
+
+
+
+
+
+
+
+                                            </dl>
+
+
+
+
+
+                                            <div class="obs-single">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                            </div>
+
+
+
+                                        </td>
+                                        <td>
+                                            <a href="javascript:void(0);" class="a-row-icon-down"
+                                                data-section="germline submissions" data-ga-action="click_on"
+                                                data-ga-label="germline submissions row expand arrow"
+                                                title="Expand row"><i
+                                                    class="row-icon-down default-icon glyphicon glyphicon-chevron-down fa fa-angle-down"></i></a>
+                                            <a href="javascript:void(0);" class="a-row-icon-up"
+                                                data-section="germline submissions" data-ga-action="click_on"
+                                                data-ga-label="germline submissions row collapse arrow"><i
+                                                    class="row-icon-up default-icon glyphicon glyphicon-chevron-up fa fa-angle-up"
+                                                    title="Collapse row"></i></a>
+                                        </td>
+                                    </tr>
+                                    <tr class="evidence-full-display">
+                                        <td></td>
+                                        <td colspan="5"></td>
+                                    </tr>
+
+
+
+
+
+                                    <tr class="germline-sub-col">
+                                        <td>
+                                            <div class="germline-submission"
+                                                style="display: flex;align-items: center;gap:0.5em;">
+                                                <div>
+                                                    Uncertain significance
+                                                    <div class="smaller"></div>
+
+                                                    <div class="smaller">(-)</div>
+                                                </div>
+                                            </div>
+                                            <div class="contributing">
+
+                                                <div class="status">
+                                                    <div class="badge not-contributing">N</div>
+                                                    <div class="smaller contributing-text">Not contributing to aggregate
+                                                        classification</div>
+                                                </div>
+
+                                            </div>
+
+                                        </td>
+                                        <td>
+                                            <div class="stars-html" data-section="germline submissions"
+                                                data-ga-action="hover" data-ga-label="germline submissions revstat">
+                                                <span class="fa fa-star-o"></span> <span class="fa fa-star-o"></span>
+                                                <span class="fa fa-star-o"></span> <span class="fa fa-star-o"></span>
+                                            </div>
+                                            <div class="stars-description germline-submissions-stars-description smaller"
+                                                style="display: none">
+                                                no assertion criteria provided
+                                                <div class="pointer-triangle-review-status"></div>
+                                            </div>
+
+
+
+
+
+
+
+
+                                        </td>
+                                        <td>
+
+
+
+
+                                            <a target="_blank" href="https://www.ncbi.nlm.nih.gov/medgen/C1384666/"
+                                                data-section="germline submissions" data-ga-action="click_on"
+                                                data-ga-label="germline submissions conditions links">Hearing
+                                                impairment</a>
+
+
+
+
+
+
+
+
+
+
+                                            <div class="smaller">
+                                                Affected status: yes
+                                            </div>
+
+
+                                            <div class="smaller">
+                                                Allele origin:
+
+
+
+                                                inherited
+
+
+
+                                            </div>
+                                        </td>
+                                        <td>
+
+                                            <a href="/clinvar/submitters/505516/" data-section="germline submissions"
+                                                data-ga-action="click_on"
+                                                data-ga-label="germline submissions submitter links">University of
+                                                Washington Center for Mendelian Genomics, University of Washington</a>
+
+
+
+                                            <div class="smaller">
+
+
+
+
+                                                Accession: SCV001439095.1
+
+                                                <br />First in ClinVar: Oct 25, 2020
+                                                <br />Last updated: Oct 25, 2020
+
+
+                                            </div>
+                                        </td>
+                                        <td>
+
+
+                                            <dl class="submit-evidence">
+
+
+                                                <dt>Publications:</dt>
+
+
+                                                <dd class="pub-short-url">
+                                                    <a href="/pubmed/30872814/" class="pubmed-form"
+                                                        data-section="germline submissions" data-ga-action="click_on"
+                                                        data-ga-label="germline submissions submitted citations">
+                                                        PubMed (1)
+                                                    </a>
+                                                    <div class="pubmed-details">
+                                                        PubMed:
+
+
+
+                                                        <a href="https://pubmed.ncbi.nlm.nih.gov/30872814/">30872814</a>
+
+
+
+                                                    </div>
+                                                </dd>
+
+
+
+
+
+
+
+
+                                            </dl>
+
+
+
+
+
+                                            <div class="obs-single">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                            </div>
+
+
+
+                                        </td>
+                                        <td>
+                                            <a href="javascript:void(0);" class="a-row-icon-down"
+                                                data-section="germline submissions" data-ga-action="click_on"
+                                                data-ga-label="germline submissions row expand arrow"
+                                                title="Expand row"><i
+                                                    class="row-icon-down default-icon glyphicon glyphicon-chevron-down fa fa-angle-down"></i></a>
+                                            <a href="javascript:void(0);" class="a-row-icon-up"
+                                                data-section="germline submissions" data-ga-action="click_on"
+                                                data-ga-label="germline submissions row collapse arrow"><i
+                                                    class="row-icon-up default-icon glyphicon glyphicon-chevron-up fa fa-angle-up"
+                                                    title="Collapse row"></i></a>
+                                        </td>
+                                    </tr>
+                                    <tr class="evidence-full-display">
+                                        <td></td>
+                                        <td colspan="5"></td>
+                                    </tr>
+
+
+
+                                </tbody>
+
+                            </table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                            <span style="display: none;">
+                                <form name="pubmed-term" action="https://www.ncbi.nlm.nih.gov/pubmed" target="_blank"
+                                    method="post">
+                                    <input type="hidden" name="term" value="" />
+                                </form>
+                            </span>
+                        </div>
+
+
+
+
+
+                        <div aria-hidden="true" class="dlg-subint-comment" id="dlg-subint-comment-1">
+                            <div class="heading">
+
+                                Comment:
+
+                            </div>
+                            <div class="content">
+
+                                <div class="comment">
+                                    This sequence change replaces methionine, which is neutral and non-polar, with
+                                    leucine, which is neutral and non-polar, at codon 60 of the BMP2 protein
+                                    (p.Met60Leu). This variant is present in population databases (rs773113395, gnomAD
+                                    0.002%). This missense change has been observed in individual(s) with clinical
+                                    features of BMP2-related conditions (PMID: 30872814). ClinVar contains an entry for
+                                    this variant (Variation ID: 590935). An algorithm developed to predict the effect of
+                                    missense changes on protein structure and function (PolyPhen-2) suggests that this
+                                    variant is likely to be disruptive. In summary, the available evidence is currently
+                                    insufficient to determine the role of this variant in disease. Therefore, it has
+                                    been classified as a Variant of Uncertain Significance.
+                                </div>
+
+                            </div>
+                            <div class="button">
+                                <button class="ok-subint-comment" id="ok-subint-comment-1">OK</button>
+                            </div>
+                        </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                    </div>
+
+                </div>
+                <div class="new-citation-table" id="new-germline-citation">
+                    <h3>
+                        Citations for germline classification of this variant
+                        <a href="javascript:void(0);" class="new-head-icon-down" data-section="germline citations"
+                            data-ga-action="click_on" data-ga-label="germline citations expand">
+                            <i class="new-icon-down default-icon glyphicon glyphicon-chevron-down fa fa-angle-down"></i>
+                        </a>
+                        <a href="javascript:void(0);" class="new-head-icon-up" data-section="germline citations"
+                            data-ga-action="click_on" data-ga-label="germline citations collapse">
+                            <i class="new-icon-up default-icon glyphicon glyphicon-chevron-up fa fa-angle-up"></i>
+                        </a>
+
+                    </h3>
+
+                    <a target="_blank" href="/clinvar/docs/variation_report/#citations" class=""
+                        data-section="germline citations" data-ga-action="click_on"
+                        data-ga-label="germline citations info">
+                        <span class="fa fa-question-circle"></span>
+                        <span class="usa-sr-only">Help</span>
+                    </a>
+
+
+
+                    <div class="usa-grid-full expandable">
+                        <div class="usa-grid-full subheader-flex">
+
+                            <table
+                                class="stickyheaders usa-table-borderless table-top-border align-top citation-table-list expandable"
+                                id="citation-list">
+                                <thead>
+                                    <th scope="col" class="title">Title</th>
+                                    <th scope="col" style="width: 15%;">Author</th>
+                                    <th scope="col">Journal</th>
+                                    <th scope="col">Year</th>
+                                    <th scope="col">Link</th>
+                                </thead>
+                                <tbody>
+
+
+
+                                    <tr class="germline-cit-col">
+                                        <td>
+                                            Hearing impairment locus heterogeneity and identification of PLS1 as a new
+                                            autosomal dominant gene in Hungarian Roma.
+                                        </td>
+                                        <td>
+                                            Schrauwen I
+
+                                            <span class="etal"></span>
+
+                                        </td>
+                                        <td>
+                                            European journal of human genetics : EJHG
+                                        </td>
+                                        <td>
+                                            2019
+                                        </td>
+                                        <td>
+
+
+
+
+                                            PMID: <a href="https://www.ncbi.nlm.nih.gov/pubmed/30872814" target="_blank"
+                                                data-section="germline citations" data-ga-action="click_on"
+                                                data-ga-label="germline citations table PMIDs">30872814</a>
+
+
+                                        </td>
+                                    </tr>
+
+
+                                </tbody>
+
+                            </table>
+
+                            <span style="display: none;"></span>
+                        </div>
+                    </div>
+                </div>
+
+
+
+
+
+
+
+                <div class="new-litvar" id="new-litvar">
+                    <h3>
+                        Text-mined citations for rs773113395
+                        <span class="litvar waiting" id="litvar_773113395">...</span>
+                    </h3>
+
+                    <a target="_blank" href="https://www.ncbi.nlm.nih.gov/CBBresearch/Lu/Demo/LitVar/#!?query="
+                        class=" help-icon" data-src=data-y-offset=data-section="litvar" data-ga-action="click_on"
+                        data-ga-label="litvar info">
+                        <span class="fa fa-question-circle"></span>
+                        <span class="usa-sr-only">Help</span>
+                    </a>
+
+
+                    <div class="usa-grid-full">
+                        <div class="usa-grid-full subheader-flex">
+
+                            <div class="litvarIndent" id="litvarInfo">These citations are identified by LitVar using
+                                the rs number, so they may include citations for more than one variant
+                                at this location. Please review the LitVar results carefully for your
+                                variant of interest.
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <div class="usa-grid-full last-updated-box">
+                    <div class="usa-width-two-thirds last-updated">
+                        <p>Record last updated Feb 26, 2025&nbsp;<i class="fa fa-info-circle dlu-icon"
+                                aria-hidden="true"></i></p>
+                        <div class="dlu-info-text" style="display: none">
+                            <p>This date represents the last time this VCV record was updated. The
+                                update may be due to an update to one of the included submitted
+                                records (SCVs), or due to an update that ClinVar made to the variant
+                                such as adding HGVS expressions or a rs number. So this date may be
+                                different from the date of the “most recent submission” reported at the
+                                top of this page.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="usa-width-one-third last-updated">
+                        <a target="_blank" href="/clinvar/docs/variation_report/#dates" class="usa-grid help-icon"
+                            data-section="dates" data-ga-action="click_on_tooltip" data-ga-label="dates tooltip"><span
+                                class="fa fa-question-circle"></span> <span class="usa-sr-only">Help</span></a>
+                    </div>
+                </div>
+
+        </main>
+    </div>
+</body>
+
+</html>

@@ -1,0 +1,22 @@
+{
+  "name": "clinvar-extension-testing",
+  "version": "1.0.0",
+  "description": "Testing utilities for ClinVar Chrome Extension content extraction",
+  "main": "scripts/test-content-extraction.js",
+  "scripts": {
+    "test": "node scripts/test-content-extraction.js",
+    "test-file": "node scripts/test-content-extraction.js"
+  },
+  "dependencies": {
+    "jsdom": "^22.1.0"
+  },
+  "devDependencies": {},
+  "keywords": [
+    "clinvar",
+    "chrome-extension",
+    "testing",
+    "html-parsing"
+  ],
+  "author": "",
+  "license": "ISC"
+}

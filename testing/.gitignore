@@ -1,0 +1,12 @@
+# Node modules
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Large HTML files - consider if you want to track these
+# html-samples/*.html
+
+# Test output
+test-results/
+*.log
