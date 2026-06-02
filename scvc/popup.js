@@ -206,14 +206,18 @@ document.addEventListener("DOMContentLoaded", async () => {
                 'Claim with insufficient supporting evidence',
                 'Outlier claim with insufficient supporting evidence',
                 'Conflicts with expert reviewed submission without evidence to support different classification',
-                'P/LP classification for a variant in a gene with insufficient evidence for a gene-disease relationship']
+                'P/LP classification for a variant in a gene with insufficient evidence for a gene-disease relationship'],
+            'Miscellaneous': [
+                'This phenotype is not a monogenic disease. The terms P/LP are not appropriate.',
+                'Other']
         };
         var flaggedSubmissionReasonOptions = {
             '': [
                 'Other SCVs submitted for VCV record',
                 'Gene-disease relationship classification has changed',
                 'Discussion with submitter',
-                'Curation error'
+                'Curation error',
+                'Other'
             ]
         };
         var reasonsByAction = {
@@ -235,12 +239,6 @@ document.addEventListener("DOMContentLoaded", async () => {
             //loop through reasonsByAction and add options reason selector
             if (reasonsByAction[action])
                 Object.entries(reasonsByAction[action]).forEach(addOptGroup);
-
-            // add "other"
-            var opt2 = document.createElement("option");
-            opt2.text = "Other";
-            opt2.value = "Other";
-            reason.add(opt2);
 
             function addOptGroup(grp, index) {
                 var optgroup;

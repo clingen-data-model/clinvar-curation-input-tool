@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This repository contains the ClinVar Curation Chrome Extension (v3.2), a specialized tool for ClinGen curation workflow. The extension scrapes ClinVar UI HTML to create a form that allows curators to capture actions and reasons related to ClinVar submissions (SCVs) that may need re-assessment or removal to improve ClinVar data quality.
+This repository contains the ClinVar Curation Chrome Extension (v3.4), a specialized tool for ClinGen curation workflow. The extension scrapes ClinVar UI HTML to create a form that allows curators to capture actions and reasons related to ClinVar submissions (SCVs) that may need re-assessment or removal to improve ClinVar data quality.
 
 ## Architecture
 
@@ -87,7 +87,7 @@ The extension supports these annotation actions:
 - **Remove Flagged Submission**: Process already flagged submissions  
 - **No Change**: Document review with no action required
 
-Reason categories for flagging include submission errors, unnecessary conflicting interpretations, and old/outlier/unsupported submissions.
+Reason categories for flagging include submission errors, unnecessary conflicting interpretations, old/outlier/unsupported submissions, and miscellaneous (including non-monogenic phenotype classifications).
 
 ## Important Notes
 
