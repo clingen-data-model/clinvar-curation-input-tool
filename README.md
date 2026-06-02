@@ -6,6 +6,15 @@ The chrome extension is used by the ClinGen curation workflow (link) ...
 - The google sheet containing these curations is then utilized by the downstream systems to generate QC reports, statitistics and submissions of these curations to be regularly submitted to NCBI clinvar to support the eventual integration into the actual ClinVar dataset.
 
 ## Release Notes
+### v3.4
+* Added new "Miscellaneous" reason category under the "Flagging Candidate" action
+* Added new flagging candidate reason: "This phenotype is not a monogenic disease. The terms P/LP are not appropriate."
+* Moved "Other" reason under the new "Miscellaneous" category
+
+### v3.3
+* ClinVar UI changes introduced issues with the germline SCV table information scraping from the html. This has been resolved.
+* Added comprehensive testing framework.
+
 ### v3.2
 * ClinVar UI changes on Jun.09.2025 introduced issues with the germline SCV table information scraping from the html. This has been resolved.
 
