@@ -18,7 +18,21 @@ Each line in the file is a self-contained JSON object representing one annotatio
 ### Example
 
 ```json
-{"Variation ID":"12345","VCV":"VCV000012345","SCV ID":"SCV000067890.3","Submitter ID":"505878","Action":"flagging candidate","Reason":"Classification not supported by evidence","Notes":"See detailed rationale","Timestamp":"2026-05-10T14:30:45Z","Date Created":"2026-04-01","ClinVar Release Date":"2026-03-15","Is Annotation Outdated":false,"Is Annotated SCV Deleted":false,"SCV Deleted Release Date":null}
+{
+  "Variation ID": "12345",
+  "VCV": "VCV000012345",
+  "SCV ID": "SCV000067890.3",
+  "Submitter ID": "505878",
+  "Action": "flagging candidate",
+  "Reason": "Classification not supported by evidence",
+  "Notes": "See detailed rationale",
+  "Timestamp": "2026-05-10T14:30:45Z",
+  "Date Created": "2026-04-01",
+  "ClinVar Release Date": "2026-03-15",
+  "Is Annotation Outdated": false,
+  "Is Annotated SCV Deleted": false,
+  "SCV Deleted Release Date": null
+}
 ```
 
 ## Column Definitions
@@ -152,7 +166,7 @@ It is the ClinVar release that was current when the curator created the annotati
 
 ### Why are both Variation ID and VCV included?
 
-Variation ID (field #1) is the internal numeric identifier for the variant, while VCV (field #2) is the accession string (e.g., `VCV000012345`). Both are included because different ClinVar systems and APIs reference one or the other. Either can serve as a unique identifier for the variant record. See [Identification Fields](#identification-fields). Both fields are expected by ClinVar and should be populated accurately.
+Both were included for convenience. Variation ID (field #1) is the internal numeric identifier, useful in auditing and computational processing from the producer's vantage point. VCV (field #2) is the user-facing accession string (e.g., `VCV000012345`) that most submitters and ClinVar users are comfortable working with. There is no known technical requirement from ClinVar's side to include both, but both are populated for completeness -- defer to ClinVar if one or the other can be left blank. See [Identification Fields](#identification-fields).
 
 ### What does "Is Annotation Outdated" mean?
 
