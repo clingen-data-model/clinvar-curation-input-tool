@@ -67,6 +67,7 @@ scvc/
 
 testing/          -- Unit testing infrastructure
 docs/             -- Curation criteria documentation
+Review&Submit/    -- Google Apps Script for downstream review and submission (see below)
 ```
 
 ### Running Tests
@@ -78,6 +79,10 @@ npm test
 ```
 
 Tests use JSDOM to simulate the browser DOM and validate data extraction against saved ClinVar HTML samples in `testing/html-samples/`.
+
+## Review & Submit
+
+Annotations captured by the Chrome extension are reviewed and submitted to ClinVar through a separate Google Apps Script project bound to the [Review & Submit Google Sheet](https://docs.google.com/spreadsheets/d/1ZPADw8DPh5iZxqsNDVM24T1p4AzmStqrcpOWdtHOUp8/edit?gid=0#gid=0). The scripts handle annotation review, batch assignment, submission file generation, and email drafting. See the [Review & Submit README](Review&Submit/README.md) for details.
 
 ## Known Limitations
 
