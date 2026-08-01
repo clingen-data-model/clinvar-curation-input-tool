@@ -27,7 +27,7 @@
   ],
 
   "oauth2": {
-    "client_id": "PASTE_CLINGEN_CVC_OAUTH_CLIENT_ID_HERE.apps.googleusercontent.com",
+    "client_id": "493724081911-56lforiqkeq2ahpip4ur6t315qc93ujf.apps.googleusercontent.com",
     "scopes": ["openid", "email", "profile"]
   },
 

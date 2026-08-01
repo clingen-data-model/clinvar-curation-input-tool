@@ -1,0 +1,11 @@
+{
+  "projects": {},
+  "targets": {},
+  "etags": {
+    "clingen-cvc": {
+      "extensionInstances": {
+        "firestore-bigquery-export": "f37fe54555936d4cde49c85a71eaed098391d0aa925218595b7fdc990bb31a5e"
+      }
+    }
+  }
+}

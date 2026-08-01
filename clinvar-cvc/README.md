@@ -51,6 +51,7 @@ are added automatically: the submitter's **verified Google account email**
 | `firestore.rules` + `firebase.json` | Security rules (deploy via Firebase CLI) |
 | `bigquery/annotations_view.sql` | Flattened BigQuery view mirroring the Firestore doc shape |
 | `setup-clingen-cvc.sh` | Scripts the automatable setup (project/APIs/Firestore/rules/allowlist/webapp); pauses for the console-only OAuth steps |
+| `add-curator.sh` / `remove-curator.sh` / `list-curators.sh` | Admin helpers to manage the `allowed_curators` allowlist |
 | `icons/` | Extension icons (16/48/128) |
 
 ---
@@ -158,25 +159,84 @@ delete their document. See "Who can use the extension" below.
 
 ### 10. Stream Firestore → BigQuery
 Install the Firebase Extension **"Stream Firestore to BigQuery"**
-(`firestore-bigquery-export`):
-- **Firestore Database ID**: `(default)` (the extension's default — correct here).
+(`firestore-bigquery-export`). Console install works, but via CLI it's two steps
+(this tripped us up — `ext:install` only records to the local manifest):
+
+```bash
+firebase ext:install firebase/firestore-bigquery-export --project clingen-cvc  # records params
+firebase deploy --only extensions --project clingen-cvc --force                # ACTUALLY deploys
+```
+
+Parameter values:
 - **Collection path**: `clinvar_cvc_ext_annotations`
 - **Dataset ID**: `clinvar_cvc_ext`  **Table ID**: `annotations`
-- **BigQuery dataset location**: `us` (matches a US Firestore location).
+- **Firestore Database region**: ⚠️ must be your database's **location**, i.e.
+  **`nam5`** (the US multi-region), **not** `us-central1`. The install default is
+  wrong for a multi-region DB and the deploy fails with *"Database '(default)'
+  does not exist in region 'us-central1'."*
+- **BigQuery dataset location**: `us-central1` (as configured here) — remember to
+  pass `--location=us-central1` on CLI queries.
+- View type: regular view; time partitioning: NONE.
 
-The extension creates the dataset/table on the first write after install (it only
-streams writes made *after* install). Then verify:
+Fresh-project IAM (the deploy fails without these):
+```bash
+# the compute SA needs build permissions (gen1 helper functions build via Cloud Build)
+SA="$(gcloud projects describe clingen-cvc --format='value(projectNumber)')-compute@developer.gserviceaccount.com"
+for r in roles/storage.objectViewer roles/logging.logWriter roles/artifactregistry.writer; do
+  gcloud projects add-iam-policy-binding clingen-cvc --member="serviceAccount:${SA}" --role="$r" --condition=None
+done
+```
 
-```sql
-SELECT COUNT(*) FROM `clingen-cvc.clinvar_cvc_ext.annotations_raw_changelog`;
+After deploy, grant the Eventarc trigger's SA **Cloud Run Invoker** on the
+function's Cloud Run service (otherwise events 403 and nothing streams — see
+Troubleshooting):
+```bash
+TRIG_SA=$(gcloud eventarc triggers list --project=clingen-cvc --location=nam5 \
+  --format="value(serviceAccount)" | head -1)
+[ -z "$TRIG_SA" ] && TRIG_SA="${SA}"
+gcloud run services add-iam-policy-binding ext-firestore-bigquery-export-fsexportbigquery \
+  --region=us-central1 --project=clingen-cvc --member="serviceAccount:${TRIG_SA}" --role=roles/run.invoker
+```
+
+The dataset/table are created on the **first write after deploy** (earlier writes
+don't backfill). Verify:
+```bash
+bq --location=us-central1 --project_id=clingen-cvc query --use_legacy_sql=false \
+  'SELECT COUNT(*) FROM `clingen-cvc.clinvar_cvc_ext.annotations_raw_changelog`'
 ```
 
 ### 11. Flattened BigQuery table
-Run [`bigquery/annotations_view.sql`](bigquery/annotations_view.sql) once in the
-BigQuery console. It creates the view **`clingen-cvc.clinvar_cvc_ext.annotations`**
-with one typed column per field (mirroring the Firestore document) over
-`annotations_raw_latest`. Swap `VIEW`→`TABLE` (or use a scheduled query) for a
-physical table.
+Create the typed view (one column per field, mirroring the Firestore doc) from
+[`bigquery/annotations_view.sql`](bigquery/annotations_view.sql). Pipe it via
+stdin — `bq` crashes if a query that starts with `--` comments is passed as an
+argument:
+```bash
+bq --location=us-central1 --project_id=clingen-cvc query --use_legacy_sql=false \
+  < bigquery/annotations_view.sql
+```
+This builds **`clingen-cvc.clinvar_cvc_ext.annotations`** over
+`annotations_raw_latest`. Note: the extension serializes Firestore timestamps as
+`{_seconds,_nanoseconds}`, so the view extracts `created_at` via
+`TIMESTAMP_SECONDS(... '$.created_at._seconds')`. Swap `VIEW`→`TABLE` (or a
+scheduled query) for a physical table.
+
+### Adjusting the extension log level (`LOG_LEVEL`)
+The extension is deployed with `LOG_LEVEL=debug` (verbose — handy while setting
+up). To quiet it down (less log noise/cost) or turn it back up to diagnose an
+issue, toggle it either way:
+
+**CLI (edit the manifest, redeploy):**
+1. Edit `extensions/firestore-bigquery-export.env` → set `LOG_LEVEL=warn`
+   (valid: `debug`, `info`, `warn`, `error`, `silent`).
+2. `firebase deploy --only extensions --project clingen-cvc --force`
+
+**Console:** Extensions ▸ *Stream Firestore to BigQuery* ▸ **Reconfigure
+extension** ▸ set **Log level** ▸ Save.
+
+⚠️ **Either path re-creates the Eventarc trigger**, which drops the Cloud Run
+Invoker binding — so **re-run the `run.invoker` grant from step 10** afterward, or
+streaming silently 403s (see Troubleshooting). Suggested: `warn` for normal
+operation, `debug` only while investigating.
 
 ---
 
@@ -196,13 +256,24 @@ account that isn't listed gets a "not authorized — contact an administrator"
 message (the write returns `PERMISSION_DENIED`).
 
 ### Managing the allowlist (admin)
+Easiest — the helper scripts (need gcloud authed as a project owner/editor):
+```bash
+./add-curator.sh    jane@example.com   # authorize
+./remove-curator.sh jane@example.com   # revoke
+./list-curators.sh                     # show all authorized emails
+```
+(They write to `allowed_curators` via the Firestore REST API with your owner
+token, which bypasses the client-write rule. Override the project with
+`CVC_PROJECT=... ./add-curator.sh ...`.)
+
+Or by hand in the console:
 - **Add a curator**: Firestore ▸ Data ▸ `allowed_curators` ▸ **Add document** ▸
   Document ID = their Google email. (An optional `added_by`/`note` field is just
   for your bookkeeping.)
 - **Remove a curator**: delete their document. Effective on their next submit
   (their in-flight token doesn't grant a bypass — every write re-checks the rule).
 - Clients can't modify `allowed_curators` (rules forbid it); manage it only via
-  the console or the Admin SDK.
+  the console, these scripts, or the Admin SDK.
 
 > Want Google-Group-based management later? Keep this same collection as the
 > enforcement point and add a scheduled job that syncs the group's membership
@@ -238,24 +309,47 @@ extension's id, and it must be **whitelisted** in Firebase's Google provider
 (step 7). Note: an unpacked extension's id is stable per machine/profile — if it
 changes, re-create the OAuth client (or pin the id with a manifest `key`).
 
+**`firebase ext:install` ran but no extension/functions exist.** In current
+firebase-tools, `ext:install` only records the extension to the local
+`firebase.json` manifest — it does **not** deploy. Run
+`firebase deploy --only extensions --project clingen-cvc --force` to actually
+install it.
+
+**Extension deploy fails: "Database '(default)' does not exist in region
+'us-central1'. Did you mean 'nam5'?"** The recorded **Firestore Database region**
+is wrong. Set it to your database's location — `nam5` for the US multi-region —
+in `extensions/firestore-bigquery-export.env` (`DATABASE_REGION=nam5`) and
+redeploy. (The Cloud Function can stay in `us-central1`; only the trigger region
+must match the DB.)
+
+**Extension deploy fails: "Access to bucket gcf-sources-… denied … grant Storage
+Object Viewer to …-compute@developer.gserviceaccount.com."** A fresh project's
+compute service account lacks build permissions. Grant them, then redeploy:
+```bash
+SA="$(gcloud projects describe clingen-cvc --format='value(projectNumber)')-compute@developer.gserviceaccount.com"
+for r in roles/storage.objectViewer roles/logging.logWriter roles/artifactregistry.writer; do
+  gcloud projects add-iam-policy-binding clingen-cvc --member="serviceAccount:${SA}" --role="$r" --condition=None
+done
+```
+
 **Firestore writes succeed but nothing reaches BigQuery / no dataset appears.**
-Check the extension's **Firestore Database ID** param — with `(default)` it should
-be `(default)` (the default). Also confirm the Collection path.
+Confirm the extension's **Collection path** (`clinvar_cvc_ext_annotations`) and
+that it was actually deployed (above). The dataset/table are created on the first
+write *after* deploy; earlier writes don't backfill.
 
 **Dataset + tables exist but stay empty even after new saves.** Check the function
 logs (Extensions ▸ your extension ▸ Logs). If you see `HTTP 403` pushes to the
 function's `*.run.app` URL (`__GCP_CloudEventsMode=CE_PUBSUB_BINDING`), the
 Eventarc trigger fired but its delivery identity can't invoke the Cloud Run
-service. Grant it **Cloud Run Invoker** (this commonly breaks after reconfiguring):
+service. Grant it **Cloud Run Invoker** (this commonly breaks after reconfiguring
+or toggling `LOG_LEVEL`). Note the trigger lives in **`nam5`** (the DB region):
 
 ```bash
-gcloud eventarc triggers list --location=us-central1 --project=clingen-cvc
-gcloud eventarc triggers describe TRIGGER_NAME \
-  --location=us-central1 --project=clingen-cvc \
-  --format="value(serviceAccount)"
+TRIG_SA=$(gcloud eventarc triggers list --location=nam5 --project=clingen-cvc \
+  --format="value(serviceAccount)" | head -1)
 gcloud run services add-iam-policy-binding ext-firestore-bigquery-export-fsexportbigquery \
   --region=us-central1 --project=clingen-cvc \
-  --member="serviceAccount:TRIGGER_SA" --role=roles/run.invoker
+  --member="serviceAccount:${TRIG_SA}" --role=roles/run.invoker
 ```
 
 Pub/Sub retries failed pushes, so previously-403'd events usually backfill within

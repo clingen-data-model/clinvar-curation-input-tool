@@ -19,7 +19,7 @@
  */
 const FIREBASE_CONFIG = {
   projectId: 'clingen-cvc',
-  apiKey: 'PASTE_FIREBASE_WEB_API_KEY_HERE',
+  apiKey: 'AIzaSyApRKUWc9WnpLB7cryD9VDp7R7MTtm3tBM',
 
   // Dedicated project => use the default database (no named-database Rules-tab
   // or extension "Database ID" gotchas). Leave as '(default)'.

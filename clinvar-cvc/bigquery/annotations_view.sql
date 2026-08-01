@@ -25,7 +25,8 @@ SELECT
   JSON_VALUE(data, '$.action')                            AS action,
   JSON_VALUE(data, '$.reason')                            AS reason,
   JSON_VALUE(data, '$.notes')                             AS notes,
-  SAFE_CAST(JSON_VALUE(data, '$.created_at') AS TIMESTAMP) AS created_at,
+  -- the extension serializes Firestore timestamps as {_seconds,_nanoseconds}
+  TIMESTAMP_SECONDS(SAFE_CAST(JSON_VALUE(data, '$.created_at._seconds') AS INT64)) AS created_at,
   timestamp                                               AS synced_at
 FROM `clingen-cvc.clinvar_cvc_ext.annotations_raw_latest`
 WHERE data IS NOT NULL;   -- exclude tombstone rows for deleted documents

@@ -26,7 +26,7 @@ ORG_FLAG=""                                  # e.g. "--organization=1234567890" 
                                              # (needed so External OAuth is allowed)
 # ---- usually fine as-is ----------------------------------------------------
 LOCATION="nam5"                              # Firestore location (US multi-region)
-BQ_LOCATION="us"                             # BigQuery dataset location
+BQ_LOCATION="us-central1"                    # BigQuery dataset location (query with --location=this)
 FUNCTIONS_REGION="us-central1"
 WEBAPP="clinvar-cvc-ext"
 COLLECTION="clinvar_cvc_ext_annotations"
@@ -78,23 +78,34 @@ curl -s -X PATCH \
   -d '{"fields":{"added_by":{"stringValue":"setup-clingen-cvc.sh"}}}' >/dev/null
 echo "    added allowed_curators/${MY_EMAIL}"
 
-echo "==> 9/9 Install the Firestore->BigQuery extension"
-# The extension has many params; the reliable way to record them is to run the
-# interactive installer ONCE (it writes extensions/<id>.env + a firebase.json
-# entry), then deploys are reproducible. If that manifest already exists, this
-# just deploys it.
+echo "==> 9/9 Firestore->BigQuery extension"
+# Fresh projects: the compute SA needs build permissions or the gen1 helper
+# functions fail to build ("Access to bucket gcf-sources-... denied").
+CSA="$(gcloud projects describe "${PROJECT}" --format='value(projectNumber)')-compute@developer.gserviceaccount.com"
+for r in roles/storage.objectViewer roles/logging.logWriter roles/artifactregistry.writer; do
+  gcloud projects add-iam-policy-binding "${PROJECT}" --member="serviceAccount:${CSA}" --role="${r}" --condition=None --quiet >/dev/null
+done
+echo "    granted build roles to ${CSA}"
+
+# `firebase ext:install` only RECORDS params to the local manifest; you must
+# `deploy` to actually install. Run the interactive install ONCE, then deploy.
 if [ -f "extensions/firestore-bigquery-export.env" ]; then
-  firebase deploy --only extensions --project "${PROJECT}" --non-interactive --force
+  firebase deploy --only extensions --project "${PROJECT}" --force
+  # Let the Eventarc trigger (created in the DB region) invoke the function's
+  # Cloud Run service — otherwise events 403 and nothing streams.
+  TRIG_SA=$(gcloud eventarc triggers list --location="${LOCATION}" --project="${PROJECT}" --format="value(serviceAccount)" 2>/dev/null | head -1)
+  [ -z "${TRIG_SA}" ] && TRIG_SA="${CSA}"
+  gcloud run services add-iam-policy-binding ext-firestore-bigquery-export-fsexportbigquery \
+    --region="${FUNCTIONS_REGION}" --project="${PROJECT}" \
+    --member="serviceAccount:${TRIG_SA}" --role=roles/run.invoker --quiet >/dev/null 2>&1 \
+    && echo "    granted run.invoker to ${TRIG_SA}"
 else
-  echo "    No extension manifest yet. Run this ONCE interactively, answering:"
-  echo "      Database ID = (default) | Collection = ${COLLECTION}"
-  echo "      Dataset = ${BQ_DATASET} | Table = ${BQ_TABLE} | Dataset location = ${BQ_LOCATION}"
-  echo "      Functions location = ${FUNCTIONS_REGION}"
-  echo
-  echo "      firebase ext:install firebase/firestore-bigquery-export --project=${PROJECT} --local"
-  echo
-  echo "    Then re-run this script (it will deploy the recorded manifest), or run:"
-  echo "      firebase deploy --only extensions --project ${PROJECT}"
+  echo "    No extension manifest yet. Install it ONCE interactively (records params):"
+  echo "      firebase ext:install firebase/firestore-bigquery-export --project=${PROJECT}"
+  echo "    Answers: Collection=${COLLECTION}, Dataset=${BQ_DATASET}, Table=${BQ_TABLE},"
+  echo "             Firestore Database region=${LOCATION}  <-- NOT us-central1 (must match the DB),"
+  echo "             view type=view, time partitioning=NONE, dataset location=${BQ_LOCATION}."
+  echo "    Then re-run this script; it deploys the manifest and grants run.invoker."
 fi
 
 echo
@@ -119,7 +130,7 @@ if [ -n "${CLIENT_ID}" ]; then
 fi
 
 echo
-echo "==> Optional: create the flattened BigQuery view (after the extension has run once)"
-echo "    bq query --project_id=${PROJECT} --use_legacy_sql=false < bigquery/annotations_view.sql"
+echo "==> Optional: create the flattened BigQuery view (after the extension has streamed a row)"
+echo "    bq --location=${BQ_LOCATION} --project_id=${PROJECT} --use_legacy_sql=false < bigquery/annotations_view.sql"
 echo
 echo "Done with the scriptable parts."

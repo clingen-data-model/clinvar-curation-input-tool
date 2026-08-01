@@ -4,5 +4,8 @@
       "database": "(default)",
       "rules": "firestore.rules"
     }
-  ]
+  ],
+  "extensions": {
+    "firestore-bigquery-export": "firebase/firestore-bigquery-export@0.3.3"
+  }
 }
