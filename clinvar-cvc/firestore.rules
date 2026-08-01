@@ -1,0 +1,32 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // An account is an authorized curator iff a document keyed by its VERIFIED
+    // email exists in allowed_curators. Admins manage that collection (Firebase
+    // console / Admin SDK); clients cannot write it. request.auth.token.email is
+    // trustworthy only with Google sign-in (authMode: 'google').
+    function isAllowedCurator() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && exists(/databases/$(database)/documents/allowed_curators/$(request.auth.token.email));
+    }
+
+    // CvC annotations: create-only, immutable, and only by an allowlisted
+    // curator writing their own verified email.
+    match /clinvar_cvc_ext_annotations/{docId} {
+      allow read:   if isAllowedCurator();
+      allow create: if isAllowedCurator()
+                    && request.resource.data.user_email == request.auth.token.email;
+      allow update, delete: if false;
+    }
+
+    // The allowlist itself. A signed-in user may read ONLY their own entry, so
+    // the extension can show an authorized / not-authorized state. No client
+    // writes — add or remove curators via the Firebase console or Admin SDK.
+    match /allowed_curators/{email} {
+      allow read:  if request.auth != null && request.auth.token.email == email;
+      allow write: if false;
+    }
+  }
+}

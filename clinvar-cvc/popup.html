@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>ClinVar POC</title>
+  <style>
+    :root { --gap: 10px; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      width: 340px;
+      margin: 0;
+      padding: 14px 16px 16px;
+      color: #1f2937;
+      background: #ffffff;
+    }
+    h1 {
+      font-size: 15px;
+      margin: 0 0 2px;
+    }
+    .subtitle {
+      font-size: 11px;
+      color: #6b7280;
+      margin: 0 0 12px;
+    }
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 3px;
+    }
+    input, select, textarea {
+      width: 100%;
+      box-sizing: border-box;
+      font-size: 13px;
+      padding: 6px 8px;
+      margin-bottom: var(--gap);
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-family: inherit;
+    }
+    textarea { resize: vertical; min-height: 48px; }
+    button {
+      width: 100%;
+      font-size: 14px;
+      font-weight: 600;
+      padding: 9px;
+      border: none;
+      border-radius: 6px;
+      background: #2563eb;
+      color: #fff;
+      cursor: pointer;
+    }
+    button:disabled { background: #93b4f5; cursor: default; }
+    #status {
+      font-size: 12px;
+      margin-top: 10px;
+      min-height: 16px;
+      white-space: pre-wrap;
+    }
+    #status.ok { color: #15803d; }
+    #status.err { color: #b91c1c; }
+  </style>
+</head>
+<body>
+  <h1>ClinVar POC</h1>
+  <p class="subtitle">Capture 5 fields &rarr; Firestore &rarr; BigQuery</p>
+
+  <form id="poc-form">
+    <label for="user_email">Google Account (auto-captured)</label>
+    <input type="text" id="user_email" placeholder="detecting signed-in account..." readonly />
+
+    <label for="variation_id">Variation ID</label>
+    <input type="text" id="variation_id" placeholder="e.g. 12345" />
+
+    <label for="scv_id">SCV ID</label>
+    <input type="text" id="scv_id" placeholder="e.g. SCV000123456.2" />
+
+    <label for="action">Action</label>
+    <select id="action">
+      <option value="">Choose...</option>
+      <option value="Flagging Candidate">Flagging Candidate</option>
+      <option value="Remove Flagged Submission">Remove Flagged Submission</option>
+      <option value="No Change">No Change</option>
+    </select>
+
+    <label for="reason">Reason</label>
+    <input type="text" id="reason" placeholder="Reason for the action" />
+
+    <label for="notes">Notes</label>
+    <textarea id="notes" placeholder="Optional free-text notes"></textarea>
+
+    <button type="submit" id="save">Save to Firestore</button>
+  </form>
+
+  <div id="status"></div>
+
+  <!-- config MUST load before popup.js -->
+  <script src="firebase-config.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

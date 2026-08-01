@@ -1,0 +1,39 @@
+{
+  "manifest_version": 3,
+  "name": "ClinVar POC (Firestore)",
+  "version": "0.1.0",
+  "description": "Proof-of-concept: capture 5 fields and persist them to Firestore, which is streamed to BigQuery via the Firebase 'Stream Firestore to BigQuery' extension.",
+
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+
+  "action": {
+    "default_title": "ClinVar POC",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+
+  "permissions": [
+    "identity",
+    "identity.email",
+    "storage"
+  ],
+
+  "oauth2": {
+    "client_id": "PASTE_CLINGEN_CVC_OAUTH_CLIENT_ID_HERE.apps.googleusercontent.com",
+    "scopes": ["openid", "email", "profile"]
+  },
+
+  "host_permissions": [
+    "https://firestore.googleapis.com/*",
+    "https://identitytoolkit.googleapis.com/*",
+    "https://securetoken.googleapis.com/*"
+  ]
+}
