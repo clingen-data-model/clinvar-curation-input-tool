@@ -1,4 +1,4 @@
-const { buildHistoryQuery, parseHistoryRows } = require('../history.js');
+const { buildHistoryQuery, parseHistoryRows, sortHistoryDesc } = require('../history.js');
 
 describe('buildHistoryQuery', () => {
   it('builds a structuredQuery filtering by variation_id with a safety limit and NO orderBy', () => {
@@ -51,4 +51,20 @@ describe('parseHistoryRows', () => {
   it('returns [] for an empty response', () => {
     expect(parseHistoryRows([])).toEqual([]);
   });
+});
+
+it('sorts newest-first by created_at, stable for equal timestamps', () => {
+  const rows = [
+    { scv: 'a', created_at: '2023-01-01T00:00:00Z' },
+    { scv: 'b', created_at: '2024-06-01T00:00:00Z' },
+    { scv: 'c', created_at: '2023-12-31T23:59:59Z' }
+  ];
+  expect(sortHistoryDesc(rows).map(r => r.scv)).toEqual(['b', 'c', 'a']);
+});
+
+it('does not mutate the input array', () => {
+  const rows = [{ scv: 'a', created_at: '2023-01-01T00:00:00Z' }, { scv: 'b', created_at: '2024-01-01T00:00:00Z' }];
+  const copy = rows.slice();
+  sortHistoryDesc(rows);
+  expect(rows).toEqual(copy);
 });

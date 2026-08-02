@@ -1,7 +1,7 @@
 // Prior-annotation history: Firestore runQuery builder, response parser, and
 // client-side sort. Pure logic only — no DOM/network/chrome.* wiring here.
 
-var buildHistoryQuery, parseHistoryRows;
+var buildHistoryQuery, parseHistoryRows, sortHistoryDesc;
 
 (function () {
   buildHistoryQuery = function (variationId, collection) {
@@ -46,12 +46,22 @@ var buildHistoryQuery, parseHistoryRows;
     });
     return rows;
   };
+
+  sortHistoryDesc = function (rows) {
+    return (rows || []).slice().sort(function (a, b) {
+      var aDate = String((a && a.created_at) || '');
+      var bDate = String((b && b.created_at) || '');
+      if (aDate === bDate) return 0;
+      return aDate < bDate ? 1 : -1;
+    });
+  };
 })();
 
 if (typeof window !== 'undefined') {
   window.buildHistoryQuery = buildHistoryQuery;
   window.parseHistoryRows = parseHistoryRows;
+  window.sortHistoryDesc = sortHistoryDesc;
 }
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { buildHistoryQuery, parseHistoryRows };
+  module.exports = { buildHistoryQuery, parseHistoryRows, sortHistoryDesc };
 }
