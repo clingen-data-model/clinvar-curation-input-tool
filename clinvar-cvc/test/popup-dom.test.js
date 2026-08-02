@@ -36,6 +36,7 @@ describe('popup.html markup', () => {
       'vocab.js',
       'annotation.js',
       'popup-view.js',
+      'history.js',
       'popup.js'
     ]);
   });

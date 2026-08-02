@@ -56,6 +56,18 @@ async function ensureAuth() {
  */
 async function signInWithGoogle() {
   const googleToken = await getGoogleAuthToken();
+  return exchangeGoogleToken(googleToken);
+}
+
+/**
+ * Exchanges a Google OAuth access token for a Firebase credential via
+ * Identity Toolkit accounts:signInWithIdp (no Firebase SDK). Factored out of
+ * signInWithGoogle so the silent history-auth path (silentIdToken) can reuse
+ * the exact same exchange.
+ *
+ * @returns {Promise<{idToken: string, email: string}>}
+ */
+async function exchangeGoogleToken(googleToken) {
   const apiKey = FIREBASE_CONFIG.apiKey;
   // requestUri must be an authorized domain; the project's default authDomain is.
   const requestUri = `https://${FIREBASE_CONFIG.projectId}.firebaseapp.com`;
@@ -100,6 +112,47 @@ function getGoogleAuthToken() {
       resolve(token);
     });
   });
+}
+
+/**
+ * Like getGoogleAuthToken(), but non-interactive: resolves null (never
+ * rejects) when there is no cached Google OAuth grant. Used only for the
+ * best-effort history load, which must never prompt for interactive sign-in
+ * just because the curator opened the popup.
+ *
+ * @returns {Promise<string|null>}
+ */
+function getGoogleAuthTokenSilent() {
+  return new Promise((resolve) => {
+    chrome.identity.getAuthToken({ interactive: false }, (token) => {
+      if (chrome.runtime.lastError || !token) {
+        resolve(null);
+        return;
+      }
+      resolve(token);
+    });
+  });
+}
+
+/**
+ * Best-effort Firebase ID token for the history load, obtained without ever
+ * triggering an interactive sign-in prompt. Returns null whenever silent auth
+ * isn't available (non-Google authMode, no cached Google grant, or any
+ * failure in the token exchange) so history stays purely additive and never
+ * blocks/breaks the popup.
+ *
+ * @returns {Promise<string|null>}
+ */
+async function silentIdToken() {
+  if ((FIREBASE_CONFIG.authMode || 'none') !== 'google') return null;
+  try {
+    const googleToken = await getGoogleAuthTokenSilent();
+    if (!googleToken) return null;
+    const { idToken } = await exchangeGoogleToken(googleToken);
+    return idToken;
+  } catch (e) {
+    return null;
+  }
 }
 
 /**
@@ -291,6 +344,46 @@ async function saveAnnotation(data, idToken) {
 }
 
 /**
+ * Fetches prior annotations for a ClinVar variation via Firestore's REST
+ * runQuery (see history.js for the query shape / response parsing), sorted
+ * newest-first. Best-effort: any non-ok response — including a 403 for a
+ * signed-in-but-not-allowlisted account — resolves to [] instead of
+ * throwing, so a failed history fetch never blocks/breaks the popup.
+ *
+ * @returns {Promise<object[]>}
+ */
+async function fetchHistory(variationId, idToken) {
+  const { projectId, collection } = FIREBASE_CONFIG;
+  const databaseId = FIREBASE_CONFIG.databaseId || '(default)';
+  const buildHistoryQueryFn = (typeof window !== 'undefined' && window.buildHistoryQuery) ||
+    require('./history.js').buildHistoryQuery;
+  const parseHistoryRowsFn = (typeof window !== 'undefined' && window.parseHistoryRows) ||
+    require('./history.js').parseHistoryRows;
+  const sortHistoryDescFn = (typeof window !== 'undefined' && window.sortHistoryDesc) ||
+    require('./history.js').sortHistoryDesc;
+
+  const url =
+    `https://firestore.googleapis.com/v1/projects/${projectId}` +
+    `/databases/${encodeURIComponent(databaseId)}/documents:runQuery`;
+
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${idToken}`
+    },
+    body: JSON.stringify(buildHistoryQueryFn(variationId, collection))
+  });
+
+  if (!resp.ok) {
+    console.info('CvC: history fetch failed —', resp.status);
+    return [];
+  }
+
+  return sortHistoryDescFn(parseHistoryRowsFn(await resp.json()));
+}
+
+/**
  * Asks the active tab's content script (content.js) to scrape the current
  * ClinVar variation page. Resolves to the scraped data, or null if there is
  * no active tab / no content script response (e.g. not on a ClinVar page).
@@ -334,6 +427,86 @@ function addChooseOption(select) {
   opt.textContent = 'Choose...';
   opt.selected = true;
   select.appendChild(opt);
+}
+
+/**
+ * Cache of the current variation's prior-annotation rows (as returned by
+ * fetchHistory), so the SCV picker's `change` handler can re-render the
+ * current-SCV highlight via renderHistory without refetching.
+ */
+let historyRows = [];
+
+/**
+ * Renders the "Prior annotations" panel (#historypanel) from history rows.
+ * Pure re-render — no network calls — so it can be called both after a fetch
+ * and again (with the same rows) whenever the selected SCV changes, to
+ * update the current-SCV highlight. Builds DOM nodes with textContent only
+ * (never innerHTML) since notes/user_email are curator-entered text.
+ */
+function renderHistory(rows, currentScv) {
+  const emptyEl = document.getElementById('history-empty');
+  const listEl = document.getElementById('history-list');
+  if (!emptyEl || !listEl) return;
+
+  const historyViewFn = (typeof window !== 'undefined' && window.historyView) ||
+    require('./popup-view.js').historyView;
+  const displayRows = historyViewFn(rows || [], currentScv || '');
+
+  while (listEl.firstChild) listEl.removeChild(listEl.firstChild);
+
+  if (displayRows.length === 0) {
+    emptyEl.style.display = '';
+    return;
+  }
+  emptyEl.style.display = 'none';
+
+  displayRows.forEach((r) => {
+    const entry = document.createElement('div');
+    entry.className = r.isCurrent ? 'history-entry current' : 'history-entry';
+
+    const metaRow = document.createElement('div');
+    metaRow.className = 'row';
+    const metaLabel = document.createElement('span');
+    metaLabel.textContent = `${r.when} · ${r.who}`;
+    const metaValue = document.createElement('span');
+    metaValue.textContent = r.summary;
+    metaRow.appendChild(metaLabel);
+    metaRow.appendChild(metaValue);
+    entry.appendChild(metaRow);
+
+    if (r.notes) {
+      const notesRow = document.createElement('div');
+      notesRow.className = 'row';
+      const notesLabel = document.createElement('span');
+      notesLabel.textContent = 'Notes';
+      const notesValue = document.createElement('span');
+      notesValue.textContent = r.notes;
+      notesRow.appendChild(notesLabel);
+      notesRow.appendChild(notesValue);
+      entry.appendChild(notesRow);
+    }
+
+    listEl.appendChild(entry);
+  });
+}
+
+/**
+ * Loads and renders prior-annotation history for the current ClinVar
+ * variation. Best-effort and non-blocking: leaves the panel's built-in empty
+ * state untouched whenever there's no variationId, no silent auth available
+ * (never prompts interactively), or the fetch fails for any reason — history
+ * must never block or break the save flow.
+ */
+async function loadHistory(variationId, currentScv) {
+  if (!variationId) return;
+  try {
+    const idToken = await silentIdToken();
+    if (!idToken) return;
+    historyRows = await fetchHistory(variationId, idToken);
+    renderHistory(historyRows, currentScv);
+  } catch (e) {
+    console.info('CvC: history load failed —', e && e.message);
+  }
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -399,6 +572,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     scvSelect.appendChild(opt);
   });
 
+  // Best-effort, silent-auth-only history load — never blocks the picker and
+  // never prompts for interactive sign-in just because the popup was opened.
+  loadHistory(clinvarData.variation_id, '');
+
   scvSelect.addEventListener('change', () => {
     const selectedVal = scvSelect.value;
 
@@ -413,11 +590,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!selectedVal || !clinvarData) {
       resetScvDisplay();
       actionSelect.disabled = true;
+      renderHistory(historyRows, '');
       return;
     }
     const scvRow = clinvarData.row[Number(selectedVal)];
     populateScvDisplay(scvRow);
     actionSelect.disabled = false;
+    // Re-render (not refetch) so this SCV's prior entries are highlighted.
+    renderHistory(historyRows, scvRow.scv);
   });
 
   actionSelect.addEventListener('change', () => {
