@@ -1,4 +1,4 @@
-const { summarizeHistoryByScv } = require('../highlight.js');
+const { summarizeHistoryByScv, decorateForScv } = require('../highlight.js');
 
 describe('summarizeHistoryByScv', () => {
   const rows = [
@@ -28,5 +28,26 @@ describe('summarizeHistoryByScv', () => {
 
   it('returns {} for empty input', () => {
     expect(summarizeHistoryByScv([])).toEqual({});
+  });
+});
+
+describe('decorateForScv', () => {
+  it('returns null when there is no history for the scv', () => {
+    expect(decorateForScv(undefined)).toBeNull();
+  });
+
+  it('badges a flagged SCV with a warn class and count', () => {
+    const d = decorateForScv({ count: 2, flagged: true, lastAction: 'Flagging Candidate', lastWho: 'a@x.org', lastWhen: '2024-01-02' });
+    expect(d.cssClass).toBe('cvc-hl cvc-hl-flagged');
+    expect(d.badge).toBe('CvC 2');
+    expect(d.tooltip).toContain('Flagging Candidate');
+    expect(d.tooltip).toContain('a@x.org');
+    expect(d.tooltip).toContain('2024-01-02');
+  });
+
+  it('badges a non-flagged annotated SCV with a neutral class', () => {
+    const d = decorateForScv({ count: 1, flagged: false, lastAction: 'No Change', lastWho: 'c@x.org', lastWhen: '2023-05-01' });
+    expect(d.cssClass).toBe('cvc-hl cvc-hl-noted');
+    expect(d.badge).toBe('CvC 1');
   });
 });
