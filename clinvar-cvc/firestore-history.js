@@ -96,11 +96,16 @@ async function silentIdToken() {
 async function fetchHistory(variationId, idToken) {
   const { projectId, collection } = FIREBASE_CONFIG;
   const databaseId = FIREBASE_CONFIG.databaseId || '(default)';
-  const buildHistoryQueryFn = (typeof window !== 'undefined' && window.buildHistoryQuery) ||
+  // NOTE: checks `self` (not `window`) so this resolves both in the popup
+  // page and in the background service worker — `window` is undefined in a
+  // classic MV3 worker, which would otherwise fall through to `require`
+  // (also undefined there) and throw. `self` covers the browser page too,
+  // since `self === window` there.
+  const buildHistoryQueryFn = (typeof self !== 'undefined' && self.buildHistoryQuery) ||
     require('./history.js').buildHistoryQuery;
-  const parseHistoryRowsFn = (typeof window !== 'undefined' && window.parseHistoryRows) ||
+  const parseHistoryRowsFn = (typeof self !== 'undefined' && self.parseHistoryRows) ||
     require('./history.js').parseHistoryRows;
-  const sortHistoryDescFn = (typeof window !== 'undefined' && window.sortHistoryDesc) ||
+  const sortHistoryDescFn = (typeof self !== 'undefined' && self.sortHistoryDesc) ||
     require('./history.js').sortHistoryDesc;
 
   const url =

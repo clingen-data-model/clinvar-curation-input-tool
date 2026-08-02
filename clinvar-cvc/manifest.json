@@ -28,6 +28,10 @@
     "tabs"
   ],
 
+  "background": {
+    "service_worker": "background.js"
+  },
+
   "oauth2": {
     "client_id": "493724081911-56lforiqkeq2ahpip4ur6t315qc93ujf.apps.googleusercontent.com",
     "scopes": ["openid", "email", "profile"]
