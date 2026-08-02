@@ -10,6 +10,7 @@ function buildAnnotation(scvRow, vcv, input, userEmail) {
   return {
     variation_id: vcv.variation_id,
     vcv: vcv.vcv,
+    name: vcv.name,
     scv: scvRow.scv,
     submitter: scvRow.submitter,
     submitter_id: scvRow.submitter_id,
@@ -39,8 +40,10 @@ function validateAnnotation(data) {
   return null;
 }
 
+// Excludes created_at and name: name is derived from variation_id, and keeping
+// it out of the hash avoids a variant-rename creating a false non-duplicate.
 const DEDUP_FIELDS = ['variation_id', 'vcv', 'scv', 'submitter', 'submitter_id', 'interp',
-  'review_status', 'action', 'reason', 'notes', 'user_email']; // excludes created_at
+  'review_status', 'action', 'reason', 'notes', 'user_email'];
 
 async function annotationDocId(doc) {
   const canonical = JSON.stringify(DEDUP_FIELDS.map(f => String(doc[f] ?? '')));

@@ -3,7 +3,7 @@ import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const { buildAnnotation, validateAnnotation, annotationDocId } = require('../annotation.js');
 
-const vcv = { vcv: 'VCV000590935.4', variation_id: '590935' };
+const vcv = { vcv: 'VCV000590935.4', variation_id: '590935', name: 'NM_000.1(GENE):c.1A>T' };
 const scvRow = { scv: 'SCV005831843.1', submitter: 'Labcorp', submitter_id: '500123',
                  interp: 'Uncertain significance', review: 'criteria provided, single submitter' };
 
@@ -16,6 +16,7 @@ describe('annotation', () => {
       review_status: 'criteria provided, single submitter', action: 'No Change',
       reason: '', notes: 'ok', user_email: 'jane@x.com'
     });
+    expect(a.name).toBe('NM_000.1(GENE):c.1A>T');
     expect(a.created_at).toBeInstanceOf(Date);
   });
   it('requires an action', () => {
@@ -52,5 +53,10 @@ describe('annotationDocId', () => {
     const x = await annotationDocId({ ...dedupBase, reason: 'a', notes: 'b' });
     const y = await annotationDocId({ ...dedupBase, reason: 'a b', notes: '' });
     expect(x).not.toBe(y);
+  });
+  it('name does not affect the doc id (not part of dedup)', async () => {
+    const a = await annotationDocId({ ...dedupBase, name: 'foo' });
+    const b = await annotationDocId({ ...dedupBase, name: 'bar' });
+    expect(a).toBe(b);
   });
 });
