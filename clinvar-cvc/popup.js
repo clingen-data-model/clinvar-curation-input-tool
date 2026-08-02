@@ -370,25 +370,28 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Scrape the active ClinVar tab and populate the header + SCV picker.
   clinvarData = await requestClinVarData();
-  if (clinvarData) {
-    vcvIdEl.textContent = clinvarData.vcv || '';
-    variantNameEl.textContent = clinvarData.name || '';
-    populateVcvDisplay(clinvarData);
-
-    clearOptions(scvSelect);
-    addChooseOption(scvSelect);
-    (clinvarData.row || []).forEach((row, index) => {
-      const opt = document.createElement('option');
-      opt.value = String(index);
-      opt.textContent = scvOptionLabel(row);
-      scvSelect.appendChild(opt);
-    });
-  } else {
+  if (!window.isScrapeable(clinvarData)) {
     setStatus(
-      'Could not read this ClinVar page. Open a ClinVar variation page and reopen the popup.',
+      "This isn't a ClinVar variation page — open a ClinVar variation record " +
+      '(…/clinvar/variation/<id>) to capture an annotation.',
       'err'
     );
+    [scvSelect, actionSelect, reasonSelect, saveButton].forEach((el) => { el.disabled = true; });
+    return;
   }
+
+  vcvIdEl.textContent = clinvarData.vcv || '';
+  variantNameEl.textContent = clinvarData.name || '';
+  populateVcvDisplay(clinvarData);
+
+  clearOptions(scvSelect);
+  addChooseOption(scvSelect);
+  (clinvarData.row || []).forEach((row, index) => {
+    const opt = document.createElement('option');
+    opt.value = String(index);
+    opt.textContent = scvOptionLabel(row);
+    scvSelect.appendChild(opt);
+  });
 
   scvSelect.addEventListener('change', () => {
     const selectedVal = scvSelect.value;
@@ -476,13 +479,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       const doc = buildAnnotation(scvRow, vcv, input, auth.email);
 
       setStatus('Saving...', '');
-      const result = await saveAnnotation(doc, auth.idToken);
-      const docId = result.name ? result.name.split('/').pop() : '(unknown)';
-      console.log('CvC saved Firestore doc:', result.name, new Date().toISOString());
-      setStatus(`Saved. Firestore doc id: ${docId}`, 'ok');
+      await saveAnnotation(doc, auth.idToken);
+      console.log('CvC saved annotation', new Date().toISOString());
+      window.close();
     } catch (err) {
       console.error('CvC save failed:', err, new Date().toISOString());
-      if (err.notAuthorized) {
+      if (err.alreadyExists) {
+        setStatus('This annotation was already saved.', 'err');
+      } else if (err.notAuthorized) {
         setStatus(
           `Your Google account (${(auth && auth.email) || ''}) is not authorized to submit. ` +
           `Contact an administrator to be added to the curator allowlist.`,
