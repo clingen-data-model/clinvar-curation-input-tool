@@ -47,7 +47,8 @@
   "content_scripts": [
     {
       "matches": ["https://www.ncbi.nlm.nih.gov/clinvar/variation/*"],
-      "js": ["scrape.js", "content.js"],
+      "js": ["scrape.js", "highlight.js", "content.js"],
+      "css": ["highlight.css"],
       "run_at": "document_end",
       "all_frames": false
     }

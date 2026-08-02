@@ -1,0 +1,28 @@
+/* highlight.css — minimal, cvc-prefixed styles for in-page SCV annotation
+ * highlighting. Prefixed to avoid colliding with NCBI's own ClinVar styles. */
+
+.cvc-hl {
+  padding-left: 2px;
+}
+
+.cvc-hl-flagged {
+  background: #fff7ed;
+  box-shadow: inset 3px 0 0 #f59e0b;
+}
+
+.cvc-hl-noted {
+  background: #f3f4f6;
+  box-shadow: inset 3px 0 0 #9ca3af;
+}
+
+.cvc-hl-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 600;
+  background: #374151;
+  color: #fff;
+  vertical-align: middle;
+}
