@@ -13,12 +13,12 @@
 -- BigQuery console for project clingen-cvc.
 --
 -- v4 annotation docs (clinvar-cvc/annotation.js buildAnnotation) add these
--- fields to `data`: vcv, submitter, submitter_id, interp, review_status, and
--- rename scv_id -> scv. This view surfaces the v4 fields as typed columns and
--- COALESCEs scv/scv_id into a single `scv` column so both v4 and legacy POC
--- rows populate it. The five new v4-only fields (vcv, submitter,
--- submitter_id, interp, review_status) are NULL for legacy POC rows, since
--- those rows predate those fields.
+-- fields to `data`: vcv, name, submitter, submitter_id, interp,
+-- review_status, and rename scv_id -> scv. This view surfaces the v4 fields
+-- as typed columns and COALESCEs scv/scv_id into a single `scv` column so
+-- both v4 and legacy POC rows populate it. The six new v4-only fields (vcv,
+-- name, submitter, submitter_id, interp, review_status) are NULL for legacy
+-- POC rows, since those rows predate those fields.
 --
 -- Applying this SQL: there is no migration tooling — run the whole file
 -- against the target project, either by pasting it into the BigQuery console
@@ -37,6 +37,7 @@ SELECT
   JSON_VALUE(data, '$.user_email')                        AS user_email,
   JSON_VALUE(data, '$.variation_id')                      AS variation_id,
   JSON_VALUE(data, '$.vcv')                               AS vcv,
+  JSON_VALUE(data, '$.name')                              AS name,
   -- v4 docs use `scv`; legacy POC docs used `scv_id` — coalesce so one
   -- column serves both.
   COALESCE(JSON_VALUE(data, '$.scv'), JSON_VALUE(data, '$.scv_id')) AS scv,
