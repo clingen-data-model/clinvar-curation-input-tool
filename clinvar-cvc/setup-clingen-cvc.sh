@@ -18,9 +18,9 @@
 set -euo pipefail
 
 # ---- EDIT THESE ------------------------------------------------------------
-PROJECT="clingen-cvc"                       # must be globally unique
+PROJECT="${CVC_PROJECT:-clingen-cvc}"        # override: CVC_PROJECT=clingen-cvc-dev ./setup-...
 BILLING_ACCOUNT="016739-DB7AC5-2CFA7E"       # gcloud billing accounts list
-MY_EMAIL="lbabb@broadinstitute.org"                   # first authorized curator (you)
+MY_EMAIL="${CVC_EMAIL:-lbabb@broadinstitute.org}"   # first authorized curator (override: CVC_EMAIL=...)
 ORG_FLAG=""                                  # e.g. "--organization=1234567890" or
                                              # "--folder=..." ; EMPTY = no org
                                              # (needed so External OAuth is allowed)
@@ -55,14 +55,22 @@ echo "==> 5/9 Create Firestore (default) database (Native mode)"
 gcloud firestore databases create --database='(default)' \
   --location="${LOCATION}" --type=firestore-native || true
 
-echo "==> 6/9 Create Web app and capture the apiKey into firebase-config.js"
-firebase apps:create WEB "${WEBAPP}" --project "${PROJECT}" || true
-APIKEY=$(firebase apps:sdkconfig WEB --project "${PROJECT}" --json | jq -r '.result.sdkConfig.apiKey')
+echo "==> 6/9 Create Web app and capture the apiKey (env.js holds per-env config)"
+# NOTE: only create a Web app if the project has none yet — re-runs against a
+# project that already has one would otherwise create confusing duplicates.
+if ! firebase apps:list --project "${PROJECT}" 2>/dev/null | grep -q ' WEB '; then
+  firebase apps:create WEB "${WEBAPP}" --project "${PROJECT}"
+fi
+APIKEY=$(firebase apps:sdkconfig WEB --project "${PROJECT}" --json 2>/dev/null | jq -r '.result.sdkConfig.apiKey')
 if [ -n "${APIKEY}" ] && [ "${APIKEY}" != "null" ]; then
-  sed -i '' "s/PASTE_FIREBASE_WEB_API_KEY_HERE/${APIKEY}/" firebase-config.js
-  echo "    apiKey written to firebase-config.js"
+  # A dev run fills the dev placeholder in env.js; for other projects, paste the
+  # printed key into the matching env block (prod vs dev) yourself.
+  sed -i '' "s/PASTE_DEV_WEB_API_KEY_HERE/${APIKEY}/" env.js || true
+  echo "    Web apiKey for ${PROJECT}: ${APIKEY}"
+  echo "    -> if this is the dev project, env.js dev.apiKey was just filled;"
+  echo "       otherwise paste the key into the matching env.js block."
 else
-  echo "    WARN: could not read apiKey — set it in firebase-config.js manually."
+  echo "    WARN: could not read apiKey — set it in env.js manually."
 fi
 
 echo "==> 7/9 Deploy Firestore security rules"
