@@ -107,13 +107,17 @@ if [ -f "extensions/firestore-bigquery-export.env" ]; then
     --region="${FUNCTIONS_REGION}" --project="${PROJECT}" \
     --member="serviceAccount:${TRIG_SA}" --role=roles/run.invoker --quiet >/dev/null 2>&1 \
     && echo "    granted run.invoker to ${TRIG_SA}"
-  # The extension's dedicated runtime SA publishes lifecycle events to the
-  # Eventarc "firebase" channel; without eventarc.publisher it 403s and the BQ
-  # write never completes (dataset never gets created).
+  # IMPORTANT: a CLI/manifest `firebase deploy --only extensions` does NOT grant
+  # the extension's declared runtime roles (a console install does). Grant them
+  # explicitly to the dedicated runtime SA, or the function can't create/write the
+  # BigQuery dataset ("Not found: Dataset"), enqueue retries, or publish lifecycle
+  # events to the Eventarc channel.
   EXT_SA="ext-firestore-bigquery-export@${PROJECT}.iam.gserviceaccount.com"
-  gcloud projects add-iam-policy-binding "${PROJECT}" --member="serviceAccount:${EXT_SA}" \
-    --role=roles/eventarc.publisher --condition=None --quiet >/dev/null 2>&1 \
-    && echo "    granted eventarc.publisher to ${EXT_SA}"
+  for r in roles/bigquery.dataEditor roles/bigquery.jobUser roles/cloudtasks.enqueuer roles/eventarc.publisher; do
+    gcloud projects add-iam-policy-binding "${PROJECT}" --member="serviceAccount:${EXT_SA}" \
+      --role="${r}" --condition=None --quiet >/dev/null 2>&1
+  done
+  echo "    granted runtime roles (bigquery.dataEditor/jobUser, cloudtasks.enqueuer, eventarc.publisher) to ${EXT_SA}"
   # Ensure the Eventarc service agent role (fresh projects lag on provisioning it).
   PNUM=$(gcloud projects describe "${PROJECT}" --format='value(projectNumber)')
   gcloud projects add-iam-policy-binding "${PROJECT}" \
