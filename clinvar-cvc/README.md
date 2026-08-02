@@ -358,3 +358,16 @@ a couple of minutes once the binding lands.
 **`SELECT` returns rows but the Preview tab looks empty.** Freshly streamed rows
 sit in BigQuery's streaming buffer, which the Preview tab doesn't show. Verify
 with a query, not Preview.
+
+**Extension deployed via CLI, function runs, but the BQ dataset/table are never
+created ("Not found: Dataset/Table").** The `firestore-bigquery-export` extension
+installed via `firebase deploy --only extensions` (manifest mode) does NOT reliably
+run its BigQuery **setup lifecycle** (the step that creates the dataset, changelog
+table, and latest view) on a fresh project — and it also does NOT auto-grant the
+runtime SA its declared roles. Granting the roles (bigquery.dataEditor/jobUser,
+cloudtasks.enqueuer, eventarc.publisher, run.invoker) makes the function run
+cleanly, but it still only *writes* — it never *creates* the schema. **Fix: install
+this extension via the Firebase console** (Extensions ▸ install), which runs the
+setup and grants roles automatically — this is how the prod (`clingen-cvc`) instance
+was installed and works. Reserve the CLI/manifest path for *config* changes to an
+already-console-installed instance.
