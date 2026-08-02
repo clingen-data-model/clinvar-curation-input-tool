@@ -39,5 +39,21 @@ function validateAnnotation(data) {
   return null;
 }
 
-if (typeof window !== 'undefined') { window.buildAnnotation = buildAnnotation; window.validateAnnotation = validateAnnotation; }
-if (typeof module !== 'undefined' && module.exports) { module.exports = { buildAnnotation, validateAnnotation }; }
+const DEDUP_FIELDS = ['variation_id', 'vcv', 'scv', 'submitter', 'submitter_id', 'interp',
+  'review_status', 'action', 'reason', 'notes', 'user_email']; // excludes created_at
+
+async function annotationDocId(doc) {
+  const canonical = JSON.stringify(DEDUP_FIELDS.map(f => String(doc[f] ?? '')));
+  const bytes = new TextEncoder().encode(canonical);
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+if (typeof window !== 'undefined') {
+  window.buildAnnotation = buildAnnotation;
+  window.validateAnnotation = validateAnnotation;
+  window.annotationDocId = annotationDocId;
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { buildAnnotation, validateAnnotation, annotationDocId };
+}
