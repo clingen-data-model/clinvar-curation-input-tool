@@ -358,13 +358,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   scvSelect.addEventListener('change', () => {
     const selectedVal = scvSelect.value;
+
+    // Every SCV switch resets the action/reason so the curator re-chooses per
+    // SCV — otherwise a stale, still-valid action/reason from the previously
+    // selected SCV would be submitted against the newly selected one.
+    actionSelect.value = '';
+    reasonSelect.disabled = true;
+    clearOptions(reasonSelect);
+    addChooseOption(reasonSelect);
+
     if (!selectedVal || !clinvarData) {
       resetScvDisplay();
       actionSelect.disabled = true;
-      actionSelect.value = '';
-      reasonSelect.disabled = true;
-      clearOptions(reasonSelect);
-      addChooseOption(reasonSelect);
       return;
     }
     const scvRow = clinvarData.row[Number(selectedVal)];
