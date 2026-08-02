@@ -50,6 +50,11 @@ SELECT
   JSON_VALUE(data, '$.notes')                             AS notes,
   -- the extension serializes Firestore timestamps as {_seconds,_nanoseconds}
   TIMESTAMP_SECONDS(SAFE_CAST(JSON_VALUE(data, '$.created_at._seconds') AS INT64)) AS created_at,
+  -- millis-since-epoch of the original curation timestamp. Sub-second precision
+  -- comes from _nanoseconds (live extension saves); migrated historical rows are
+  -- whole-second (annotation_date), so their _nanoseconds is 0.
+  SAFE_CAST(JSON_VALUE(data, '$.created_at._seconds') AS INT64) * 1000
+    + DIV(SAFE_CAST(JSON_VALUE(data, '$.created_at._nanoseconds') AS INT64), 1000000) AS created_at_millis,
   timestamp                                               AS synced_at
 FROM `clingen-cvc.clinvar_cvc_ext.annotations_raw_latest`
 WHERE data IS NOT NULL;   -- exclude tombstone rows for deleted documents
