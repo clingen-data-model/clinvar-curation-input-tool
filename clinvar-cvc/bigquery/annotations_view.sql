@@ -12,6 +12,21 @@
 -- (deletes drop out). It is live — no refresh needed. Run this once in the
 -- BigQuery console for project clingen-cvc.
 --
+-- v4 annotation docs (clinvar-cvc/annotation.js buildAnnotation) add these
+-- fields to `data`: vcv, submitter, submitter_id, interp, review_status, and
+-- rename scv_id -> scv. This view surfaces the v4 fields as typed columns and
+-- COALESCEs scv/scv_id into a single `scv` column so both v4 and legacy POC
+-- rows populate it. The five new v4-only fields (vcv, submitter,
+-- submitter_id, interp, review_status) are NULL for legacy POC rows, since
+-- those rows predate those fields.
+--
+-- Applying this SQL: there is no migration tooling — run the whole file
+-- against the target project, either by pasting it into the BigQuery console
+-- or via `bq query --use_legacy_sql=false < annotations_view.sql`. The
+-- project id is hardcoded below as the prod project `clingen-cvc`; for dev,
+-- substitute `clingen-cvc-dev` before running (a follow-up could parameterize
+-- this instead of hardcoding it).
+--
 -- Want a physical TABLE instead of a view? Replace "CREATE OR REPLACE VIEW"
 -- with "CREATE OR REPLACE TABLE" for a one-time snapshot, or schedule it as a
 -- scheduled query to refresh a table on a cadence.
@@ -21,7 +36,14 @@ SELECT
   document_id,
   JSON_VALUE(data, '$.user_email')                        AS user_email,
   JSON_VALUE(data, '$.variation_id')                      AS variation_id,
-  JSON_VALUE(data, '$.scv_id')                            AS scv_id,
+  JSON_VALUE(data, '$.vcv')                               AS vcv,
+  -- v4 docs use `scv`; legacy POC docs used `scv_id` — coalesce so one
+  -- column serves both.
+  COALESCE(JSON_VALUE(data, '$.scv'), JSON_VALUE(data, '$.scv_id')) AS scv,
+  JSON_VALUE(data, '$.submitter')                         AS submitter,
+  JSON_VALUE(data, '$.submitter_id')                      AS submitter_id,
+  JSON_VALUE(data, '$.interp')                            AS interp,
+  JSON_VALUE(data, '$.review_status')                     AS review_status,
   JSON_VALUE(data, '$.action')                            AS action,
   JSON_VALUE(data, '$.reason')                            AS reason,
   JSON_VALUE(data, '$.notes')                             AS notes,
