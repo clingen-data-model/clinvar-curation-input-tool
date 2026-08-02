@@ -1,0 +1,48 @@
+/**
+ * Pure transforms for the one-time history migration:
+ * native BigQuery row (clingen-dev.clinvar_curator.clinvar_annotations_native)
+ * -> v4 Firestore annotation doc -> Firestore REST `fields` payload.
+ *
+ * No DOM, no chrome.*, no network. Deliberately ignores the never-implemented
+ * override_field/override_value/column_o/retired/retired_date columns.
+ */
+
+function nativeRowToV4Doc(row) {
+  return {
+    variation_id: row.variation_id,
+    vcv: row.vcv_id,
+    name: row.variation_name,
+    scv: row.scv_id,
+    submitter: row.submitter_name,
+    submitter_id: row.submitter_id,
+    interp: row.interpretation,
+    review_status: row.review_status,
+    action: row.action,
+    reason: row.reason,
+    notes: row.notes,
+    user_email: row.curator_email,
+    created_at: row.annotation_date
+  };
+}
+
+function toFirestoreFields(doc) {
+  const fields = {};
+  for (const [key, value] of Object.entries(doc)) {
+    if (key === 'created_at') {
+      fields[key] = { timestampValue: value };
+    } else if (value === null || value === undefined) {
+      fields[key] = { nullValue: null };
+    } else {
+      fields[key] = { stringValue: String(value) };
+    }
+  }
+  return fields;
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { nativeRowToV4Doc, toFirestoreFields };
+}
+if (typeof window !== 'undefined') {
+  window.nativeRowToV4Doc = nativeRowToV4Doc;
+  window.toFirestoreFields = toFirestoreFields;
+}
