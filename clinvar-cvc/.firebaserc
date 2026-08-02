@@ -6,6 +6,11 @@
       "extensionInstances": {
         "firestore-bigquery-export": "f37fe54555936d4cde49c85a71eaed098391d0aa925218595b7fdc990bb31a5e"
       }
+    },
+    "clingen-cvc-dev": {
+      "extensionInstances": {
+        "firestore-bigquery-export": "7b2aea4ab0ab272c2c2ee057d392b5735d7eccf5c0a29f7624d4bba9a8cce7e7"
+      }
     }
   }
 }

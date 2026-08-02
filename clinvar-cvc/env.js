@@ -13,7 +13,7 @@ const ENVIRONMENTS = {
   },
   dev: {
     projectId: 'clingen-cvc-dev',
-    apiKey: 'PASTE_DEV_WEB_API_KEY_HERE',
+    apiKey: 'AIzaSyCDChDrbVmeaqds57lAKO_6mgvR914IlrM',
     databaseId: '(default)',
     collection: 'clinvar_cvc_ext_annotations'
   }
