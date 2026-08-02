@@ -101,6 +101,46 @@ means:
   produce the *same* doc id, so the live save will correctly no-op against the
   migrated history instead of creating a duplicate entry.
 
+## Clean-slate reload (recommended for prod)
+
+If historical data needs to be reloaded from scratch (e.g. the source export
+changed, or a prior load was contaminated), wipe the Firestore collection
+first rather than layering a second load on top of a partial one:
+
+```bash
+# 1. Get a token
+export GCP_TOKEN=$(gcloud auth print-access-token)
+
+# 2. Preview current contents (dry-run — shows count + up to 10 sample ids;
+#    this is the default behavior without --confirm)
+node migration/wipe-collection.js --project <p>
+
+# 3. Wipe (destructive — requires --confirm; paced so BigQuery delete
+#    events aren't dropped)
+node migration/wipe-collection.js --project <p> --confirm --delay-ms 2000
+
+# 4. Reload, paced (see note below on why --delay-ms matters)
+node migration/migrate.js --source /tmp/cvc-history.json --project <p> --delay-ms 3000
+
+# 5. Verify: Firestore doc count == unique docs from the migration summary,
+#    and the BigQuery annotations_raw_latest / flattened view converges to
+#    the same count once the streaming extension catches up.
+```
+
+**Pacing note:** `--delay-ms` inserts a pause between successive
+`batchWrite` requests (writes or deletes). This exists because the
+Firestore → BigQuery streaming extension processes change events at a
+finite rate; a fast unpaced bulk load or wipe (500-per-request, back to
+back) has been observed to drop roughly **2%** of stream events, silently
+under-counting rows in BigQuery relative to Firestore. Pacing the requests
+(e.g. 2000-3000ms apart) keeps the extension caught up.
+
+**Destructive warning:** `wipe-collection.js` deletes every document in the
+target collection. It refuses to delete anything unless `--confirm` is
+explicitly passed (and `--dry-run`, if also passed, always wins over
+`--confirm`) — without `--confirm` it only lists and reports what it would
+delete.
+
 ## Access control note
 
 `migrate.js` authenticates with a bearer token from `gcloud auth
