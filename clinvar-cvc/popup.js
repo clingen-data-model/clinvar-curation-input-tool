@@ -213,17 +213,49 @@ function isConfigured() {
   );
 }
 
+/**
+ * Classifies a failed Firestore write response into a stable error kind, so
+ * callers can branch on behavior (dedup vs. auth) instead of message text.
+ *
+ * @param {number} status - HTTP status code of the response.
+ * @param {object} errorBody - parsed JSON error body (may be {} or undefined).
+ * @returns {'alreadyExists'|'notAuthorized'|null}
+ */
+function classifyWriteError(status, errorBody) {
+  const message = (errorBody && errorBody.error && errorBody.error.message) || '';
+  const apiStatus = errorBody && errorBody.error && errorBody.error.status;
+
+  if (status === 409 || apiStatus === 'ALREADY_EXISTS') {
+    return 'alreadyExists';
+  }
+  if (status === 403 || /PERMISSION_DENIED|insufficient/i.test(message)) {
+    return 'notAuthorized';
+  }
+  return null;
+}
+
+/**
+ * Writes a single v4 annotation document to Firestore using createDocument
+ * with an explicit, content-hash documentId (see annotation.js's
+ * annotationDocId) — this makes the write create-only: re-saving the exact
+ * same annotation fields is rejected as ALREADY_EXISTS (409) instead of
+ * creating a duplicate row.
+ */
 async function saveAnnotation(data, idToken) {
   const { projectId, apiKey, collection } = FIREBASE_CONFIG;
   const databaseId = FIREBASE_CONFIG.databaseId || '(default)';
+  const annotationDocIdFn = (typeof window !== 'undefined' && window.annotationDocId) ||
+    require('./annotation.js').annotationDocId;
+
+  const doc = { ...data, created_at: new Date() };
+  const id = await annotationDocIdFn(data);
+
   const url =
     `https://firestore.googleapis.com/v1/projects/${projectId}` +
-    `/databases/${encodeURIComponent(databaseId)}/documents/${collection}?key=${apiKey}`;
+    `/databases/${encodeURIComponent(databaseId)}/documents/${collection}` +
+    `?documentId=${id}&key=${apiKey}`;
 
-  const payload = toFirestoreFields({
-    ...data,
-    created_at: new Date()
-  });
+  const payload = toFirestoreFields(doc);
 
   const headers = { 'Content-Type': 'application/json' };
   if (idToken) {
@@ -238,19 +270,21 @@ async function saveAnnotation(data, idToken) {
 
   if (!response.ok) {
     // A 403 / PERMISSION_DENIED here means the signed-in account isn't on the
-    // curator allowlist (or email isn't verified). Surface a specific code so
-    // the caller can show a friendly "request access" message.
-    let detail = `HTTP ${response.status}`;
+    // curator allowlist (or email isn't verified); a 409 / ALREADY_EXISTS
+    // means this exact annotation was already saved (create-only write).
+    let body = {};
     try {
-      const body = await response.json();
-      if (body.error && body.error.message) detail = body.error.message;
-    } catch (e) { /* keep the status-code detail */ }
-    if (response.status === 403 || /PERMISSION_DENIED|insufficient/i.test(detail)) {
-      const err = new Error(detail);
+      body = await response.json();
+    } catch (e) { /* keep body === {} */ }
+    const kind = classifyWriteError(response.status, body);
+    const detail = (body.error && body.error.message) || `HTTP ${response.status}`;
+    const err = new Error(detail);
+    if (kind === 'alreadyExists') {
+      err.alreadyExists = true;
+    } else if (kind === 'notAuthorized') {
       err.notAuthorized = true;
-      throw err;
     }
-    throw new Error(detail);
+    throw err;
   }
 
   return response.json();
@@ -462,3 +496,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 });
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { classifyWriteError };
+}
