@@ -481,7 +481,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       setStatus('Authenticating...', '');
       auth = await ensureAuth();
 
-      const vcv = { vcv: clinvarData.vcv, variation_id: clinvarData.variation_id };
+      const vcv = { vcv: clinvarData.vcv, variation_id: clinvarData.variation_id, name: clinvarData.name };
       const doc = buildAnnotation(scvRow, vcv, input, auth.email);
 
       setStatus('Saving...', '');
