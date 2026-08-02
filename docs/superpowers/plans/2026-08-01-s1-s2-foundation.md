@@ -37,7 +37,7 @@ D5 (config-constant env selection; shared OAuth client whitelisted in both proje
 - Modify `clinvar-cvc/firebase-config.js` — use `resolveConfig`; add prod+dev blocks.
 - Modify `clinvar-cvc/popup.html` — load `env.js` before `firebase-config.js`; dev banner element.
 - Modify `clinvar-cvc/popup.js` — show dev banner when env != prod.
-- Modify `clinvar-cvc/setup-clingen-cvc.sh` — already `PROJECT`-parameterized; add a note/flag for dev.
+- Modify `clinvar-cvc/setup-clingen-cvc.sh` — replace hardcoded `PROJECT`/`MY_EMAIL` with `${CVC_PROJECT:-...}`/`${CVC_EMAIL:-...}` env overrides so it can provision dev.
 - Create `clinvar-cvc/.gitignore` — ignore `node_modules/`.
 
 ---
@@ -64,7 +64,6 @@ coverage/
   "version": "4.0.0-dev",
   "private": true,
   "description": "Dev tooling for the ClinVar CvC extension (not shipped with the MV3 bundle).",
-  "type": "module",
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest"
@@ -75,6 +74,14 @@ coverage/
   }
 }
 ```
+
+> ⚠️ **Do NOT add `"type": "module"`.** The extension's runtime files (`env.js`
+> here, `scvc/content.js`) are CommonJS (`module.exports`) and the tests load them
+> with `createRequire(...).require('../env.js')`. Under `"type":"module"` that
+> `require` throws `ERR_REQUIRE_ESM` (Node 18/20) or returns an empty namespace
+> (Node ≥22.12) — so `resolveConfig` would be `undefined`. Leaving the package as
+> CommonJS keeps those requires working; Vitest still runs the ESM test files and
+> `vitest.config.js` because Vite transforms them regardless of the package type.
 
 - [ ] **Step 3: Create `clinvar-cvc/vitest.config.js`**
 
@@ -181,12 +188,23 @@ ported/refactored in S0 — the safety net that proves the refactor is behavior-
 **Files:**
 - Create: `clinvar-cvc/test/fixtures/clinvar-variation.html`, `clinvar-cvc/test/scrape.characterization.test.js`
 
-- [ ] **Step 1: Capture a fixture**
+- [ ] **Step 1: Use the existing captured fixture**
 
-Manually: open a real ClinVar variation page with multiple SCVs, View Source (or
-`document.documentElement.outerHTML`), save verbatim to
-`clinvar-cvc/test/fixtures/clinvar-variation.html`. Pick a page with ≥2 submissions
-and at least one flagged submission so edge cases are covered.
+The repo already has a usable capture at
+`testing/html-samples/example-clinvar-page.html` (115 KB) — it contains every
+selector `extractClinVarData()` needs (`new-variant-details`, `germline-section`,
+`germline-stars-icon`, `variant-details-table`, `timeline-table`,
+`submissions-germline-list` with 3 `germline-sub-col` rows / ≥2 SCVs, VCV, and
+"Variation ID"). Copy it in:
+
+```bash
+mkdir -p clinvar-cvc/test/fixtures
+cp testing/html-samples/example-clinvar-page.html clinvar-cvc/test/fixtures/clinvar-variation.html
+```
+
+> Note: it's not confirmed this page includes a *flagged* submission. Treat the
+> flagged-submission edge case as a **follow-up fixture** (capture one later and
+> add a second characterization test); do not block this task on it.
 
 - [ ] **Step 2: Write the characterization test**
 
@@ -314,6 +332,10 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = { resolv
 Run: `cd clinvar-cvc && npx vitest run test/env.test.js`
 Expected: 3 passing (dev apiKey placeholder is fine for this logic test).
 
+> Note: `env.test.js` does NOT assert `dev.apiKey`, so green here does **not** mean
+> the dev environment is wired — that happens in Task 6 (real dev apiKey). Don't
+> mistake a green Chunk 2 for "dev is ready."
+
 - [ ] **Step 5: Commit**
 
 ```bash
@@ -346,8 +368,11 @@ In the body (top):
 <div id="env-banner" style="display:none;background:#b91c1c;color:#fff;font-size:11px;padding:2px 6px;text-align:center;">DEV</div>
 ```
 
-- [ ] **Step 3: Show the banner when env != prod (in `popup.js` DOMContentLoaded)**
+- [ ] **Step 3: Show the banner when env != prod**
 
+`popup.js` already has a `document.addEventListener('DOMContentLoaded', async () => { ... })`
+handler, and `FIREBASE_CONFIG` is a global in scope there (from `firebase-config.js`,
+loaded first). Insert this at the **top of that existing handler's body**:
 ```js
 if ((FIREBASE_CONFIG.env || 'prod') !== 'prod') {
   const b = document.getElementById('env-banner');
@@ -373,12 +398,31 @@ git commit -m "feat(cvc): config-driven env selection + dev banner"
 **Files:** none in-repo (uses `setup-clingen-cvc.sh` + console). Record the dev
 `apiKey` into `env.js` when done.
 
-- [ ] **Step 1: Provision with the existing script, targeting dev**
+- [ ] **Step 1a: Make `setup-clingen-cvc.sh` env-overridable (one-time)**
 
-Run: `CVC does not override project in the script` — edit `setup-clingen-cvc.sh`
-`PROJECT="clingen-cvc-dev"` (and `MY_EMAIL` as the first dev curator), then run it.
-It creates the project, billing, APIs, Firestore `(default)` nam5, rules, allowlist
-seed, and (with the manifest present) the extension + build-roles + run.invoker grants.
+The script currently hardcodes `PROJECT="clingen-cvc"` and
+`MY_EMAIL="lbabb@broadinstitute.org"`. Change those two lines to read overrides so
+the same script builds either project without in-place editing:
+```bash
+PROJECT="${CVC_PROJECT:-clingen-cvc}"
+MY_EMAIL="${CVC_EMAIL:-lbabb@broadinstitute.org}"
+```
+Commit:
+```bash
+git add clinvar-cvc/setup-clingen-cvc.sh
+git commit -m "chore(cvc): make setup script project/email overridable via env"
+```
+
+- [ ] **Step 1b: Provision the dev project**
+
+```bash
+cd clinvar-cvc && CVC_PROJECT=clingen-cvc-dev ./setup-clingen-cvc.sh
+```
+It creates the project, links billing, enables APIs, creates Firestore `(default)`
+nam5, deploys rules, seeds the allowlist, and (with the extension manifest present)
+grants the compute-SA build roles, deploys the Firestore→BigQuery extension, and
+grants Cloud Run Invoker. ⚠️ New project → its OAuth consent screen + Google
+provider are console-only (Step 2).
 
 - [ ] **Step 2: Console steps for dev (mirror prod)**
 
