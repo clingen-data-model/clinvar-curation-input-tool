@@ -104,7 +104,7 @@ function docPath(project, collection, id) {
 // response: no status/code -> created; ALREADY_EXISTS(6) or
 // FAILED_PRECONDITION(9, the exists:false violation) -> skipped; else error.
 function classifyStatus(status) {
-  if (!status || status.code === undefined || status.code === null) {
+  if (!status || status.code === undefined || status.code === null || status.code === 0) {
     return 'created';
   }
   if (status.code === 6 || status.code === 9) {
