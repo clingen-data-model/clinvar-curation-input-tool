@@ -37,6 +37,7 @@ describe('popup.html markup', () => {
       'annotation.js',
       'popup-view.js',
       'history.js',
+      'firestore-history.js',
       'popup.js'
     ]);
   });
