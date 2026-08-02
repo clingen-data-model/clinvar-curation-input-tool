@@ -27,10 +27,15 @@ function reasonOptionGroups(action) {
   return Object.entries(grouped).map(([label, options]) => ({ label, options }));
 }
 
+function isScrapeable(d) {
+  return !!(d && d.vcv && Array.isArray(d.row) && d.row.length > 0);
+}
+
 if (typeof window !== 'undefined') {
   window.scvOptionLabel = scvOptionLabel;
   window.reasonOptionGroups = reasonOptionGroups;
+  window.isScrapeable = isScrapeable;
 }
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { scvOptionLabel, reasonOptionGroups };
+  module.exports = { scvOptionLabel, reasonOptionGroups, isScrapeable };
 }

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
-const { scvOptionLabel, reasonOptionGroups } = require('../popup-view.js');
+const { scvOptionLabel, reasonOptionGroups, isScrapeable } = require('../popup-view.js');
 
 describe('popup-view', () => {
   it('formats an SCV option label (scv, interp, truncated submitter)', () => {
@@ -24,5 +24,17 @@ describe('popup-view', () => {
   });
   it('returns no groups for No Change', () => {
     expect(reasonOptionGroups('No Change')).toEqual([]);
+  });
+});
+
+describe('isScrapeable', () => {
+  it('true for data with a vcv and >=1 row', () => {
+    expect(isScrapeable({ vcv: 'VCV1', row: [{ scv: 'SCV1.1' }] })).toBe(true);
+  });
+  it('false for null / no vcv / no rows', () => {
+    expect(isScrapeable(null)).toBe(false);
+    expect(isScrapeable({ row: [{}] })).toBe(false);
+    expect(isScrapeable({ vcv: 'VCV1', row: [] })).toBe(false);
+    expect(isScrapeable({ vcv: 'VCV1' })).toBe(false);
   });
 });
