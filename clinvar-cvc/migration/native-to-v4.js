@@ -39,10 +39,22 @@ function toFirestoreFields(doc) {
   return fields;
 }
 
+// Splits an array into groups of at most `size` items each, preserving
+// order. Shared by migrate.js and wipe-collection.js so both stay under the
+// Firestore batchWrite 500-writes-per-request limit.
+function chunk(arr, size) {
+  const chunks = [];
+  for (let i = 0; i < arr.length; i += size) {
+    chunks.push(arr.slice(i, i + size));
+  }
+  return chunks;
+}
+
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { nativeRowToV4Doc, toFirestoreFields };
+  module.exports = { nativeRowToV4Doc, toFirestoreFields, chunk };
 }
 if (typeof window !== 'undefined') {
   window.nativeRowToV4Doc = nativeRowToV4Doc;
   window.toFirestoreFields = toFirestoreFields;
+  window.chunk = chunk;
 }

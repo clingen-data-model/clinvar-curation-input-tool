@@ -19,7 +19,7 @@ if (!globalThis.crypto) globalThis.crypto = require('node:crypto').webcrypto;
 const fs = require('node:fs');
 
 const { annotationDocId } = require('../annotation.js');
-const { nativeRowToV4Doc, toFirestoreFields } = require('./native-to-v4.js');
+const { nativeRowToV4Doc, toFirestoreFields, chunk } = require('./native-to-v4.js');
 
 const BATCH_SIZE = 500;
 const DEFAULT_PROJECT = 'clingen-cvc-dev';
@@ -31,7 +31,8 @@ function parseArgs(argv) {
     project: DEFAULT_PROJECT,
     collection: DEFAULT_COLLECTION,
     dryRun: false,
-    limit: null
+    limit: null,
+    delayMs: 0
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -52,6 +53,9 @@ function parseArgs(argv) {
       case '--limit':
         args.limit = parseInt(argv[++i], 10);
         break;
+      case '--delay-ms':
+        args.delayMs = parseInt(argv[++i], 10);
+        break;
       default:
         throw new Error(`Unknown argument: ${arg}`);
     }
@@ -63,8 +67,15 @@ function parseArgs(argv) {
   if (args.limit !== null && Number.isNaN(args.limit)) {
     throw new Error('--limit requires a numeric value');
   }
+  if (Number.isNaN(args.delayMs)) {
+    throw new Error('--delay-ms requires a numeric value');
+  }
 
   return args;
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 // Reads the bq --format=json export, maps every row to a v4 doc, computes its
@@ -129,6 +140,7 @@ async function run() {
   if (args.limit !== null) {
     console.log(`--limit ${args.limit}: processing ${docsToWrite.length} docs`);
   }
+  console.log(`Target: ${args.project}/${args.collection}, pacing: ${args.delayMs}ms between batches`);
 
   if (args.dryRun) {
     console.log('\n--dry-run: no writes performed. Sample docs:');
@@ -147,10 +159,7 @@ async function run() {
     return;
   }
 
-  const batches = [];
-  for (let i = 0; i < docsToWrite.length; i += BATCH_SIZE) {
-    batches.push(docsToWrite.slice(i, i + BATCH_SIZE));
-  }
+  const batches = chunk(docsToWrite, BATCH_SIZE);
 
   let created = 0;
   let skipped = 0;
@@ -201,6 +210,10 @@ async function run() {
       `batch ${b + 1}/${batches.length}: +${batchCreated} created +${batchSkipped} skipped ` +
       `+${batchErrors} errors (running: ${created} created, ${skipped} skipped, ${errors.length} errors)`
     );
+
+    if (args.delayMs > 0 && b < batches.length - 1) {
+      await sleep(args.delayMs);
+    }
   }
 
   console.log('\n=== Migration summary ===');

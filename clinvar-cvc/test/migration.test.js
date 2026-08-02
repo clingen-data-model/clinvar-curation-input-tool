@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
-const { nativeRowToV4Doc, toFirestoreFields } = require('../migration/native-to-v4.js');
+const { nativeRowToV4Doc, toFirestoreFields, chunk } = require('../migration/native-to-v4.js');
 const { buildAnnotation, annotationDocId } = require('../annotation.js');
 
 const nativeRow = {
@@ -103,5 +103,21 @@ describe('toFirestoreFields', () => {
   it('maps an empty string to a stringValue of empty string (not null)', () => {
     const fields = toFirestoreFields({ reason: '' });
     expect(fields.reason).toEqual({ stringValue: '' });
+  });
+});
+
+describe('chunk', () => {
+  it('splits an array of 1001 items into groups of 500,500,1', () => {
+    const arr = Array.from({ length: 1001 }, (_, i) => i + 1);
+    const chunks = chunk(arr, 500);
+    expect(chunks.map(c => c.length)).toEqual([500, 500, 1]);
+  });
+
+  it('returns an empty array for an empty input', () => {
+    expect(chunk([], 500)).toEqual([]);
+  });
+
+  it('returns a single chunk when the input is smaller than the chunk size', () => {
+    expect(chunk([1, 2, 3], 500)).toEqual([[1, 2, 3]]);
   });
 });
