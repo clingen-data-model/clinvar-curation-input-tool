@@ -429,6 +429,86 @@ function addChooseOption(select) {
   select.appendChild(opt);
 }
 
+/**
+ * Cache of the current variation's prior-annotation rows (as returned by
+ * fetchHistory), so the SCV picker's `change` handler can re-render the
+ * current-SCV highlight via renderHistory without refetching.
+ */
+let historyRows = [];
+
+/**
+ * Renders the "Prior annotations" panel (#historypanel) from history rows.
+ * Pure re-render — no network calls — so it can be called both after a fetch
+ * and again (with the same rows) whenever the selected SCV changes, to
+ * update the current-SCV highlight. Builds DOM nodes with textContent only
+ * (never innerHTML) since notes/user_email are curator-entered text.
+ */
+function renderHistory(rows, currentScv) {
+  const emptyEl = document.getElementById('history-empty');
+  const listEl = document.getElementById('history-list');
+  if (!emptyEl || !listEl) return;
+
+  const historyViewFn = (typeof window !== 'undefined' && window.historyView) ||
+    require('./popup-view.js').historyView;
+  const displayRows = historyViewFn(rows || [], currentScv || '');
+
+  while (listEl.firstChild) listEl.removeChild(listEl.firstChild);
+
+  if (displayRows.length === 0) {
+    emptyEl.style.display = '';
+    return;
+  }
+  emptyEl.style.display = 'none';
+
+  displayRows.forEach((r) => {
+    const entry = document.createElement('div');
+    entry.className = r.isCurrent ? 'history-entry current' : 'history-entry';
+
+    const metaRow = document.createElement('div');
+    metaRow.className = 'row';
+    const metaLabel = document.createElement('span');
+    metaLabel.textContent = `${r.when} · ${r.who}`;
+    const metaValue = document.createElement('span');
+    metaValue.textContent = r.summary;
+    metaRow.appendChild(metaLabel);
+    metaRow.appendChild(metaValue);
+    entry.appendChild(metaRow);
+
+    if (r.notes) {
+      const notesRow = document.createElement('div');
+      notesRow.className = 'row';
+      const notesLabel = document.createElement('span');
+      notesLabel.textContent = 'Notes';
+      const notesValue = document.createElement('span');
+      notesValue.textContent = r.notes;
+      notesRow.appendChild(notesLabel);
+      notesRow.appendChild(notesValue);
+      entry.appendChild(notesRow);
+    }
+
+    listEl.appendChild(entry);
+  });
+}
+
+/**
+ * Loads and renders prior-annotation history for the current ClinVar
+ * variation. Best-effort and non-blocking: leaves the panel's built-in empty
+ * state untouched whenever there's no variationId, no silent auth available
+ * (never prompts interactively), or the fetch fails for any reason — history
+ * must never block or break the save flow.
+ */
+async function loadHistory(variationId, currentScv) {
+  if (!variationId) return;
+  try {
+    const idToken = await silentIdToken();
+    if (!idToken) return;
+    historyRows = await fetchHistory(variationId, idToken);
+    renderHistory(historyRows, currentScv);
+  } catch (e) {
+    console.info('CvC: history load failed —', e && e.message);
+  }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   if ((FIREBASE_CONFIG.env || 'prod') !== 'prod') {
     const b = document.getElementById('env-banner');
@@ -492,6 +572,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     scvSelect.appendChild(opt);
   });
 
+  // Best-effort, silent-auth-only history load — never blocks the picker and
+  // never prompts for interactive sign-in just because the popup was opened.
+  loadHistory(clinvarData.variation_id, '');
+
   scvSelect.addEventListener('change', () => {
     const selectedVal = scvSelect.value;
 
@@ -506,11 +590,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!selectedVal || !clinvarData) {
       resetScvDisplay();
       actionSelect.disabled = true;
+      renderHistory(historyRows, '');
       return;
     }
     const scvRow = clinvarData.row[Number(selectedVal)];
     populateScvDisplay(scvRow);
     actionSelect.disabled = false;
+    // Re-render (not refetch) so this SCV's prior entries are highlighted.
+    renderHistory(historyRows, scvRow.scv);
   });
 
   actionSelect.addEventListener('change', () => {
