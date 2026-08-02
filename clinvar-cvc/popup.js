@@ -1,10 +1,11 @@
 /**
- * ClinVar POC popup logic.
+ * ClinVar CvC popup logic.
  *
- * Reads 5 fields from the form and writes a single document to Firestore
- * using the Firestore REST API (no Firebase SDK — keeps the extension
- * build-free and MV3-CSP friendly). The Firestore -> BigQuery Firebase
- * Extension then streams the document into BigQuery.
+ * Scrapes the active ClinVar variation tab (via content.js), lets the curator
+ * pick an SCV and an action/reason, then writes a single v4 annotation
+ * document to Firestore using the Firestore REST API (no Firebase SDK —
+ * keeps the extension build-free and MV3-CSP friendly). The Firestore ->
+ * BigQuery Firebase Extension then streams the document into BigQuery.
  *
  * Auth model is selected by FIREBASE_CONFIG.authMode:
  *   'google'    — Google sign-in (chrome.identity.getAuthToken -> Identity
@@ -15,26 +16,6 @@
  *   'anonymous' — Firebase Anonymous Auth (email captured but NOT verified).
  *   'none'      — no auth (open/test-mode rules only).
  */
-
-// The email persisted with the record. In 'google' mode this is replaced by the
-// verified email from sign-in; otherwise it's the Chrome profile email (a hint).
-let userEmail = '';
-
-/**
- * Resolves the signed-in Chrome profile's Google account email.
- * @returns {Promise<string>} the email, or '' if none is available.
- */
-function getUserEmail() {
-  return new Promise((resolve) => {
-    try {
-      chrome.identity.getProfileUserInfo({ accountStatus: 'ANY' }, (info) => {
-        resolve((info && info.email) || '');
-      });
-    } catch (e) {
-      resolve('');
-    }
-  });
-}
 
 const AUTH_STORAGE_KEY = 'poc_auth';
 
@@ -222,33 +203,6 @@ function setStatus(message, kind) {
   el.className = kind || '';
 }
 
-function readForm() {
-  return {
-    user_email: userEmail,
-    variation_id: document.getElementById('variation_id').value.trim(),
-    scv_id: document.getElementById('scv_id').value.trim(),
-    action: document.getElementById('action').value,
-    reason: document.getElementById('reason').value.trim(),
-    notes: document.getElementById('notes').value.trim()
-  };
-}
-
-/**
- * Same validation the real extension enforces: an SCV and an action are
- * required, and a reason is required unless the action is "No Change".
- */
-function validate(data) {
-  if (!data.user_email) {
-    return 'No Google account detected. Sign into Chrome with a synced Google profile to submit.';
-  }
-  if (!data.scv_id) return 'An SCV ID is required.';
-  if (!data.action) return 'An action is required.';
-  if (data.action !== 'No Change' && !data.reason) {
-    return `A reason is required for a '${data.action}' annotation.`;
-  }
-  return null;
-}
-
 function isConfigured() {
   return (
     FIREBASE_CONFIG &&
@@ -302,34 +256,153 @@ async function saveAnnotation(data, idToken) {
   return response.json();
 }
 
+/**
+ * Asks the active tab's content script (content.js) to scrape the current
+ * ClinVar variation page. Resolves to the scraped data, or null if there is
+ * no active tab / no content script response (e.g. not on a ClinVar page).
+ *
+ * @returns {Promise<object|null>}
+ */
+async function requestClinVarData() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab) return null;
+  return new Promise((resolve) => {
+    chrome.tabs.sendMessage(
+      tab.id,
+      { from: 'popup', subject: 'initializePopup' },
+      (response) => {
+        if (chrome.runtime.lastError) {
+          console.error(
+            'CvC initializePopup failed:', chrome.runtime.lastError.message, new Date().toISOString()
+          );
+          resolve(null);
+          return;
+        }
+        resolve(response || null);
+      }
+    );
+  });
+}
+
+/** Clears all <option>/<optgroup> children of a <select>, keeping none. */
+function clearOptions(select) {
+  while (select.firstChild) select.removeChild(select.firstChild);
+}
+
+function addChooseOption(select) {
+  const opt = document.createElement('option');
+  opt.value = '';
+  opt.textContent = 'Choose...';
+  opt.selected = true;
+  select.appendChild(opt);
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   if ((FIREBASE_CONFIG.env || 'prod') !== 'prod') {
     const b = document.getElementById('env-banner');
     if (b) { b.textContent = `DEV — ${FIREBASE_CONFIG.projectId}`; b.style.display = 'block'; }
   }
 
-  const form = document.getElementById('poc-form');
   const saveButton = document.getElementById('save');
-  const emailField = document.getElementById('user_email');
+  const scvSelect = document.getElementById('scvselect');
+  const actionSelect = document.getElementById('action');
+  const reasonSelect = document.getElementById('reason');
+  const notesField = document.getElementById('notes');
+  const vcvIdEl = document.getElementById('vcvid');
+  const variantNameEl = document.getElementById('variant_name');
 
-  // Show a hint of the signed-in Chrome profile email. In 'google' mode the
-  // authoritative, verified email is resolved on save (via sign-in); in other
-  // modes this profile email is what gets persisted.
-  const mode = FIREBASE_CONFIG.authMode || 'none';
-  userEmail = await getUserEmail();
-  if (userEmail) {
-    emailField.value = userEmail;
-  } else if (mode === 'google') {
-    emailField.placeholder = 'will be set from Google sign-in on save';
+  const readOnlyIds = ['interp_ro', 'review_ro', 'eval_date_ro', 'submitter_ro', 'origin_ro', 'method_ro'];
+
+  let clinvarData = null;
+
+  function resetScvDisplay() {
+    readOnlyIds.forEach((id) => { document.getElementById(id).textContent = ''; });
+  }
+
+  function populateScvDisplay(scvRow) {
+    document.getElementById('interp_ro').textContent = scvRow.interp || '';
+    document.getElementById('review_ro').textContent = scvRow.review || '';
+    document.getElementById('eval_date_ro').textContent = scvRow.eval_date || '';
+    document.getElementById('submitter_ro').textContent = scvRow.submitter || '';
+    document.getElementById('origin_ro').textContent = scvRow.origin || '';
+    document.getElementById('method_ro').textContent = scvRow.method || '';
+  }
+
+  function populateVcvDisplay(data) {
+    document.getElementById('vcv_interp_ro').textContent = data.vcv_interp || '';
+    document.getElementById('vcv_review_ro').textContent = data.vcv_review || '';
+    document.getElementById('vcv_eval_date_ro').textContent = data.vcv_eval_date || '';
+  }
+
+  // Scrape the active ClinVar tab and populate the header + SCV picker.
+  clinvarData = await requestClinVarData();
+  if (clinvarData) {
+    vcvIdEl.textContent = clinvarData.vcv || '';
+    variantNameEl.textContent = clinvarData.name || '';
+    populateVcvDisplay(clinvarData);
+
+    clearOptions(scvSelect);
+    addChooseOption(scvSelect);
+    (clinvarData.row || []).forEach((row, index) => {
+      const opt = document.createElement('option');
+      opt.value = String(index);
+      opt.textContent = scvOptionLabel(row);
+      scvSelect.appendChild(opt);
+    });
   } else {
-    emailField.placeholder = 'no signed-in Google account detected';
     setStatus(
-      'No Google account detected. Sign into Chrome with a synced Google profile to submit.',
+      'Could not read this ClinVar page. Open a ClinVar variation page and reopen the popup.',
       'err'
     );
   }
 
-  form.addEventListener('submit', async (event) => {
+  scvSelect.addEventListener('change', () => {
+    const selectedVal = scvSelect.value;
+    if (!selectedVal || !clinvarData) {
+      resetScvDisplay();
+      actionSelect.disabled = true;
+      actionSelect.value = '';
+      reasonSelect.disabled = true;
+      clearOptions(reasonSelect);
+      addChooseOption(reasonSelect);
+      return;
+    }
+    const scvRow = clinvarData.row[Number(selectedVal)];
+    populateScvDisplay(scvRow);
+    actionSelect.disabled = false;
+  });
+
+  actionSelect.addEventListener('change', () => {
+    const action = actionSelect.value;
+
+    clearOptions(reasonSelect);
+    addChooseOption(reasonSelect);
+    reasonOptionGroups(action).forEach((group) => {
+      if (group.label) {
+        const optgroup = document.createElement('optgroup');
+        optgroup.label = group.label;
+        group.options.forEach((text) => {
+          const opt = document.createElement('option');
+          opt.value = text;
+          opt.textContent = text;
+          optgroup.appendChild(opt);
+        });
+        reasonSelect.appendChild(optgroup);
+      } else {
+        group.options.forEach((text) => {
+          const opt = document.createElement('option');
+          opt.value = text;
+          opt.textContent = text;
+          reasonSelect.appendChild(opt);
+        });
+      }
+    });
+
+    reasonSelect.disabled = !action;
+    reasonSelect.value = '';
+  });
+
+  saveButton.addEventListener('click', async (event) => {
     event.preventDefault();
 
     if (!isConfigured()) {
@@ -340,45 +413,39 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    saveButton.disabled = true;
+    const selectedVal = scvSelect.value;
+    const scvRow = selectedVal && clinvarData ? clinvarData.row[Number(selectedVal)] : undefined;
+    const input = {
+      action: actionSelect.value,
+      reason: reasonSelect.value,
+      notes: notesField.value.trim()
+    };
 
-    // Authenticate first — in 'google' mode this yields the verified email that
-    // we persist (so it matches request.auth.token.email in the rules).
+    const error = validateAnnotation({ scv: scvRow && scvRow.scv, action: input.action, reason: input.reason });
+    if (error) {
+      setStatus(error, 'err');
+      return;
+    }
+
+    saveButton.disabled = true;
     let auth;
     try {
       setStatus('Authenticating...', '');
       auth = await ensureAuth();
-      if (auth.email) {
-        userEmail = auth.email;
-        emailField.value = auth.email;
-      }
-    } catch (err) {
-      console.error('POC auth failed:', err, new Date().toISOString());
-      setStatus(`Sign-in failed: ${err.message}`, 'err');
-      saveButton.disabled = false;
-      return;
-    }
 
-    const data = readForm();
-    const error = validate(data);
-    if (error) {
-      setStatus(error, 'err');
-      saveButton.disabled = false;
-      return;
-    }
+      const vcv = { vcv: clinvarData.vcv, variation_id: clinvarData.variation_id };
+      const doc = buildAnnotation(scvRow, vcv, input, auth.email);
 
-    setStatus('Saving...', '');
-    try {
-      const result = await saveAnnotation(data, auth.idToken);
+      setStatus('Saving...', '');
+      const result = await saveAnnotation(doc, auth.idToken);
       const docId = result.name ? result.name.split('/').pop() : '(unknown)';
-      console.log('POC saved Firestore doc:', result.name, new Date().toISOString());
+      console.log('CvC saved Firestore doc:', result.name, new Date().toISOString());
       setStatus(`Saved. Firestore doc id: ${docId}`, 'ok');
-      form.reset();
     } catch (err) {
-      console.error('POC save failed:', err, new Date().toISOString());
+      console.error('CvC save failed:', err, new Date().toISOString());
       if (err.notAuthorized) {
         setStatus(
-          `Your Google account (${userEmail}) is not authorized to submit. ` +
+          `Your Google account (${(auth && auth.email) || ''}) is not authorized to submit. ` +
           `Contact an administrator to be added to the curator allowlist.`,
           'err'
         );

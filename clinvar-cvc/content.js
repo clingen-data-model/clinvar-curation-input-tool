@@ -15,8 +15,11 @@ function handleInitializePopup(message, doc) {
 if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const data = handleInitializePopup(message, document);
-    if (data !== null) { sendResponse(data); }
-    return true; // async response
+    if (data !== null) {
+      sendResponse(data);
+      return true; // async response handled
+    }
+    return false; // not our message; let other listeners respond
   });
 }
 
