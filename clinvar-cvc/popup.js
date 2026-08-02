@@ -149,15 +149,6 @@ function cacheAuth(idToken, refreshToken, expiresInSeconds) {
   });
 }
 
-async function authError(resp, context) {
-  let detail = `HTTP ${resp.status}`;
-  try {
-    const body = await resp.json();
-    if (body.error && body.error.message) detail = body.error.message;
-  } catch (e) { /* keep status-code detail */ }
-  return `${context} failed: ${detail}`;
-}
-
 /**
  * Converts a flat object of field -> value into the Firestore REST
  * document shape ({ fields: { name: { <type>Value: value } } }).

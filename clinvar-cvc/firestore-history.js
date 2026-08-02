@@ -11,6 +11,22 @@
  */
 
 /**
+ * Builds a human-readable error message from a failed Identity Toolkit /
+ * Firestore response. Lives here (not popup.js) because exchangeGoogleToken —
+ * shared with the service worker, which never loads popup.js — depends on it.
+ *
+ * @returns {Promise<string>}
+ */
+async function authError(resp, context) {
+  let detail = `HTTP ${resp.status}`;
+  try {
+    const body = await resp.json();
+    if (body.error && body.error.message) detail = body.error.message;
+  } catch (e) { /* keep status-code detail */ }
+  return `${context} failed: ${detail}`;
+}
+
+/**
  * Exchanges a Google OAuth access token for a Firebase credential via
  * Identity Toolkit accounts:signInWithIdp (no Firebase SDK). Factored out of
  * signInWithGoogle so the silent history-auth path (silentIdToken) can reuse
@@ -131,6 +147,7 @@ async function fetchHistory(variationId, idToken) {
 
 (function (root) {
   if (root) {
+    root.authError = authError;
     root.getGoogleAuthTokenSilent = getGoogleAuthTokenSilent;
     root.exchangeGoogleToken = exchangeGoogleToken;
     root.silentIdToken = silentIdToken;
@@ -138,5 +155,5 @@ async function fetchHistory(variationId, idToken) {
   }
 })(typeof self !== 'undefined' ? self : (typeof window !== 'undefined' ? window : null));
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { getGoogleAuthTokenSilent, exchangeGoogleToken, silentIdToken, fetchHistory };
+  module.exports = { authError, getGoogleAuthTokenSilent, exchangeGoogleToken, silentIdToken, fetchHistory };
 }
