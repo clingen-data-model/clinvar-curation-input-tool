@@ -306,8 +306,13 @@ async function requestClinVarData() {
       { from: 'popup', subject: 'initializePopup' },
       (response) => {
         if (chrome.runtime.lastError) {
-          console.error(
-            'CvC initializePopup failed:', chrome.runtime.lastError.message, new Date().toISOString()
+          // Expected when the active tab isn't a ClinVar variation page, OR when
+          // a ClinVar tab was open before the extension loaded/reloaded (static
+          // content scripts don't inject into pre-existing tabs — reload the tab).
+          // Handled by the isScrapeable() guard below; not a failure, so info-level.
+          console.info(
+            'CvC: no ClinVar content script in the active tab —',
+            chrome.runtime.lastError.message
           );
           resolve(null);
           return;
@@ -372,8 +377,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   clinvarData = await requestClinVarData();
   if (!window.isScrapeable(clinvarData)) {
     setStatus(
-      "This isn't a ClinVar variation page — open a ClinVar variation record " +
-      '(…/clinvar/variation/<id>) to capture an annotation.',
+      'No ClinVar variation data found on this tab. Open a ClinVar variation ' +
+      'record (…/clinvar/variation/<id>); if you are already on one, reload the ' +
+      'tab (the extension only injects on page load), then reopen this popup.',
       'err'
     );
     [scvSelect, actionSelect, reasonSelect, saveButton].forEach((el) => { el.disabled = true; });
