@@ -56,6 +56,18 @@ async function ensureAuth() {
  */
 async function signInWithGoogle() {
   const googleToken = await getGoogleAuthToken();
+  return exchangeGoogleToken(googleToken);
+}
+
+/**
+ * Exchanges a Google OAuth access token for a Firebase credential via
+ * Identity Toolkit accounts:signInWithIdp (no Firebase SDK). Factored out of
+ * signInWithGoogle so the silent history-auth path (silentIdToken) can reuse
+ * the exact same exchange.
+ *
+ * @returns {Promise<{idToken: string, email: string}>}
+ */
+async function exchangeGoogleToken(googleToken) {
   const apiKey = FIREBASE_CONFIG.apiKey;
   // requestUri must be an authorized domain; the project's default authDomain is.
   const requestUri = `https://${FIREBASE_CONFIG.projectId}.firebaseapp.com`;
@@ -100,6 +112,47 @@ function getGoogleAuthToken() {
       resolve(token);
     });
   });
+}
+
+/**
+ * Like getGoogleAuthToken(), but non-interactive: resolves null (never
+ * rejects) when there is no cached Google OAuth grant. Used only for the
+ * best-effort history load, which must never prompt for interactive sign-in
+ * just because the curator opened the popup.
+ *
+ * @returns {Promise<string|null>}
+ */
+function getGoogleAuthTokenSilent() {
+  return new Promise((resolve) => {
+    chrome.identity.getAuthToken({ interactive: false }, (token) => {
+      if (chrome.runtime.lastError || !token) {
+        resolve(null);
+        return;
+      }
+      resolve(token);
+    });
+  });
+}
+
+/**
+ * Best-effort Firebase ID token for the history load, obtained without ever
+ * triggering an interactive sign-in prompt. Returns null whenever silent auth
+ * isn't available (non-Google authMode, no cached Google grant, or any
+ * failure in the token exchange) so history stays purely additive and never
+ * blocks/breaks the popup.
+ *
+ * @returns {Promise<string|null>}
+ */
+async function silentIdToken() {
+  if ((FIREBASE_CONFIG.authMode || 'none') !== 'google') return null;
+  try {
+    const googleToken = await getGoogleAuthTokenSilent();
+    if (!googleToken) return null;
+    const { idToken } = await exchangeGoogleToken(googleToken);
+    return idToken;
+  } catch (e) {
+    return null;
+  }
 }
 
 /**
@@ -288,6 +341,46 @@ async function saveAnnotation(data, idToken) {
   }
 
   return response.json();
+}
+
+/**
+ * Fetches prior annotations for a ClinVar variation via Firestore's REST
+ * runQuery (see history.js for the query shape / response parsing), sorted
+ * newest-first. Best-effort: any non-ok response — including a 403 for a
+ * signed-in-but-not-allowlisted account — resolves to [] instead of
+ * throwing, so a failed history fetch never blocks/breaks the popup.
+ *
+ * @returns {Promise<object[]>}
+ */
+async function fetchHistory(variationId, idToken) {
+  const { projectId, collection } = FIREBASE_CONFIG;
+  const databaseId = FIREBASE_CONFIG.databaseId || '(default)';
+  const buildHistoryQueryFn = (typeof window !== 'undefined' && window.buildHistoryQuery) ||
+    require('./history.js').buildHistoryQuery;
+  const parseHistoryRowsFn = (typeof window !== 'undefined' && window.parseHistoryRows) ||
+    require('./history.js').parseHistoryRows;
+  const sortHistoryDescFn = (typeof window !== 'undefined' && window.sortHistoryDesc) ||
+    require('./history.js').sortHistoryDesc;
+
+  const url =
+    `https://firestore.googleapis.com/v1/projects/${projectId}` +
+    `/databases/${encodeURIComponent(databaseId)}/documents:runQuery`;
+
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${idToken}`
+    },
+    body: JSON.stringify(buildHistoryQueryFn(variationId, collection))
+  });
+
+  if (!resp.ok) {
+    console.info('CvC: history fetch failed —', resp.status);
+    return [];
+  }
+
+  return sortHistoryDescFn(parseHistoryRowsFn(await resp.json()));
 }
 
 /**
