@@ -1,0 +1,51 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`scrape.extractClinVarData > matches the pinned scraped-content shape (no regression) 1`] = `
+{
+  "name": "NM_001200.4(BMP2):c.178A>C (p.Met60Leu)",
+  "row": [
+    {
+      "eval_date": "Jun 30, 2024",
+      "interp": "Uncertain significance",
+      "method": "",
+      "origin": "germline",
+      "review": "criteria provided, single submitter",
+      "scv": "SCV005831843.1",
+      "subm_date": "Feb 25, 2025",
+      "submitter": "Labcorp Genetics
+                                                (formerly Invitae), Labcorp",
+      "submitter_id": "500031",
+    },
+    {
+      "eval_date": "Oct 08, 2018",
+      "interp": "Uncertain significance",
+      "method": "",
+      "origin": "germline",
+      "review": "no assertion criteria provided",
+      "scv": "SCV000853300.2",
+      "subm_date": "Jan 26, 2019",
+      "submitter": "Center for
+                                                Statistical Genetics, Columbia University",
+      "submitter_id": "505853",
+    },
+    {
+      "eval_date": "-",
+      "interp": "Uncertain significance",
+      "method": "",
+      "origin": "inherited",
+      "review": "no assertion criteria provided",
+      "scv": "SCV001439095.1",
+      "subm_date": "Oct 25, 2020",
+      "submitter": "University of
+                                                Washington Center for Mendelian Genomics, University of Washington",
+      "submitter_id": "505516",
+    },
+  ],
+  "variation_id": "590935",
+  "vcv": "VCV000590935.4",
+  "vcv_eval_date": "Jun 30, 2024",
+  "vcv_interp": "Uncertain significance",
+  "vcv_most_recent": "Feb 25, 2025",
+  "vcv_review": "criteria provided, single submitter",
+}
+`;
