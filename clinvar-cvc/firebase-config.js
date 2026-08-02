@@ -1,38 +1,27 @@
 /**
  * Firebase / Firestore configuration for the ClinVar POC extension.
  *
- * Everything for this POC now lives in its OWN GCP project, `clingen-cvc`,
- * so it can be published to an EXTERNAL OAuth audience (any Google account,
- * inside or outside the institution) without the org policies that block that
- * in clingen-dev. See README.md.
+ * This file is now a thin selector over env.js's per-environment config
+ * (dev vs prod GCP projects). See env.js for the actual project details
+ * (projectId, apiKey, databaseId, collection) for each environment.
  *
- * Fill in from the Firebase console for `clingen-cvc`:
- *   Project settings > General > Your apps (Web app)
- *     - apiKey : the Web API key
- * (projectId is already set below.)
+ * The OAuth client_id is NOT selected here — it stays fixed in manifest.json,
+ * shared and whitelisted in both projects' Firebase Google providers, so
+ * flipping ACTIVE_ENV only changes which Firestore project data is written to.
  *
- * `collection` is the Firestore collection the POC writes to. It MUST match
- * the "Collection path" you configure in the Firestore -> BigQuery extension.
+ * How the extension authenticates to Firestore before writing
+ * (FIREBASE_CONFIG.authMode):
+ *   'google'    — Google sign-in via chrome.identity + Identity Toolkit. The
+ *                 Firebase ID token carries a VERIFIED email, so rules enforce
+ *                 user_email == request.auth.token.email. Requires the Google
+ *                 provider enabled + an OAuth client id in manifest.json.
+ *   'anonymous' — Firebase Anonymous Auth (email captured but NOT verified).
+ *   'none'      — no auth; only works with open (test-mode) rules.
  *
  * NOTE: these are non-module top-level `const`s, so they are visible to
- * popup.js as long as this file is loaded first in popup.html.
+ * popup.js as long as this file is loaded (after env.js) first in popup.html.
  */
-const FIREBASE_CONFIG = {
-  projectId: 'clingen-cvc',
-  apiKey: 'AIzaSyApRKUWc9WnpLB7cryD9VDp7R7MTtm3tBM',
-
-  // Dedicated project => use the default database (no named-database Rules-tab
-  // or extension "Database ID" gotchas). Leave as '(default)'.
-  databaseId: '(default)',
-
-  collection: 'clinvar_cvc_ext_annotations',
-
-  // How the extension authenticates to Firestore before writing:
-  //   'google'    — Google sign-in via chrome.identity + Identity Toolkit. The
-  //                 Firebase ID token carries a VERIFIED email, so rules enforce
-  //                 user_email == request.auth.token.email. Requires the Google
-  //                 provider enabled + an OAuth client id in manifest.json.
-  //   'anonymous' — Firebase Anonymous Auth (email captured but NOT verified).
-  //   'none'      — no auth; only works with open (test-mode) rules.
-  authMode: 'google'
-};
+// Active environment: 'prod' (default) or 'dev'. Flip to 'dev' (or load the
+// dev-pointed unpacked copy) to trial changes against clingen-cvc-dev.
+const ACTIVE_ENV = 'prod';
+const FIREBASE_CONFIG = { ...resolveConfig(ACTIVE_ENV), authMode: 'google' };

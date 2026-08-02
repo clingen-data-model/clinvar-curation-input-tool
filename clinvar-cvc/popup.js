@@ -303,6 +303,11 @@ async function saveAnnotation(data, idToken) {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
+  if ((FIREBASE_CONFIG.env || 'prod') !== 'prod') {
+    const b = document.getElementById('env-banner');
+    if (b) { b.textContent = `DEV — ${FIREBASE_CONFIG.projectId}`; b.style.display = 'block'; }
+  }
+
   const form = document.getElementById('poc-form');
   const saveButton = document.getElementById('save');
   const emailField = document.getElementById('user_email');

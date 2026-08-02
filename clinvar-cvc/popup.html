@@ -62,6 +62,7 @@
   </style>
 </head>
 <body>
+  <div id="env-banner" style="display:none;background:#b91c1c;color:#fff;font-size:11px;padding:2px 6px;text-align:center;">DEV</div>
   <h1>ClinVar POC</h1>
   <p class="subtitle">Capture 5 fields &rarr; Firestore &rarr; BigQuery</p>
 
@@ -95,6 +96,7 @@
   <div id="status"></div>
 
   <!-- config MUST load before popup.js -->
+  <script src="env.js"></script>
   <script src="firebase-config.js"></script>
   <script src="popup.js"></script>
 </body>
