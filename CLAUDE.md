@@ -4,9 +4,53 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This repository contains the ClinVar Curation Chrome Extension (v3.4), a specialized tool for ClinGen curation workflow. The extension scrapes ClinVar UI HTML to create a form that allows curators to capture actions and reasons related to ClinVar submissions (SCVs) that may need re-assessment or removal to improve ClinVar data quality.
+This repository contains ClinGen's ClinVar Curation (CvC) Chrome extension, which scrapes ClinVar variation pages so curators can capture actions/reasons on SCV submissions. There are **two extensions**:
 
-## Architecture
+- **`clinvar-cvc/` — v4, ACTIVE.** The current major version. Persists annotations to **Firestore → BigQuery** (not Google Sheets), with Google sign-in + a curator allowlist and dev/prod environment isolation. This is where new work happens.
+- **`scvc/` — v3.4, LEGACY (do NOT modify).** The prior version that appends annotations to a Google Sheet. Kept intact as reference; the v4 work ports its value without changing it.
+
+## clinvar-cvc — v4 (ACTIVE): Firestore/BigQuery extension
+
+Built on the `clinvar-cvc/` foundation. **Do not modify `scvc/`.**
+
+### Module layout (all vanilla JS, MV3, no build; each is dual-mode: `window.*` global in the browser, `module.exports` under Node/tests)
+- `env.js` — `resolveConfig(env)`; per-environment public config (projectId/apiKey/databaseId/collection) for `prod`/`dev`.
+- `firebase-config.js` — thin selector: `const ACTIVE_ENV = 'prod'|'dev'` → `FIREBASE_CONFIG`. **Flip `ACTIVE_ENV` here (not env.js) to trial dev**; a red DEV banner shows in the popup when not prod.
+- `scrape.js` — `extractClinVarData(doc)`; refactored ClinVar page scraper (ported from `scvc/content.js`, behavior pinned by a characterization snapshot).
+- `vocab.js` — `ACTIONS`, `reasonsForAction(action)`; the action/reason vocabulary.
+- `annotation.js` — `buildAnnotation(scvRow, vcv, input, userEmail)` → the **v4 doc**; `validateAnnotation(data)`; `annotationDocId(doc)` = SHA-256 content hash of the exact entry fields (used as the Firestore doc id for dedup).
+- `content.js` — content script; on `initializePopup` returns `scrape.extractClinVarData(document)`.
+- `popup.html` / `popup.js` / `popup-view.js` — rich SCV-picker + action/reason/notes form; wires scrape → picker → reasons → save; auth (`ensureAuth`/`signInWithGoogle`), Firestore write (`saveAnnotation`, create-only), guards non-ClinVar pages, closes on success.
+- `bigquery/annotations_view.sql` — flattened typed view over the extension's `annotations_raw_latest` (`COALESCE(scv, scv_id)` bridges v4/legacy field names). **Must be run per-project** (project id hardcoded; substitute `clingen-cvc-dev` for dev).
+- `setup-clingen-cvc.sh` — scripts the automatable GCP provisioning; `add-curator.sh`/`remove-curator.sh`/`list-curators.sh` manage the allowlist.
+
+### v4 annotation doc fields
+`variation_id, vcv, scv, submitter, submitter_id, interp, review_status, action, reason, notes, user_email, created_at`.
+
+### GCP / environments
+- **Prod** = project **`clingen-cvc`** (project number 493724081911). **Dev** = **`clingen-cvc-dev`** (362266755807) — a full isolated twin for trialing (writes stay in dev; verified 0 leak to prod). Both under the `broadinstitute.org` org (which — surprisingly — DID allow an External + In-production OAuth audience).
+- Firestore `(default)` DB in **`nam5`** (US multi-region); BigQuery dataset `clinvar_cvc_ext` in `us-central1`; streaming via the **firestore-bigquery-export** Firebase Extension.
+
+### Access control
+Anyone can Google-sign-in (External audience); only accounts whose **verified email** has a doc in the **`allowed_curators`** collection may submit (enforced in `firestore.rules`; `user_email == request.auth.token.email`). Manage with `./add-curator.sh <email>` etc.
+
+### Dedup
+Every save is create-only with the doc id = `annotationDocId` (content hash of all entry fields except `created_at`), so an exact-match re-save by the same user returns `ALREADY_EXISTS` → "already saved" (atomic, concurrency-safe). This also makes the future history migration idempotent.
+
+### Testing (this IS testable — unlike scvc)
+`cd clinvar-cvc && npm install && npm test` (Vitest + jsdom). Pure logic is unit-tested; DOM/fetch wiring is manually verified in Chrome. A characterization snapshot pins the scraper so refactors are provably behavior-preserving.
+
+### Operational findings / gotchas (full detail in `clinvar-cvc/README.md` Troubleshooting)
+- **Install the Firestore→BigQuery extension via the Firebase CONSOLE**, not `firebase deploy --only extensions` — the CLI/manifest install does NOT run the extension's BigQuery setup (no dataset/table created) and does NOT grant the runtime SA its roles. Prod works because it was console-installed.
+- **After ANY extension reinstall/reconfigure (dev or prod), re-grant `run.invoker`** to the trigger SA on the extension's Cloud Run service — reinstalling recreates the service and drops the binding, silently 403'ing events. (Also needed: `eventarc.publisher`, `bigquery.dataEditor/jobUser`, `cloudtasks.enqueuer` on the runtime SA — all baked into `setup-clingen-cvc.sh`.)
+- The extension's **Firestore Database region param must match the DB** (`nam5`), not `us-central1`.
+- A **named** Firestore DB has no Rules tab (deploy rules via the Firebase CLI); the `(default)` DB does. Use **Standard edition / Native mode** (NOT Enterprise/MongoDB, which has SCRAM/OIDC and no rules).
+- The flattened BQ **view is created by running the SQL**, not by the extension — run it per project.
+
+### Plans & roadmap
+Implementation plans live in `docs/superpowers/plans/` (a program roadmap + per-subsystem TDD sub-plans, executed via superpowers subagent-driven-development in git worktrees). **Done:** S1 (env switch), S2 (test harness), S0 A–F (foundation port: scrape/vocab/annotation/content-script/rich-popup/BQ-view), plus capture fixes. **Remaining:** S4 (Google-Sheet history → Firestore migration — reuse `annotationDocId` for idempotent writes), S5 (allowlist backfill from historical `user_email`s), S6 (in-extension annotation history view), S7 (in-page click-to-annotate), S8 (repoint the Review&Submit/Generate pipeline to the new BQ table).
+
+## Legacy extension architecture (`scvc/`, v3.4 — do not modify)
 
 ### Core Components
 

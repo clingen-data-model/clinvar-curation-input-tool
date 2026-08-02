@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>ClinVar Curation</title>
+  <style>
+    :root { --gap: 10px; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      width: 380px;
+      margin: 0;
+      padding: 14px 16px 16px;
+      color: #1f2937;
+      background: #ffffff;
+    }
+    h1 {
+      font-size: 15px;
+      margin: 0 0 2px;
+    }
+    .subtitle {
+      font-size: 11px;
+      color: #6b7280;
+      margin: 0 0 12px;
+    }
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 3px;
+    }
+    input, select, textarea {
+      width: 100%;
+      box-sizing: border-box;
+      font-size: 13px;
+      padding: 6px 8px;
+      margin-bottom: var(--gap);
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-family: inherit;
+    }
+    select:disabled { background: #f3f4f6; color: #9ca3af; }
+    textarea { resize: vertical; min-height: 48px; }
+    button {
+      width: 100%;
+      font-size: 14px;
+      font-weight: 600;
+      padding: 9px;
+      border: none;
+      border-radius: 6px;
+      background: #2563eb;
+      color: #fff;
+      cursor: pointer;
+    }
+    button:disabled { background: #93b4f5; cursor: default; }
+    #status {
+      font-size: 12px;
+      margin-top: 10px;
+      min-height: 16px;
+      white-space: pre-wrap;
+    }
+    #status.ok { color: #15803d; }
+    #status.err { color: #b91c1c; }
+
+    .header {
+      background: #2563eb;
+      color: #fff;
+      border-radius: 6px;
+      padding: 8px 10px;
+      margin-bottom: var(--gap);
+    }
+    #vcvid { font-size: 14px; font-weight: 700; }
+    #variant_name { font-size: 12px; opacity: 0.9; word-break: break-word; }
+
+    .readonly-panel {
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      padding: 8px 10px;
+      margin-bottom: var(--gap);
+      font-size: 12px;
+      color: #374151;
+    }
+    .readonly-panel .row {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 2px 0;
+      border-bottom: 1px solid #f3f4f6;
+    }
+    .readonly-panel .row:last-child { border-bottom: none; }
+    .readonly-panel .row span:first-child {
+      color: #6b7280;
+      font-weight: 600;
+      flex: 0 0 auto;
+    }
+    .readonly-panel .row span:last-child {
+      text-align: right;
+      overflow-wrap: anywhere;
+    }
+    .readonly-panel.muted { color: #9ca3af; }
+    .panel-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: #6b7280;
+      margin: 10px 0 4px;
+    }
+  </style>
+</head>
+<body>
+  <div id="env-banner" style="display:none;background:#b91c1c;color:#fff;font-size:11px;padding:2px 6px;text-align:center;">DEV</div>
+
+  <div class="header">
+    <div id="vcvid">Select a ClinVar variation page...</div>
+    <div id="variant_name"></div>
+  </div>
+
+  <label for="scvselect">Select an SCV</label>
+  <select id="scvselect">
+    <option selected value="">Choose...</option>
+  </select>
+
+  <div class="panel-title">Selected SCV</div>
+  <div id="scvdisplay" class="readonly-panel muted">
+    <div class="row"><span>Interpretation</span><span id="interp_ro"><i>interp</i></span></div>
+    <div class="row"><span>Review status</span><span id="review_ro"><i>rev stat</i></span></div>
+    <div class="row"><span>Evaluated</span><span id="eval_date_ro"><i>eval dt</i></span></div>
+    <div class="row"><span>Submitter</span><span id="submitter_ro"><i>no submitter selected</i></span></div>
+    <div class="row"><span>Origin</span><span id="origin_ro"><i>origin</i></span></div>
+    <div class="row"><span>Method</span><span id="method_ro"><i>method</i></span></div>
+  </div>
+
+  <div class="panel-title">VCV Summary</div>
+  <div id="vcvdisplay" class="readonly-panel muted">
+    <div class="row"><span>VCV interpretation</span><span id="vcv_interp_ro"><i>vcv interp</i></span></div>
+    <div class="row"><span>VCV review status</span><span id="vcv_review_ro"><i>vcv rev stat</i></span></div>
+    <div class="row"><span>VCV evaluated</span><span id="vcv_eval_date_ro"><i>vcv eval dt</i></span></div>
+  </div>
+
+  <form id="annotation-form">
+    <label for="action">Action</label>
+    <select id="action" disabled>
+      <option selected value="">Choose...</option>
+      <option value="No Change">No Change</option>
+      <option value="Flagging Candidate">Flagging Candidate</option>
+      <option value="Remove Flagged Submission">Remove Flagged Submission</option>
+    </select>
+
+    <label for="reason">Reason</label>
+    <select id="reason" disabled>
+      <option selected value="">Choose...</option>
+    </select>
+
+    <label for="notes">Notes</label>
+    <textarea id="notes" placeholder="Optional free-text notes"></textarea>
+
+    <button type="submit" id="save">Save Annotation</button>
+  </form>
+
+  <div id="status"></div>
+
+  <!-- config + vocab/annotation MUST load before popup-view.js/popup.js -->
+  <script src="env.js"></script>
+  <script src="firebase-config.js"></script>
+  <script src="vocab.js"></script>
+  <script src="annotation.js"></script>
+  <script src="popup-view.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

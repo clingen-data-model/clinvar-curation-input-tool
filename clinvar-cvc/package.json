@@ -1,0 +1,14 @@
+{
+  "name": "clinvar-cvc-extension",
+  "version": "4.0.0-dev",
+  "private": true,
+  "description": "Dev tooling for the ClinVar CvC extension (not shipped with the MV3 bundle).",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "jsdom": "^25.0.0",
+    "vitest": "^2.1.0"
+  }
+}
