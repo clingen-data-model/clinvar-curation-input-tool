@@ -187,31 +187,53 @@ smoke test in jsdom, and a live manual pass on a real ClinVar page.
 (new, from refactor), `popup.html/js`, `scrape.js`, `vocab.js`, `firestore.js`.
 **Risks:** MV3 CSP (no CDN scripts); ClinVar DOM drift (mitigated by S3 resilience).
 
-### S4 — Historical data migration
+### S4 — Historical data migration  (EXECUTION-READY)
 **Scope:** Copy all Google-Sheet `SCVs` history into the new annotations store.
-**Approach (D2=Firestore):** Export the sheet's `SCVs` rows; transform each to the
-Firestore doc shape (`variation_id, vcv, scv, submitter, submitter_id, interp,
-action, reason, notes, review_status, user_email, created_at/timestamp`); bulk-write
-to `clinvar_cvc_ext_annotations` (owner token / Admin SDK), which streams to BQ.
-Idempotent (deterministic doc ids to allow re-runs). Run in **dev first**, verify,
-then prod.
-**Testing (TDD):** transform unit tests (sheet row → doc), dedup/idempotency test,
-a dry-run count reconciliation (sheet rows == Firestore docs == BQ rows).
-**Files:** `migration/` scripts + transform module + tests.
-**Risks:** Volume (thousands of docs → thousands of BQ stream events; cheap but
-deliberate); timestamp/format normalization; PII (emails) handling.
+**Source:** prod spreadsheet **`1dUnmBZSnz3aeB948b7pIq0iT7_FuCDvtv6FXaVsNcOo`**, tab
+**`SCVs`** (the sheet the legacy `scvc/background.js` appended to). Column order
+appended by scvc (see `scvc/background.js` `body.values`): `vcv, name, scv,
+submitter, interp, action, reason, notes, timestamp, submitter_id, variation_id,
+user_email, review_status` (13 cols). Export via the Sheets API (owner token) or a
+one-off `bq`/CSV export.
+**Approach (D2=Firestore):** transform each sheet row → the **v4 doc** produced by
+`clinvar-cvc/annotation.js` `buildAnnotation` field shape (`variation_id, vcv, scv,
+submitter, submitter_id, interp, review_status, action, reason, notes, user_email,
+created_at` — map `timestamp`→`created_at`; note the legacy sheet uses the
+CAPITALIZED action/reason vocab, e.g. "Flagging Candidate"). **Reuse
+`annotation.js`'s `annotationDocId(doc)` as the Firestore document id** and write
+create-only — this makes the migration idempotent (re-runs skip existing) AND makes
+migrated rows dedup-consistent with live extension writes. Bulk-write to
+`clinvar_cvc_ext_annotations` via Firestore REST + owner token (bypasses rules) or
+the Admin SDK; the firestore-bigquery-export extension streams them to BQ. Run in
+**dev first**, reconcile, then prod.
+**Testing (TDD):** transform unit tests (sheet row → v4 doc), idempotency test
+(same row → same `annotationDocId` → create-only no-op on re-run), dry-run count
+reconciliation (distinct sheet rows == Firestore docs == BQ `annotations` view rows).
+**Files:** `clinvar-cvc/migration/` scripts + a pure transform module + tests
+(reuse the existing Vitest harness).
+**Risks:** volume (thousands of docs → thousands of BQ stream events; cheap but
+deliberate — and each triggers the extension, so ensure the runtime-SA roles +
+run.invoker are in place first); timestamp/format normalization; the extension only
+streams writes made AFTER install (already installed in both projects); PII (emails).
 
-### S5 — Allowlist backfill from historical emails
-**Scope:** Every distinct `user_email` in the sheet history becomes an
-`allowed_curators` doc.
-**Approach:** From the migrated data (or the sheet directly), extract distinct
-non-empty emails; upsert each via the existing `add-curator.sh` path / batch REST.
-Run in dev then prod.
-**Testing (TDD):** distinct-email extraction test; idempotent upsert test; verify
-`list-curators.sh` count matches distinct historical emails + current curators.
-**Files:** `migration/backfill-allowlist.*` (reuses curator-helper logic).
-**Risks:** Stale/typo emails from years of data → some allowlisted accounts may
-never sign in (harmless); optionally tag provenance (`added_by: "historical"`).
+### S5 — Allowlist backfill from historical emails  (EXECUTION-READY)
+**Scope:** Every distinct `user_email` in the sheet history (S4 col `user_email`)
+becomes an `allowed_curators` doc so historical curators can keep submitting.
+**Approach:** From the migrated data (or the `SCVs` sheet directly), extract distinct
+non-empty, trimmed, lowercased?-NO-keep-exact emails (the allowlist match is
+case-sensitive on the verified token email, so preserve exact case as it appears).
+Upsert each via the **same mechanism as `add-curator.sh`** (Firestore REST PATCH to
+`allowed_curators/<email>` with an owner token, which bypasses the client-write
+rule) — loop over the distinct set. Tag provenance `added_by: "historical-backfill"`.
+Run in **dev then prod**. Idempotent (PATCH upsert).
+**Testing (TDD):** distinct-email extraction test (dedup, drop empty/whitespace);
+verify `./list-curators.sh` count == distinct historical emails ∪ existing curators.
+**Files:** `clinvar-cvc/migration/backfill-allowlist.*` (reuses the `add-curator.sh`
+REST pattern / curator-helper logic).
+**Risks:** stale/typo emails from years of data → some allowlisted accounts never
+sign in (harmless); exact-case matching (a historical email whose case differs from
+the person's real Google token email won't match — acceptable, they get re-added on
+request).
 
 ### S6 — In-extension annotation history view
 **Scope:** In the popup, show prior annotations for the current `variation_id` /

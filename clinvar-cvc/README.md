@@ -44,12 +44,17 @@ are added automatically: the submitter's **verified Google account email**
 
 | File | Purpose |
 |------|---------|
-| `manifest.json` | MV3 config; popup action, icons, permissions, `oauth2` client |
-| `popup.html` | The 5-field form |
-| `popup.js` | Validates input, Google sign-in, writes a Firestore document via REST |
-| `firebase-config.js` | **You edit this** — `apiKey` (project/db/collection/authMode preset) |
-| `firestore.rules` + `firebase.json` | Security rules (deploy via Firebase CLI) |
-| `bigquery/annotations_view.sql` | Flattened BigQuery view mirroring the Firestore doc shape |
+| `manifest.json` | MV3 config; popup action, icons, permissions, `oauth2` client, ClinVar content script |
+| `env.js` | `resolveConfig(env)` — per-environment (prod/dev) public config |
+| `firebase-config.js` | **Flip `ACTIVE_ENV` here** (`'prod'`/`'dev'`) — thin selector over `env.js` |
+| `scrape.js` | `extractClinVarData(doc)` — refactored ClinVar page scraper (from `scvc/`) |
+| `vocab.js` | `ACTIONS` + `reasonsForAction()` — action/reason vocabulary |
+| `annotation.js` | `buildAnnotation`→v4 doc, `validateAnnotation`, `annotationDocId` (dedup hash) |
+| `content.js` | Content script — returns scraped data to the popup on `initializePopup` |
+| `popup.html` / `popup.js` / `popup-view.js` | Rich SCV-picker/action-reason-notes form; scrape→picker→save (create-only, non-ClinVar guard, close-on-save, duplicate detection) |
+| `firestore.rules` + `firebase.json` | Security rules incl. `allowed_curators` allowlist (deploy via Firebase CLI) |
+| `bigquery/annotations_view.sql` | Flattened BigQuery view (v4 typed columns; run per-project) |
+| `test/` + `package.json` + `vitest.config.js` | Vitest+jsdom unit tests — `npm install && npm test` |
 | `setup-clingen-cvc.sh` | Scripts the automatable setup (project/APIs/Firestore/rules/allowlist/webapp); pauses for the console-only OAuth steps |
 | `add-curator.sh` / `remove-curator.sh` / `list-curators.sh` | Admin helpers to manage the `allowed_curators` allowlist |
 | `icons/` | Extension icons (16/48/128) |
