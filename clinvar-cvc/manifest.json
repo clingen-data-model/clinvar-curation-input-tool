@@ -23,7 +23,9 @@
   "permissions": [
     "identity",
     "identity.email",
-    "storage"
+    "storage",
+    "activeTab",
+    "tabs"
   ],
 
   "oauth2": {
@@ -34,6 +36,16 @@
   "host_permissions": [
     "https://firestore.googleapis.com/*",
     "https://identitytoolkit.googleapis.com/*",
-    "https://securetoken.googleapis.com/*"
+    "https://securetoken.googleapis.com/*",
+    "https://www.ncbi.nlm.nih.gov/clinvar/variation/*"
+  ],
+
+  "content_scripts": [
+    {
+      "matches": ["https://www.ncbi.nlm.nih.gov/clinvar/variation/*"],
+      "js": ["scrape.js", "content.js"],
+      "run_at": "document_end",
+      "all_frames": false
+    }
   ]
 }
