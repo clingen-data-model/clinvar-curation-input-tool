@@ -107,6 +107,18 @@ if [ -f "extensions/firestore-bigquery-export.env" ]; then
     --region="${FUNCTIONS_REGION}" --project="${PROJECT}" \
     --member="serviceAccount:${TRIG_SA}" --role=roles/run.invoker --quiet >/dev/null 2>&1 \
     && echo "    granted run.invoker to ${TRIG_SA}"
+  # The extension's dedicated runtime SA publishes lifecycle events to the
+  # Eventarc "firebase" channel; without eventarc.publisher it 403s and the BQ
+  # write never completes (dataset never gets created).
+  EXT_SA="ext-firestore-bigquery-export@${PROJECT}.iam.gserviceaccount.com"
+  gcloud projects add-iam-policy-binding "${PROJECT}" --member="serviceAccount:${EXT_SA}" \
+    --role=roles/eventarc.publisher --condition=None --quiet >/dev/null 2>&1 \
+    && echo "    granted eventarc.publisher to ${EXT_SA}"
+  # Ensure the Eventarc service agent role (fresh projects lag on provisioning it).
+  PNUM=$(gcloud projects describe "${PROJECT}" --format='value(projectNumber)')
+  gcloud projects add-iam-policy-binding "${PROJECT}" \
+    --member="serviceAccount:service-${PNUM}@gcp-sa-eventarc.iam.gserviceaccount.com" \
+    --role=roles/eventarc.serviceAgent --condition=None --quiet >/dev/null 2>&1 || true
 else
   echo "    No extension manifest yet. Install it ONCE interactively (records params):"
   echo "      firebase ext:install firebase/firestore-bigquery-export --project=${PROJECT}"
