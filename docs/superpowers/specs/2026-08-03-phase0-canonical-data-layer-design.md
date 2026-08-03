@@ -77,9 +77,12 @@ stored procedure. Repointing that one choke point at v4 repoints all 88 objects.
 - `base_mv` lowercases `action` itself and uses `LOWER(interpretation)` to join
   `scv_clinsig_map` — so **`interpretation` is required** (it was omitted from the
   discovery doc's contract list; corrected here).
-- v4 → contract mapping: `created_at→annotation_date`, `vcv→vcv_id`, `scv→scv_id`,
-  `user_email→curator_email`, `interp→interpretation`, `action` passed through
-  capitalized (base_mv lowercases), `ignore` → literal `FALSE`.
+- v4 → contract mapping (renames): `created_at→annotation_date`, `vcv→vcv_id`,
+  `scv→scv_id`, `user_email→curator_email`, `interp→interpretation`; `action` passed
+  through capitalized (base_mv lowercases); `ignore` → literal `FALSE`.
+- v4 → contract mapping (passthroughs, name-identical): `variation_id`, `submitter_id`,
+  `reason`, `notes`, `review_status`. (Listed explicitly so the contract is complete on
+  its face — the discovery doc omitted `interpretation`; nothing else should be assumed.)
 
 ### 3.3 The primary key
 `annotation_id = CAST(UNIX_MILLIS(annotation_date) AS STRING)`, threaded through
@@ -151,10 +154,14 @@ and `cvc_rejected_scvs` (loaded from `rejected-scvs.tsv` via `load-rejected-scvs
 ### 5.1 Incremental cross-region landing
 An **incremental, watermarked** job copies only new `annotations_raw_changelog` rows
 (`timestamp`/`event_id` beyond the last watermark) from `clingen-cvc:us-central1` into a
-`US` staging table in `clingen-dev`. **Trigger model:** on-demand (reviewer "Refresh" /
-batch run) plus a low-frequency backstop (e.g. hourly or daily). **No fixed 15-min full
-copy.** Copy volume ≈ new annotations (not table size), so cost stays ≈ cents/month, flat
-over time. Capture is never modified.
+`US` staging table in `clingen-dev`. **Trigger model:** on-demand plus a low-frequency
+backstop (e.g. hourly or daily). **No fixed 15-min full copy.** Copy volume ≈ new
+annotations (not table size), so cost stays ≈ cents/month, flat over time. Capture is
+never modified.
+- **What "on-demand" means in Phase 0:** a manual/CLI/scriptable invocation (and the
+  `refresh_cvc_impact_analysis_v4()` run), *not* a UI button — there is no web app in
+  Phase 0. The forward-looking "reviewer Refresh latency" mentioned in §10 is a *validation
+  target* for the Phase-2 web app, not a Phase-0 deliverable.
 - **Mechanism choice is left to the plan** (BigQuery Data Transfer Service scheduled
   table-copy vs a Cloud Function/Cloud Run EXPORT→LOAD). Both satisfy incremental +
   on-demand. The choice must preserve the append-only watermark semantics.
@@ -165,6 +172,12 @@ contract mapping, sets `ignore = FALSE`, and computes
 `annotation_id = CAST(UNIX_MILLIS(annotation_date) AS STRING)`. Output is a **native
 table** so the shadow materialized view can sit over it. This is the single place the
 `UNIX_MILLIS` conversion happens.
+- **Changelog resolution semantics:** the document key is the Firestore `document_id`
+  (= `annotationDocId`, the content hash); "latest" is the newest changelog event for that
+  key ordered by (`timestamp`, then `event_id` as tiebreak). Capture is create-only so there
+  are no deletes, but an idempotent re-save appends a further `CREATE` event for the same
+  key — latest-per-key collapses those to the surviving document. (This is the same
+  content-hash identity used by the migration and by §6.)
 
 ### 5.3 Interface (what consumers can rely on)
 `cvc_annotations_native_v4` is a drop-in for `clinvar_annotations_native`: identical column
@@ -179,18 +192,39 @@ need to know how the copy or reshape work.
 reference a **dropped twin's** `annotation_id`, which has no row in the v4 lineage (the
 surviving twin has a different `created_at` → different `annotation_id`).
 
-**Solution — non-destructive crosswalk.**
+**Empirical profile of the 554** (measured against
+`clingen-dev.clinvar_curator.clinvar_annotations_native`, `ignore` not true):
+- 31,362 rows → 30,808 distinct content → **554 surplus** (matches the migration drop).
+- **520** content groups have >1 distinct `annotation_id` (twins at different timestamps).
+- Of the double-staged groups: **submissions — 11 groups, all in *different* batches**;
+  **reviews — 509 groups: 394 in the *same* batch (accidental double-entry) + 115 in
+  *different* batches.**
+- Interpretation: collapse is unambiguously correct for the ~394 same-batch review dups;
+  the genuinely-distinct cross-batch events are few and enumerable (**11 submitted + 115
+  reviewed**).
+
+**Solution — non-destructive crosswalk with dedup-after-remap.**
 - Build `cvc_annotation_id_xwalk(legacy_annotation_id STRING, canonical_annotation_id STRING)`:
   group legacy `clinvar_annotations_native` by the v4 dedup fields (the `annotationDocId`
-  content fields); for each group the `canonical_annotation_id` = `UNIX_MILLIS` of the
+  content fields, §3.2); for each group the `canonical_annotation_id` = `UNIX_MILLIS` of the
   surviving v4 row (join native→v4 by content). Dropped-twin ids map to the surviving id;
   singletons map to themselves.
 - Apply it as thin **crosswalk views** over the shared staging tables (e.g.
-  `cvc_clinvar_submissions_x` selecting the staging rows with `annotation_id` replaced by
+  `cvc_clinvar_submissions_x` = the staging rows with `annotation_id` replaced by
   `canonical_annotation_id`). The shadow lineage binds its "staging source" to these `_x`
-  views. **No staging table is mutated**, and the shadow DDL stays identical to legacy
-  (only the source binding differs). Correct because twins are content-identical, so a
-  review/submission of any twin is semantically the same annotation.
+  views (see §7.1). **No staging table is mutated.**
+- **Collapse-cardinality rule (the reviewer's gap):** because both twins of a group can
+  independently carry staging rows, remapping can produce two rows sharing one
+  `canonical_annotation_id`. The `_x` views therefore **`SELECT DISTINCT` after remap**, so
+  two accidental same-batch review rows collapse to one (correct) and joins keyed on
+  `annotation_id` cannot fan out within a batch. Rows that differ only by `batch_id` (the
+  11 submitted / 115 reviewed cross-batch cases) legitimately remain multiple rows — one
+  canonical annotation associated with more than one batch. That residual cardinality change
+  is **expected, quantified, and bucketed in the parity method** (§7.2), not an adapter bug.
+- **Semantic caveat (out of Phase-0 scope, flagged in §10):** the v4 dedup excludes
+  `created_at`, so it treats a same-content re-flag/re-review in a *later* batch as the same
+  annotation. That is a domain question for the Phase-1 cutover and Phase-2 reflag capture,
+  not a Phase-0 blocker — Phase 0 only needs the delta measured and explained.
 
 ## 7. The shadow lineage & parity
 
@@ -198,18 +232,22 @@ surviving twin has a different `created_at` → different `annotation_id`).
 Deploy the full templated curator object graph into a new **`clinvar_curator_v4`** dataset
 (`clingen-dev`, `US`) via the §4 mechanism, bound to:
 - annotations source = `cvc_annotations_native_v4`;
-- staging source = the §6 crosswalk views over the primary dataset's staging tables;
-- reference data = the **same** `clinvar_ingest` (US) and the **same**
-  `cvc_clinvar_reviews/submissions/batches` state as legacy.
-So the **only** variable vs legacy is the annotation source. Includes
+- staging source = the §6 crosswalk `_x` views **only** — the shadow lineage never
+  references the raw `cvc_clinvar_reviews/submissions/batches` tables directly; it reads
+  the same underlying state exclusively *through* the `_x` views (which pass rows through
+  unchanged except for the id remap + dedup);
+- reference data = the **same** `clinvar_ingest` (US) as legacy.
+So the **only** variable vs legacy is the annotation source (and the id-remap the `_x`
+views apply to reconcile the 554 dropped twins). Includes
 `refresh_cvc_impact_analysis_v4()` writing 11 `*_v4` tables. Legacy `clinvar_curator` is
 byte-for-byte unchanged → true side-by-side comparison.
 
 ### 7.2 Parity method (drift-aware)
 1. **Comparison population = the intersection** keyed by `annotationDocId` (content hash) —
-   the shared seed. **Within it, parity must be exact:** row-for-row and column-for-column
-   at the choke point, and `annotation_id` id-integrity (0 orphaned staging ids after the
-   crosswalk).
+   the shared seed. **Within it, parity must be exact at the annotation/choke-point level:**
+   row-for-row and column-for-column, and `annotation_id` id-integrity (0 orphaned staging
+   ids after the crosswalk). Keying by content (not `annotation_id`) means the 554 twins
+   collapse identically on both sides at this level, so the annotation-level diff stays clean.
 2. **Parity anchors:** `cvc_version_bumps` / `cvc_full_record_version_bumps` (pure-upstream)
    must be **identical** across lineages; a difference indicates an environment/config
    problem, not an adapter problem.
@@ -224,15 +262,25 @@ byte-for-byte unchanged → true side-by-side comparison.
    membership); diff all 11 impact tables (especially #8 `cvc_flagging_version_bump_intersection`,
    #9 `cvc_resubmission_candidates`, #11 `cvc_impact_summary`) and the **generated submission
    file** (`cvc_annotations("unreviewed")` JOIN submissions) legacy-vs-v4.
-6. **Drift reconciliation:** enumerate and categorize every row outside the intersection —
+6. **Dedup-collapse bucket (staging/downstream level):** the shared seed is *not* row-for-row
+   exact at the staging and 11-table level, because the 554 content-twins are distinct rows in
+   legacy but collapse to one canonical annotation in v4 (§6). This is an **expected,
+   quantified** delta, enumerated up front: 520 multi-id content groups; after the `_x`
+   dedup, the residual multi-row cases are the **11 cross-batch submissions** and **115
+   cross-batch reviews**. Downstream diffs (choke-point `is_reviewed`/`is_submitted`, batch
+   membership, the 11 impact tables) must reconcile against this enumerated set; a delta that
+   maps to a known collapse group is **expected**, and only a delta *outside* it is an adapter
+   bug. (The same-batch review dups collapse cleanly and should produce no delta.)
+7. **Drift reconciliation:** enumerate and categorize every row outside the intersection —
    `sheet-only (post-seed)`, `v4-only (new capture)` — with **zero unexplained deltas
    attributable to adapter logic**. Snapshot both sources at one instant and record the
    seed-boundary timestamp so the diff is against a fixed frame.
 
 ### 7.3 Parity report (deliverable)
 A short written report: anchor results, id-integrity match rate, shared-seed diff result,
-sample-batch end-to-end result, and the drift reconciliation. This is the **go/no-go
-evidence** for Phase 1.
+the **dedup-collapse reconciliation** (§7.2.6 — the 520 groups / 11 cross-batch submissions
+/ 115 cross-batch reviews accounted for), sample-batch end-to-end result, and the drift
+reconciliation. This is the **go/no-go evidence** for Phase 1.
 
 ## 8. Testing
 
@@ -265,3 +313,13 @@ This layer is BigQuery SQL + a shell deploy (no JS module to unit-test here), so
 - **Cross-region copy mechanism** (DTS vs EXPORT→LOAD) is deferred to the plan; both meet the
   incremental + on-demand requirement, but the plan must confirm watermark correctness and
   on-demand latency for the reviewer Refresh path.
+- **Dedup semantics vs distinct cross-batch curation (domain question, not Phase-0-blocking).**
+  The v4 dedup excludes `created_at`, so a same-content re-flag/re-review in a later batch
+  collapses to one annotation (measured: **11 submissions + 115 reviews** across different
+  batches). Two implications to raise with the domain owner **before Phase-1 cutover**: (a)
+  whether those historical cross-batch events should stay distinct (if so, the dedup key or
+  the cutover reconciliation needs `created_at`/batch awareness); and (b) the **Phase-2 reflag
+  capture** consequence — a live re-flag of the same SCV/reason would hit `ALREADY_EXISTS`
+  under the current `annotationDocId`, so the reflag write path likely needs a dedup key that
+  includes a batch/time discriminator. Phase 0 only measures and documents this; it does not
+  resolve it.
