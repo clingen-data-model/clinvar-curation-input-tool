@@ -22,7 +22,8 @@
   border-radius: 9px;
   font-size: 11px;
   font-weight: 600;
-  background: #374151;
+  line-height: 1.4;
+  background: #b91c1c;
   color: #fff;
   vertical-align: middle;
 }
@@ -80,16 +81,18 @@
   white-space: pre-wrap;
 }
 
-/* "+ Annotate" button, appended to every SCV row — deliberately lighter than
- * the dark history badge so the two read as distinct affordances. */
+/* "+ Annotate" button, appended to every SCV row. Styled as a badge that
+ * matches the .cvc-hl-badge box (same height/font/radius) so the two read as
+ * a matched pair — blue for the action, dark red for the history count. */
 .cvc-annotate-btn {
   display: inline-block;
   margin-left: 6px;
-  padding: 1px 6px;
-  border: 1px solid #9ca3af;
+  padding: 0 6px;
+  border: none;
   border-radius: 9px;
-  background: #ffffff;
-  color: #374151;
+  background: #2563eb;
+  color: #fff;
+  font-family: inherit;
   font-size: 11px;
   font-weight: 600;
   line-height: 1.4;
@@ -98,8 +101,7 @@
 }
 
 .cvc-annotate-btn:hover {
-  background: #f3f4f6;
-  border-color: #6b7280;
+  background: #1d4ed8;
 }
 
 /* In-page annotate form popover — same card styling as .cvc-hl-popover. */

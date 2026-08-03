@@ -331,6 +331,18 @@ function applyHighlights(doc, summaryByScv) {
     }
     if (!rowEls[i].cells || !rowEls[i].cells[3]) continue;
 
+    // Annotate button first on every row (regardless of prior history)...
+    const annotateBtn = doc.createElement('button');
+    annotateBtn.type = 'button';
+    annotateBtn.className = 'cvc-annotate-btn';
+    annotateBtn.textContent = '+ Annotate';
+    annotateBtn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      showAnnotateForm(doc, annotateBtn, scvRow, vcv);
+    });
+    rowEls[i].cells[3].appendChild(annotateBtn);
+
+    // ...then the CvC history badge after it, when the SCV has prior history.
     if (dec) {
       const badge = doc.createElement('span');
       badge.className = 'cvc-hl-badge';
@@ -346,17 +358,6 @@ function applyHighlights(doc, summaryByScv) {
       });
       rowEls[i].cells[3].appendChild(badge);
     }
-
-    // Every row gets an Annotate button, regardless of prior history.
-    const annotateBtn = doc.createElement('button');
-    annotateBtn.type = 'button';
-    annotateBtn.className = 'cvc-annotate-btn';
-    annotateBtn.textContent = '+ Annotate';
-    annotateBtn.addEventListener('click', (ev) => {
-      ev.stopPropagation();
-      showAnnotateForm(doc, annotateBtn, scvRow, vcv);
-    });
-    rowEls[i].cells[3].appendChild(annotateBtn);
   }
 }
 
