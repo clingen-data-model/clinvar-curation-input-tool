@@ -233,39 +233,26 @@ function renderHistory(scv) {
   }
   emptyEl.style.display = 'none';
 
-  function field(label, value) {
-    const row = document.createElement('div');
-    row.className = 'history-field';
-    const l = document.createElement('span');
-    l.className = 'h-label';
-    l.textContent = label;
-    const v = document.createElement('span');
-    v.className = 'h-val';
-    v.textContent = value;
-    row.appendChild(l);
-    row.appendChild(v);
-    return row;
-  }
-
   entries.forEach((e) => {
     const entry = document.createElement('div');
     entry.className = 'history-entry';
 
-    const head = document.createElement('div');
-    head.className = 'history-head';
-    const date = document.createElement('span');
-    date.className = 'h-date';
-    date.textContent = e.when;
-    const who = document.createElement('span');
-    who.className = 'h-who';
-    who.textContent = e.who;
-    head.appendChild(date);
-    head.appendChild(who);
-    entry.appendChild(head);
+    const meta = document.createElement('div');
+    meta.className = 'history-meta';
+    meta.textContent = `${e.when} · ${e.who}`;
+    entry.appendChild(meta);
 
-    entry.appendChild(field('Action', e.action));
-    if (e.reason) entry.appendChild(field('Reason', e.reason));
-    if (e.notes) entry.appendChild(field('Notes', e.notes));
+    const summary = document.createElement('div');
+    summary.className = 'history-summary';
+    summary.textContent = e.reason ? `${e.action} — ${e.reason}` : e.action;
+    entry.appendChild(summary);
+
+    if (e.notes) {
+      const notes = document.createElement('div');
+      notes.className = 'history-notes';
+      notes.textContent = e.notes;
+      entry.appendChild(notes);
+    }
 
     listEl.appendChild(entry);
   });

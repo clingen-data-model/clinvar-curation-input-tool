@@ -97,26 +97,17 @@
       overflow-wrap: anywhere;
     }
     .readonly-panel.muted { color: #9ca3af; }
+    /* Matches the in-page `CvC N` popover entry format (highlight.css) for a
+       consistent look across the popup and the on-page history popover. */
     #history-empty { font-style: italic; color: #9ca3af; }
     .history-entry {
       padding: 5px 0;
-      border-bottom: 1px solid #e5e7eb;
+      border-bottom: 1px solid #f3f4f6;
     }
     .history-entry:last-child { border-bottom: none; }
-    .history-head {
-      display: flex;
-      justify-content: space-between;
-      gap: 8px;
-    }
-    .history-head .h-date { font-weight: 700; color: #374151; }
-    .history-head .h-who { color: #6b7280; overflow-wrap: anywhere; text-align: right; }
-    .history-field {
-      display: flex;
-      gap: 6px;
-      padding-left: 14px;
-    }
-    .history-field .h-label { flex: 0 0 46px; color: #6b7280; font-weight: 600; }
-    .history-field .h-val { flex: 1; color: #9ca3af; overflow-wrap: anywhere; }
+    .history-meta { color: #6b7280; font-size: 11px; }
+    .history-summary { font-weight: 600; color: #374151; }
+    .history-notes { margin-top: 2px; color: #374151; white-space: pre-wrap; overflow-wrap: anywhere; }
     .panel-title {
       font-size: 11px;
       font-weight: 700;
@@ -149,9 +140,9 @@
 
   <div class="panel-title">VCV Summary</div>
   <div id="vcvdisplay" class="readonly-panel muted">
-    <div class="row"><span>VCV interpretation</span><span id="vcv_interp_ro"><i>vcv interp</i></span></div>
-    <div class="row"><span>VCV review status</span><span id="vcv_review_ro"><i>vcv rev stat</i></span></div>
-    <div class="row"><span>VCV evaluated</span><span id="vcv_eval_date_ro"><i>vcv eval dt</i></span></div>
+    <div class="row"><span>Interpretation</span><span id="vcv_interp_ro"><i>vcv interp</i></span></div>
+    <div class="row"><span>Review status</span><span id="vcv_review_ro"><i>vcv rev stat</i></span></div>
+    <div class="row"><span>Evaluated</span><span id="vcv_eval_date_ro"><i>vcv eval dt</i></span></div>
   </div>
 
   <div class="panel-title">Prior annotations</div>
