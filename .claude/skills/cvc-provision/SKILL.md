@@ -83,6 +83,21 @@ extension via the console** (step A3) so its setup lifecycle runs, then re-grant
 run.invoker (above). Pub/Sub retries queued events, so previously-failed writes
 usually backfill within a couple of minutes.
 
+**ALWAYS grant run.invoker BEFORE a bulk migration/import — and verify it's flowing.**
+Hit on the **prod** history load (2026-08-03): the trigger SA (`<projnum>-compute@developer`)
+lacked run.invoker even though prod had streamed fine for small tests, so ALL 30,784
+bulk events were rejected (logged as **WARNING** `run.routes.invoke`, not ERROR — so
+an `severity>=ERROR` log filter shows "0 errors" and hides it; check `>=WARNING`).
+Critically, a bulk load during a broken binding **does not fully self-heal**: Pub/Sub
+retries with backoff and only ~73% (22.5k/30.8k) backfilled after the re-grant — the
+rest **exhausted their retry window and were permanently dropped from the stream**
+(Firestore still had all 30,784; only BQ was short). Fix once dropped: after
+re-granting run.invoker, **re-run the clean-slate `wipe-collection` + paced `migrate`**
+so every doc re-emits a fresh event through the now-working stream (create-only
+re-runs alone won't help — no write, no event). Note the trigger SA is the project's
+**compute** SA and the Eventarc trigger lives in **nam5** while the Cloud Run service
+is in **us-central1**.
+
 ## D. Verify (dev-safe, seeds via owner token which bypasses rules)
 ```bash
 PROJ=clingen-cvc-dev
