@@ -544,6 +544,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       setStatus('Saving...', '');
       await saveAnnotation(doc, auth.idToken);
       console.log('CvC saved annotation', new Date().toISOString());
+      // Reload the ClinVar tab so the in-page annotation highlights refresh
+      // with the just-saved curation, then close the popup. Best-effort — a
+      // reload failure must not block closing.
+      try {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (tab && tab.id != null) await chrome.tabs.reload(tab.id);
+      } catch (e) {
+        console.info('CvC: tab reload after save skipped —', e && e.message);
+      }
       window.close();
     } catch (err) {
       console.error('CvC save failed:', err, new Date().toISOString());
