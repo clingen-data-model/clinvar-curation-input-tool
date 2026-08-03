@@ -331,10 +331,13 @@ function applyHighlights(doc, summaryByScv) {
     }
     if (!rowEls[i].cells || !rowEls[i].cells[3]) continue;
 
-    // Annotate button first on every row (regardless of prior history)...
-    const annotateBtn = doc.createElement('button');
-    annotateBtn.type = 'button';
+    // Annotate control first on every row (regardless of prior history). It's
+    // a <span> (not a <button>) styled as a badge: a real <button> inherits
+    // ClinVar/USWDS button chrome (large rounded rectangle) that overrides our
+    // styles, whereas a span renders exactly like the .cvc-hl-badge span.
+    const annotateBtn = doc.createElement('span');
     annotateBtn.className = 'cvc-annotate-btn';
+    annotateBtn.setAttribute('role', 'button');
     annotateBtn.textContent = '+ Annotate';
     annotateBtn.addEventListener('click', (ev) => {
       ev.stopPropagation();
