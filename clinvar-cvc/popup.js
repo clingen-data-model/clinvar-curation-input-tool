@@ -60,102 +60,6 @@ async function signInWithGoogle() {
 }
 
 /**
- * Exchanges a Google OAuth access token for a Firebase credential via
- * Identity Toolkit accounts:signInWithIdp (no Firebase SDK). Factored out of
- * signInWithGoogle so the silent history-auth path (silentIdToken) can reuse
- * the exact same exchange.
- *
- * @returns {Promise<{idToken: string, email: string}>}
- */
-async function exchangeGoogleToken(googleToken) {
-  const apiKey = FIREBASE_CONFIG.apiKey;
-  // requestUri must be an authorized domain; the project's default authDomain is.
-  const requestUri = `https://${FIREBASE_CONFIG.projectId}.firebaseapp.com`;
-
-  const resp = await fetch(
-    `https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=${apiKey}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        postBody: `access_token=${googleToken}&providerId=google.com`,
-        requestUri,
-        returnSecureToken: true,
-        returnIdpCredential: true
-      })
-    }
-  );
-  if (!resp.ok) {
-    throw new Error(await authError(resp, 'Google sign-in'));
-  }
-  const data = await resp.json();
-  return { idToken: data.idToken, email: data.email || '' };
-}
-
-/**
- * Gets a Google OAuth access token via chrome.identity. Requires the `oauth2`
- * block in manifest.json (client id + scopes) and, for a Chrome Extension OAuth
- * client, the client id to match this extension's id.
- *
- * @returns {Promise<string>}
- */
-function getGoogleAuthToken() {
-  return new Promise((resolve, reject) => {
-    chrome.identity.getAuthToken({ interactive: true }, (token) => {
-      if (chrome.runtime.lastError || !token) {
-        reject(new Error(
-          (chrome.runtime.lastError && chrome.runtime.lastError.message) ||
-          'Google sign-in was cancelled or returned no token.'
-        ));
-        return;
-      }
-      resolve(token);
-    });
-  });
-}
-
-/**
- * Like getGoogleAuthToken(), but non-interactive: resolves null (never
- * rejects) when there is no cached Google OAuth grant. Used only for the
- * best-effort history load, which must never prompt for interactive sign-in
- * just because the curator opened the popup.
- *
- * @returns {Promise<string|null>}
- */
-function getGoogleAuthTokenSilent() {
-  return new Promise((resolve) => {
-    chrome.identity.getAuthToken({ interactive: false }, (token) => {
-      if (chrome.runtime.lastError || !token) {
-        resolve(null);
-        return;
-      }
-      resolve(token);
-    });
-  });
-}
-
-/**
- * Best-effort Firebase ID token for the history load, obtained without ever
- * triggering an interactive sign-in prompt. Returns null whenever silent auth
- * isn't available (non-Google authMode, no cached Google grant, or any
- * failure in the token exchange) so history stays purely additive and never
- * blocks/breaks the popup.
- *
- * @returns {Promise<string|null>}
- */
-async function silentIdToken() {
-  if ((FIREBASE_CONFIG.authMode || 'none') !== 'google') return null;
-  try {
-    const googleToken = await getGoogleAuthTokenSilent();
-    if (!googleToken) return null;
-    const { idToken } = await exchangeGoogleToken(googleToken);
-    return idToken;
-  } catch (e) {
-    return null;
-  }
-}
-
-/**
  * Ensures we have a valid Firebase ID token for an anonymous user, using the
  * Identity Toolkit REST API. Caches the refresh token in chrome.storage.local
  * so the same anonymous identity is reused across popups.
@@ -223,33 +127,6 @@ function cacheAuth(idToken, refreshToken, expiresInSeconds) {
   });
 }
 
-async function authError(resp, context) {
-  let detail = `HTTP ${resp.status}`;
-  try {
-    const body = await resp.json();
-    if (body.error && body.error.message) detail = body.error.message;
-  } catch (e) { /* keep status-code detail */ }
-  return `${context} failed: ${detail}`;
-}
-
-/**
- * Converts a flat object of field -> value into the Firestore REST
- * document shape ({ fields: { name: { <type>Value: value } } }).
- * Empty strings are skipped so they don't create empty fields.
- */
-function toFirestoreFields(obj) {
-  const fields = {};
-  Object.entries(obj).forEach(([key, value]) => {
-    if (value === null || value === undefined || value === '') return;
-    if (value instanceof Date) {
-      fields[key] = { timestampValue: value.toISOString() };
-    } else {
-      fields[key] = { stringValue: String(value) };
-    }
-  });
-  return { fields };
-}
-
 function setStatus(message, kind) {
   const el = document.getElementById('status');
   el.textContent = message;
@@ -264,123 +141,6 @@ function isConfigured() {
     FIREBASE_CONFIG.apiKey &&
     FIREBASE_CONFIG.apiKey.indexOf('PASTE_') !== 0
   );
-}
-
-/**
- * Classifies a failed Firestore write response into a stable error kind, so
- * callers can branch on behavior (dedup vs. auth) instead of message text.
- *
- * @param {number} status - HTTP status code of the response.
- * @param {object} errorBody - parsed JSON error body (may be {} or undefined).
- * @returns {'alreadyExists'|'notAuthorized'|null}
- */
-function classifyWriteError(status, errorBody) {
-  const message = (errorBody && errorBody.error && errorBody.error.message) || '';
-  const apiStatus = errorBody && errorBody.error && errorBody.error.status;
-
-  if (status === 409 || apiStatus === 'ALREADY_EXISTS') {
-    return 'alreadyExists';
-  }
-  if (status === 403 || /PERMISSION_DENIED|insufficient/i.test(message)) {
-    return 'notAuthorized';
-  }
-  return null;
-}
-
-/**
- * Writes a single v4 annotation document to Firestore using createDocument
- * with an explicit, content-hash documentId (see annotation.js's
- * annotationDocId) — this makes the write create-only: re-saving the exact
- * same annotation fields is rejected as ALREADY_EXISTS (409) instead of
- * creating a duplicate row.
- */
-async function saveAnnotation(data, idToken) {
-  const { projectId, apiKey, collection } = FIREBASE_CONFIG;
-  const databaseId = FIREBASE_CONFIG.databaseId || '(default)';
-  const annotationDocIdFn = (typeof window !== 'undefined' && window.annotationDocId) ||
-    require('./annotation.js').annotationDocId;
-
-  const doc = { ...data, created_at: new Date() };
-  const id = await annotationDocIdFn(data);
-
-  const url =
-    `https://firestore.googleapis.com/v1/projects/${projectId}` +
-    `/databases/${encodeURIComponent(databaseId)}/documents/${collection}` +
-    `?documentId=${id}&key=${apiKey}`;
-
-  const payload = toFirestoreFields(doc);
-
-  const headers = { 'Content-Type': 'application/json' };
-  if (idToken) {
-    headers['Authorization'] = `Bearer ${idToken}`;
-  }
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(payload)
-  });
-
-  if (!response.ok) {
-    // A 403 / PERMISSION_DENIED here means the signed-in account isn't on the
-    // curator allowlist (or email isn't verified); a 409 / ALREADY_EXISTS
-    // means this exact annotation was already saved (create-only write).
-    let body = {};
-    try {
-      body = await response.json();
-    } catch (e) { /* keep body === {} */ }
-    const kind = classifyWriteError(response.status, body);
-    const detail = (body.error && body.error.message) || `HTTP ${response.status}`;
-    const err = new Error(detail);
-    if (kind === 'alreadyExists') {
-      err.alreadyExists = true;
-    } else if (kind === 'notAuthorized') {
-      err.notAuthorized = true;
-    }
-    throw err;
-  }
-
-  return response.json();
-}
-
-/**
- * Fetches prior annotations for a ClinVar variation via Firestore's REST
- * runQuery (see history.js for the query shape / response parsing), sorted
- * newest-first. Best-effort: any non-ok response — including a 403 for a
- * signed-in-but-not-allowlisted account — resolves to [] instead of
- * throwing, so a failed history fetch never blocks/breaks the popup.
- *
- * @returns {Promise<object[]>}
- */
-async function fetchHistory(variationId, idToken) {
-  const { projectId, collection } = FIREBASE_CONFIG;
-  const databaseId = FIREBASE_CONFIG.databaseId || '(default)';
-  const buildHistoryQueryFn = (typeof window !== 'undefined' && window.buildHistoryQuery) ||
-    require('./history.js').buildHistoryQuery;
-  const parseHistoryRowsFn = (typeof window !== 'undefined' && window.parseHistoryRows) ||
-    require('./history.js').parseHistoryRows;
-  const sortHistoryDescFn = (typeof window !== 'undefined' && window.sortHistoryDesc) ||
-    require('./history.js').sortHistoryDesc;
-
-  const url =
-    `https://firestore.googleapis.com/v1/projects/${projectId}` +
-    `/databases/${encodeURIComponent(databaseId)}/documents:runQuery`;
-
-  const resp = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${idToken}`
-    },
-    body: JSON.stringify(buildHistoryQueryFn(variationId, collection))
-  });
-
-  if (!resp.ok) {
-    console.info('CvC: history fetch failed —', resp.status);
-    return [];
-  }
-
-  return sortHistoryDescFn(parseHistoryRowsFn(await resp.json()));
 }
 
 /**
@@ -443,47 +203,55 @@ let historyRows = [];
  * update the current-SCV highlight. Builds DOM nodes with textContent only
  * (never innerHTML) since notes/user_email are curator-entered text.
  */
-function renderHistory(rows, currentScv) {
+/**
+ * Renders the "Prior annotations" panel for the SELECTED SCV only (from the
+ * cached historyRows). No SCV selected → "select an scv"; selected but no
+ * history → "no prior scv annotations exist"; otherwise one block per prior
+ * annotation, newest-first, showing date + curator then indented
+ * action/reason/notes. textContent only (curator-entered text) — no innerHTML.
+ */
+function renderHistory(scv) {
   const emptyEl = document.getElementById('history-empty');
   const listEl = document.getElementById('history-list');
   if (!emptyEl || !listEl) return;
 
   const historyViewFn = (typeof window !== 'undefined' && window.historyView) ||
     require('./popup-view.js').historyView;
-  const displayRows = historyViewFn(rows || [], currentScv || '');
+  const entries = historyViewFn(historyRows, scv || '');
 
   while (listEl.firstChild) listEl.removeChild(listEl.firstChild);
 
-  if (displayRows.length === 0) {
+  if (!scv) {
+    emptyEl.textContent = 'select an scv';
+    emptyEl.style.display = '';
+    return;
+  }
+  if (entries.length === 0) {
+    emptyEl.textContent = 'no prior scv annotations exist';
     emptyEl.style.display = '';
     return;
   }
   emptyEl.style.display = 'none';
 
-  displayRows.forEach((r) => {
+  entries.forEach((e) => {
     const entry = document.createElement('div');
-    entry.className = r.isCurrent ? 'history-entry current' : 'history-entry';
+    entry.className = 'history-entry';
 
-    const metaRow = document.createElement('div');
-    metaRow.className = 'row';
-    const metaLabel = document.createElement('span');
-    metaLabel.textContent = `${r.when} · ${r.who}`;
-    const metaValue = document.createElement('span');
-    metaValue.textContent = r.summary;
-    metaRow.appendChild(metaLabel);
-    metaRow.appendChild(metaValue);
-    entry.appendChild(metaRow);
+    const meta = document.createElement('div');
+    meta.className = 'history-meta';
+    meta.textContent = `${e.when} · ${e.who}`;
+    entry.appendChild(meta);
 
-    if (r.notes) {
-      const notesRow = document.createElement('div');
-      notesRow.className = 'row';
-      const notesLabel = document.createElement('span');
-      notesLabel.textContent = 'Notes';
-      const notesValue = document.createElement('span');
-      notesValue.textContent = r.notes;
-      notesRow.appendChild(notesLabel);
-      notesRow.appendChild(notesValue);
-      entry.appendChild(notesRow);
+    const summary = document.createElement('div');
+    summary.className = 'history-summary';
+    summary.textContent = e.reason ? `${e.action} — ${e.reason}` : e.action;
+    entry.appendChild(summary);
+
+    if (e.notes) {
+      const notes = document.createElement('div');
+      notes.className = 'history-notes';
+      notes.textContent = e.notes;
+      entry.appendChild(notes);
     }
 
     listEl.appendChild(entry);
@@ -491,19 +259,19 @@ function renderHistory(rows, currentScv) {
 }
 
 /**
- * Loads and renders prior-annotation history for the current ClinVar
- * variation. Best-effort and non-blocking: leaves the panel's built-in empty
- * state untouched whenever there's no variationId, no silent auth available
- * (never prompts interactively), or the fetch fails for any reason — history
- * must never block or break the save flow.
+ * Fetches + caches prior-annotation history for the whole variation (used for
+ * both the per-SCV panel and the dropdown counts). Best-effort and
+ * non-blocking: leaves historyRows empty whenever there's no variationId, no
+ * silent auth (never prompts interactively), or the fetch fails — history must
+ * never block or break the save flow. Rendering is driven separately by the
+ * SCV selection.
  */
-async function loadHistory(variationId, currentScv) {
+async function loadHistory(variationId) {
   if (!variationId) return;
   try {
     const idToken = await silentIdToken();
     if (!idToken) return;
     historyRows = await fetchHistory(variationId, idToken);
-    renderHistory(historyRows, currentScv);
   } catch (e) {
     console.info('CvC: history load failed —', e && e.message);
   }
@@ -523,7 +291,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const vcvIdEl = document.getElementById('vcvid');
   const variantNameEl = document.getElementById('variant_name');
 
-  const readOnlyIds = ['interp_ro', 'review_ro', 'eval_date_ro', 'submitter_ro', 'origin_ro', 'method_ro'];
+  const readOnlyIds = ['interp_ro', 'review_ro', 'eval_date_ro', 'submitter_ro'];
 
   let clinvarData = null;
 
@@ -536,8 +304,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('review_ro').textContent = scvRow.review || '';
     document.getElementById('eval_date_ro').textContent = scvRow.eval_date || '';
     document.getElementById('submitter_ro').textContent = scvRow.submitter || '';
-    document.getElementById('origin_ro').textContent = scvRow.origin || '';
-    document.getElementById('method_ro').textContent = scvRow.method || '';
   }
 
   function populateVcvDisplay(data) {
@@ -572,9 +338,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     scvSelect.appendChild(opt);
   });
 
-  // Best-effort, silent-auth-only history load — never blocks the picker and
-  // never prompts for interactive sign-in just because the popup was opened.
-  loadHistory(clinvarData.variation_id, '');
+  // The currently selected SCV accession ('' when none chosen).
+  function currentScv() {
+    const v = scvSelect.value;
+    return v && clinvarData ? clinvarData.row[Number(v)].scv : '';
+  }
+
+  // Appends a `(CvC N)` suffix to each SCV option that has prior annotations.
+  // Rebuilt from scvOptionLabel(row) each time so it's idempotent.
+  function applyHistoryCounts() {
+    const counts = {};
+    (historyRows || []).forEach((r) => { if (r && r.scv) counts[r.scv] = (counts[r.scv] || 0) + 1; });
+    Array.from(scvSelect.options).forEach((opt) => {
+      if (!opt.value) return; // skip the "Choose..." option
+      const row = clinvarData.row[Number(opt.value)];
+      if (!row) return;
+      const n = counts[row.scv] || 0;
+      opt.textContent = scvOptionLabel(row) + (n ? ` (CvC ${n})` : '');
+    });
+  }
+
+  // Panel starts on "select an scv"; the prior-annotation history + dropdown
+  // counts fill in once the best-effort, silent-auth-only fetch resolves
+  // (never blocks the picker, never prompts interactive sign-in on open).
+  renderHistory('');
+  loadHistory(clinvarData.variation_id).then(() => {
+    applyHistoryCounts();
+    renderHistory(currentScv());
+  });
 
   scvSelect.addEventListener('change', () => {
     const selectedVal = scvSelect.value;
@@ -590,14 +381,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!selectedVal || !clinvarData) {
       resetScvDisplay();
       actionSelect.disabled = true;
-      renderHistory(historyRows, '');
+      renderHistory('');
       return;
     }
     const scvRow = clinvarData.row[Number(selectedVal)];
     populateScvDisplay(scvRow);
     actionSelect.disabled = false;
-    // Re-render (not refetch) so this SCV's prior entries are highlighted.
-    renderHistory(historyRows, scvRow.scv);
+    // Show prior annotations for the newly selected SCV (from the cache).
+    renderHistory(scvRow.scv);
   });
 
   actionSelect.addEventListener('change', () => {
@@ -667,6 +458,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       setStatus('Saving...', '');
       await saveAnnotation(doc, auth.idToken);
       console.log('CvC saved annotation', new Date().toISOString());
+      // Reload the ClinVar tab so the in-page annotation highlights refresh
+      // with the just-saved curation, then close the popup. Best-effort — a
+      // reload failure must not block closing.
+      try {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (tab && tab.id != null) await chrome.tabs.reload(tab.id);
+      } catch (e) {
+        console.info('CvC: tab reload after save skipped —', e && e.message);
+      }
       window.close();
     } catch (err) {
       console.error('CvC save failed:', err, new Date().toISOString());
@@ -688,5 +488,5 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { classifyWriteError };
+  module.exports = {};
 }

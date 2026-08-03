@@ -1,0 +1,181 @@
+/* highlight.css — minimal, cvc-prefixed styles for in-page SCV annotation
+ * highlighting. Prefixed to avoid colliding with NCBI's own ClinVar styles. */
+
+.cvc-hl {
+  padding-left: 2px;
+}
+
+.cvc-hl-flagged {
+  background: #fff7ed;
+  box-shadow: inset 3px 0 0 #f59e0b;
+}
+
+.cvc-hl-noted {
+  background: #f3f4f6;
+  box-shadow: inset 3px 0 0 #9ca3af;
+}
+
+.cvc-hl-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+  background: #b91c1c;
+  color: #fff;
+  vertical-align: middle;
+}
+
+/* Click-to-expand history popover (anchored under a clicked badge). */
+.cvc-hl-popover {
+  position: absolute;
+  z-index: 2147483647;
+  max-width: 360px;
+  max-height: 300px;
+  overflow: auto;
+  padding: 8px 10px;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  font-size: 12px;
+  line-height: 1.4;
+  color: #111827;
+}
+
+.cvc-hl-popover-title {
+  font-weight: 700;
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.cvc-hl-popover-empty {
+  color: #6b7280;
+  font-style: italic;
+}
+
+.cvc-hl-popover-entry {
+  padding: 5px 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.cvc-hl-popover-entry:last-child {
+  border-bottom: none;
+}
+
+.cvc-hl-popover-meta {
+  color: #6b7280;
+  font-size: 11px;
+}
+
+.cvc-hl-popover-summary {
+  font-weight: 600;
+}
+
+.cvc-hl-popover-notes {
+  margin-top: 2px;
+  color: #374151;
+  white-space: pre-wrap;
+}
+
+/* "+ Annotate" button, appended to every SCV row. Styled as a badge that
+ * matches the .cvc-hl-badge box (same height/font/radius) so the two read as
+ * a matched pair — blue for the action, dark red for the history count. */
+.cvc-annotate-btn {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  border: none;
+  border-radius: 9px;
+  background: #2563eb;
+  color: #fff;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.cvc-annotate-btn:hover {
+  background: #1d4ed8;
+}
+
+/* In-page annotate form popover — same card styling as .cvc-hl-popover. */
+.cvc-annotate-form {
+  position: absolute;
+  z-index: 2147483647;
+  width: 280px;
+  padding: 10px 12px;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  font-size: 12px;
+  line-height: 1.4;
+  color: #111827;
+}
+
+.cvc-annotate-title {
+  font-weight: 700;
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.cvc-annotate-field {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 8px;
+}
+
+.cvc-annotate-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 2px;
+}
+
+.cvc-annotate-select,
+.cvc-annotate-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 12px;
+  padding: 3px 4px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #111827;
+}
+
+.cvc-annotate-textarea {
+  min-height: 48px;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.cvc-annotate-save {
+  padding: 4px 10px;
+  border: 1px solid #374151;
+  border-radius: 4px;
+  background: #374151;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cvc-annotate-save:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.cvc-annotate-status {
+  margin-top: 6px;
+  font-size: 11px;
+  color: #b91c1c;
+  min-height: 14px;
+}

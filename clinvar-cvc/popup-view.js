@@ -31,15 +31,28 @@ function isScrapeable(d) {
   return !!(d && d.vcv && Array.isArray(d.row) && d.row.length > 0);
 }
 
-function historyView(rows, currentScv) {
-  return rows.map((row) => ({
-    when: (row.created_at || '').slice(0, 10),
-    who: row.user_email,
-    scv: row.scv,
-    summary: row.reason ? `${row.action} — ${row.reason}` : row.action,
-    notes: row.notes,
-    isCurrent: !!currentScv && row.scv === currentScv
-  }));
+// Prior annotations for a SINGLE selected SCV, newest-first (reverse
+// chronological), as display rows. Returns [] when scv is falsy or has no
+// history. Each row exposes action/reason/notes separately so the panel can
+// lay them out as labelled lines.
+function historyView(rows, scv) {
+  if (!scv) return [];
+  return (rows || [])
+    .filter((row) => row && row.scv === scv)
+    .slice()
+    .sort((a, b) => {
+      const ad = String(a.created_at || '');
+      const bd = String(b.created_at || '');
+      if (ad === bd) return 0;
+      return ad < bd ? 1 : -1;
+    })
+    .map((row) => ({
+      when: (row.created_at || '').slice(0, 10),
+      who: row.user_email || '',
+      action: row.action || '',
+      reason: row.reason || '',
+      notes: row.notes || ''
+    }));
 }
 
 if (typeof window !== 'undefined') {

@@ -41,33 +41,35 @@ describe('isScrapeable', () => {
 
 describe('historyView', () => {
   const rows = [
-    { scv: 'SCV000020162.8', submitter: 'OMIM', action: 'Flagging Candidate', reason: 'Outlier claim',
-      notes: '', user_email: 'jratliff@broadinstitute.org', created_at: '2023-11-14T20:25:27Z' },
-    { scv: 'SCV000111.1', submitter: 'LabX', action: 'No Change', reason: '',
-      notes: 'looks fine', user_email: 'hrehm@broadinstitute.org', created_at: '2023-10-07T15:41:55Z' }
+    { scv: 'SCV1', action: 'Flagging Candidate', reason: 'Outlier claim',
+      notes: 'n1', user_email: 'a@x.org', created_at: '2024-01-02T00:00:00Z' },
+    { scv: 'SCV1', action: 'No Change', reason: '',
+      notes: '', user_email: 'b@x.org', created_at: '2024-03-01T00:00:00Z' },
+    { scv: 'SCV2', action: 'No Change', reason: '',
+      notes: '', user_email: 'c@x.org', created_at: '2023-05-01T00:00:00Z' }
   ];
 
-  it('returns one display row per annotation, newest-first order preserved', () => {
-    const v = historyView(rows, 'SCV000111.1');
+  it('returns only the selected SCV, newest-first', () => {
+    const v = historyView(rows, 'SCV1');
     expect(v).toHaveLength(2);
-    expect(v[0].scv).toBe('SCV000020162.8');
+    expect(v[0].when).toBe('2024-03-01');   // newest first
+    expect(v[0].who).toBe('b@x.org');
+    expect(v[1].when).toBe('2024-01-02');
   });
 
-  it('formats a human date (YYYY-MM-DD) and marks the row matching currentScv', () => {
-    const v = historyView(rows, 'SCV000111.1');
-    expect(v[0].when).toBe('2023-11-14');
-    expect(v[0].isCurrent).toBe(false);
-    expect(v[1].isCurrent).toBe(true);
+  it('exposes action / reason / notes separately', () => {
+    const v = historyView(rows, 'SCV1');
+    expect(v[0]).toMatchObject({ action: 'No Change', reason: '', notes: '' });
+    expect(v[1]).toMatchObject({ action: 'Flagging Candidate', reason: 'Outlier claim', notes: 'n1' });
   });
 
-  it('summarizes action + reason, and who', () => {
-    const v = historyView(rows, '');
-    expect(v[1].summary).toBe('No Change');            // no reason → action only
-    expect(v[0].summary).toBe('Flagging Candidate — Outlier claim');
-    expect(v[0].who).toBe('jratliff@broadinstitute.org');
+  it('is empty when no SCV is selected', () => {
+    expect(historyView(rows, '')).toEqual([]);
+    expect(historyView(rows, null)).toEqual([]);
   });
 
-  it('is empty for no rows', () => {
-    expect(historyView([], 'x')).toEqual([]);
+  it('is empty when the selected SCV has no history', () => {
+    expect(historyView(rows, 'SCVX')).toEqual([]);
+    expect(historyView([], 'SCV1')).toEqual([]);
   });
 });

@@ -26,8 +26,7 @@ function getMatch(text, re, grp) {
   return result[grp];
 }
 
-// --- Regexes (unchanged from scvc/content.js) ---
-var cond_origin_re = /\W*Allele origin:.*?(\w+([\,\s]+\w+)*)/is;
+// --- Regexes (ported from scvc/content.js; allele-origin capture dropped) ---
 var review_method_re = /(practice guideline|reviewed by expert panel|no assertion provided|no interpretation for the single variant|criteria provided, multiple submitters, no conflicts|criteria provided, single submitter|criteria provided, conflicting interpretations|no assertion criteria provided|no classification provided|Flagged submission).*?Method:.*?([\w\,\s]+)*/is;
 var subm_scv_re = /\W*\/clinvar\/submitters\/(\d+)\/".*?>(.+?)<\/a>.*?Accession:.*?(SCV\d+\.\d+).*?First in ClinVar:\W(\w+\s\d+\,\s\d+).*?Last updated:.*?(\w+\s\d+\,\s\d+)/is;
 var interp_re = /\W*<div.*?<div.*?(\w+([\s\/\-\,]*\w+)*).*?\(([\w\s\,\-]+)\)/is;
@@ -113,8 +112,9 @@ function extractVcvHeader(doc) {
 
 /**
  * Parse a single `.submissions-germline-list tbody tr.germline-sub-col` row
- * element into `{submitter_id, submitter, scv, subm_date, origin, review,
- * method, interp, eval_date}`.
+ * element into `{submitter_id, submitter, scv, subm_date, review, interp,
+ * eval_date}`. (Allele origin and assertion method are intentionally NOT
+ * captured — they are unused by the v4 annotation.)
  */
 function parseScvRow(rowEl, index) {
   debug(`\n=== Processing SCV Row ${index + 1} ===`);
@@ -128,13 +128,11 @@ function parseScvRow(rowEl, index) {
 
   var interp_match = rowEl.cells[0].innerHTML.match(interp_re);
   var review_method_match = rowEl.cells[1].innerHTML.match(review_method_re);
-  var cond_origin_match = rowEl.cells[2].innerHTML.match(cond_origin_re);
   var subm_scv_match = rowEl.cells[3].innerHTML.match(subm_scv_re);
 
   debug(`Regex match results:`);
   debug(`  interp_match: ${interp_match ? 'FOUND' : 'MISSING'}`);
   debug(`  review_method_match: ${review_method_match ? 'FOUND' : 'MISSING'}`);
-  debug(`  cond_origin_match: ${cond_origin_match ? 'FOUND' : 'MISSING'}`);
   debug(`  subm_scv_match: ${subm_scv_match ? 'FOUND' : 'MISSING'}`);
 
   // Extract data with fallback logic
@@ -143,9 +141,7 @@ function parseScvRow(rowEl, index) {
     submitter: "",
     scv: "",
     subm_date: "",
-    origin: "",
     review: "",
-    method: "",
     interp: "",
     eval_date: ""
   };
@@ -172,11 +168,11 @@ function parseScvRow(rowEl, index) {
     }
   }
 
-  // Extract review status and method
+  // Extract review status (group 1 of review_method_re). The assertion method
+  // in group 2 is intentionally not captured.
   if (review_method_match) {
     extractedData.review = review_method_match[1] || "";
-    extractedData.method = review_method_match[2] || "";
-    debug(`  Extracted review: "${extractedData.review}", method: "${extractedData.method}"`);
+    debug(`  Extracted review: "${extractedData.review}"`);
   } else {
     // Try alternative extraction for review status
     debug(`  Attempting alternative review status extraction...`);
@@ -186,24 +182,6 @@ function parseScvRow(rowEl, index) {
     if (starsDescMatch) {
       extractedData.review = starsDescMatch[1].trim();
       debug(`  Alternative review found: "${extractedData.review}"`);
-    }
-
-    // Method field may not exist in new HTML - set to empty as requested
-    extractedData.method = "";
-    debug(`  Method set to empty string (not found in new HTML)`);
-  }
-
-  // Extract condition/origin data
-  if (cond_origin_match) {
-    extractedData.origin = cond_origin_match[1] || "";
-    debug(`  Extracted origin: "${extractedData.origin}"`);
-  } else {
-    // Try alternative extraction for origin
-    debug(`  Attempting alternative origin extraction...`);
-    var altOriginMatch = rowEl.cells[2].innerHTML.match(/Allele origin:[^>]*>([^<]+)/i);
-    if (altOriginMatch) {
-      extractedData.origin = altOriginMatch[1].trim();
-      debug(`  Alternative origin found: "${extractedData.origin}"`);
     }
   }
 
@@ -248,9 +226,7 @@ function parseScvRow(rowEl, index) {
     submitter: extractedData.submitter,
     scv: extractedData.scv,
     subm_date: extractedData.subm_date,
-    origin: extractedData.origin,
     review: extractedData.review,
-    method: extractedData.method,
     interp: extractedData.interp,
     eval_date: extractedData.eval_date
   };
