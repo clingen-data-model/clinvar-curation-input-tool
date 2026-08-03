@@ -283,7 +283,8 @@ Deploy the full templated curator object graph into a new **`clinvar_curator_v4`
   unchanged except for the id remap + dedup);
 - reference data = the **same** `clinvar_ingest` (US) as legacy.
 So the **only** variable vs legacy is the annotation source (and the id-remap the `_x`
-views apply to reconcile the 554 dropped twins). Includes
+views apply to **collapse the 268 ≤15-min twins** — the 286 distinct events are reconciled by
+the re-migration, restored as their own cluster anchors that map to themselves). Includes
 `refresh_cvc_impact_analysis_v4()` writing 11 `*_v4` tables. Legacy `clinvar_curator` is
 byte-for-byte unchanged → true side-by-side comparison.
 
@@ -310,12 +311,13 @@ canonical (cluster) identity.
    (`FORMAT_TIMESTAMP('%Y-%m-%dT%H:%M:%SZ', …)`) was lossless; if below ~100%, widen the
    crosswalk to cover all shifted ids (mechanically identical fix).
 4. **Choke-point diff:** `cvc_annotations("all")` (crosswalk-collapsed) vs
-   `cvc_annotations_v4("all")` — counts plus full column diff keyed by `canonical_annotation_id`,
-   restricted to the shared seed. **Expectation:** exact after collapse. The only permitted count
-   delta is the **268 ≤15-min raw-legacy duplicate rows** that collapse to their anchor (bucketed,
-   item 6); any delta *outside* that bucket is an adapter bug. (This closes the pass-1/pass-2
-   reviewer concern that an `annotation_id`-keyed diff would surface an unbucketed cardinality
-   delta at the choke point.)
+   `cvc_annotations_v4("all")` — two distinct checks on the shared seed: (a) a **canonical-keyed
+   column diff** grouped by `canonical_annotation_id`, which must be **exactly 0 rows**; and
+   (b) a **raw row-count** comparison, where the *only* permitted difference is the **268 ≤15-min
+   raw-legacy duplicate rows** that collapse to their anchor (a raw-count artifact, bucketed in
+   item 6). Any canonical-keyed diff, or any raw-count delta beyond the 268, is an adapter bug.
+   (This closes the pass-1/pass-2 reviewer concern that an `annotation_id`-keyed diff would
+   surface an unbucketed cardinality delta at the choke point.)
 5. **End-to-end batch parity:** choose a batch **finalized before the seed boundary** (stable
    membership); diff all 11 impact tables (especially #8 `cvc_flagging_version_bump_intersection`,
    #9 `cvc_resubmission_candidates`, #11 `cvc_impact_summary`) and the **generated submission
