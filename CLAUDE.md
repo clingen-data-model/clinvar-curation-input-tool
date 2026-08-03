@@ -19,13 +19,22 @@ Built on the `clinvar-cvc/` foundation. **Do not modify `scvc/`.**
 - `scrape.js` — `extractClinVarData(doc)`; refactored ClinVar page scraper (ported from `scvc/content.js`, behavior pinned by a characterization snapshot).
 - `vocab.js` — `ACTIONS`, `reasonsForAction(action)`; the action/reason vocabulary.
 - `annotation.js` — `buildAnnotation(scvRow, vcv, input, userEmail)` → the **v4 doc**; `validateAnnotation(data)`; `annotationDocId(doc)` = SHA-256 content hash of the exact entry fields (used as the Firestore doc id for dedup).
-- `content.js` — content script; on `initializePopup` returns `scrape.extractClinVarData(document)`.
-- `popup.html` / `popup.js` / `popup-view.js` — rich SCV-picker + action/reason/notes form; wires scrape → picker → reasons → save; auth (`ensureAuth`/`signInWithGoogle`), Firestore write (`saveAnnotation`, create-only), guards non-ClinVar pages, closes on success.
+- `content.js` — content script; on `initializePopup` returns `scrape.extractClinVarData(document)`, AND on page load draws in-page controls on each SCV row (see in-page features below).
+- `popup.html` / `popup.js` / `popup-view.js` — rich SCV-picker + action/reason/notes form; wires scrape → picker → reasons → save; guards non-ClinVar pages, closes on success (and reloads the tab so in-page highlights refresh). The "Prior annotations" panel shows the **selected** SCV's history (from `history.js`); the SCV dropdown appends `(CvC N)` counts.
+- `history.js` — pure prior-annotation helpers: `buildHistoryQuery` (Firestore `runQuery` by `variation_id`, index-free), `parseHistoryRows`, `sortHistoryDesc`.
+- `firestore-history.js` — shared auth+read: `getGoogleAuthToken`(interactive)/`getGoogleAuthTokenSilent`/`exchangeGoogleToken`/`silentIdToken`/`ensureWriteAuth` (silent→interactive) + `fetchHistory`; used by BOTH the popup and the service worker.
+- `firestore-write.js` — shared create-only write: `toFirestoreFields`, `classifyWriteError`, `saveAnnotation` (content-hash doc id); used by the popup and the service worker.
+- `highlight.js` — pure in-page decoration logic: `summarizeHistoryByScv`, `decorateForScv`, `entriesForScv`.
+- `background.js` — MV3 classic service worker; `importScripts` the shared modules and answers content-script messages `getScvHistory` (silent-auth read) and `saveAnnotation` (silent→interactive auth, create-only write). Content scripts can't mint tokens, so all Firestore auth for in-page features routes through here.
+- `highlight.css` — `cvc-`prefixed styles for the in-page row badges/buttons + popover/form.
+
+### In-page features (on the ClinVar variation page, via content.js + background.js)
+- Each SCV row gets a blue **`+ Annotate`** span-badge (opens an in-page action/reason/notes form that saves via the worker) and, when the SCV has prior annotations, a dark-red **`CvC N`** span-badge (hover = last action/curator/date; click = popover listing that SCV's history). Both read/write route through the service worker's silent/interactive auth. All best-effort: any failure leaves the page untouched.
 - `bigquery/annotations_view.sql` — flattened typed view over the extension's `annotations_raw_latest` (`COALESCE(scv, scv_id)` bridges v4/legacy field names). **Must be run per-project** (project id hardcoded; substitute `clingen-cvc-dev` for dev).
 - `setup-clingen-cvc.sh` — scripts the automatable GCP provisioning; `add-curator.sh`/`remove-curator.sh`/`list-curators.sh` manage the allowlist.
 
 ### v4 annotation doc fields
-`variation_id, vcv, scv, submitter, submitter_id, interp, review_status, action, reason, notes, user_email, created_at`.
+`variation_id, vcv, name, scv, submitter, submitter_id, interp, review_status, action, reason, notes, user_email, created_at`. (`name` = variant name; it is captured/displayed but intentionally EXCLUDED from the dedup hash — see `annotationDocId`.)
 
 ### GCP / environments
 - **Prod** = project **`clingen-cvc`** (project number 493724081911). **Dev** = **`clingen-cvc-dev`** (362266755807) — a full isolated twin for trialing (writes stay in dev; verified 0 leak to prod). Both under the `broadinstitute.org` org (which — surprisingly — DID allow an External + In-production OAuth audience).
@@ -48,7 +57,7 @@ Every save is create-only with the doc id = `annotationDocId` (content hash of a
 - The flattened BQ **view is created by running the SQL**, not by the extension — run it per project.
 
 ### Plans & roadmap
-Implementation plans live in `docs/superpowers/plans/` (a program roadmap + per-subsystem TDD sub-plans, executed via superpowers subagent-driven-development in git worktrees). **Done:** S1 (env switch), S2 (test harness), S0 A–F (foundation port: scrape/vocab/annotation/content-script/rich-popup/BQ-view), plus capture fixes. **Remaining:** S4 (Google-Sheet history → Firestore migration — reuse `annotationDocId` for idempotent writes), S5 (allowlist backfill from historical `user_email`s), S6 (in-extension annotation history view), S7 (in-page click-to-annotate), S8 (repoint the Review&Submit/Generate pipeline to the new BQ table).
+Implementation plans live in `docs/superpowers/plans/` (a program roadmap + per-subsystem TDD sub-plans, executed via superpowers subagent-driven-development in git worktrees). **Done:** S1 (env switch), S2 (test harness), S0 A–F (foundation port), capture fixes, **S6** (in-popup per-SCV history view), and the **in-page features** (S7: `CvC N` highlight badge + history popover, and click-to-annotate). **S4/S5** (Google-Sheet history → Firestore migration via `clinvar-cvc/migration/` reusing `annotationDocId`; allowlist backfill of historical `user_email`s) are **done in dev**; the **prod** load + allowlist are a staging step (`scvc/` Google-Sheet version stays live in parallel; prod may be re-loaded at true go-live). **Remaining:** **S8** (repoint the Review&Submit `Generate.js`/`Reflag.js` batch pipeline to the new BQ table) — pulled into its own plan (`docs/superpowers/plans/2026-08-03-s8-repoint-pipeline.md`) as it needs deeper design, and gated on prod becoming the official system of record.
 
 ## Legacy extension architecture (`scvc/`, v3.4 — do not modify)
 
