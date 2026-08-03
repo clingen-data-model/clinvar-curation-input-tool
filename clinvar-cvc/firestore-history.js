@@ -80,6 +80,46 @@ function getGoogleAuthTokenSilent() {
 }
 
 /**
+ * Gets a Google OAuth access token via chrome.identity, prompting the
+ * curator to sign in if there is no cached grant. Requires the `oauth2`
+ * block in manifest.json (client id + scopes) and, for a Chrome Extension
+ * OAuth client, the client id to match this extension's id.
+ *
+ * @returns {Promise<string>}
+ */
+function getGoogleAuthToken() {
+  return new Promise((resolve, reject) => {
+    chrome.identity.getAuthToken({ interactive: true }, (token) => {
+      if (chrome.runtime.lastError || !token) {
+        reject(new Error(
+          (chrome.runtime.lastError && chrome.runtime.lastError.message) ||
+          'Google sign-in was cancelled or returned no token.'
+        ));
+        return;
+      }
+      resolve(token);
+    });
+  });
+}
+
+/**
+ * Ensures a Firebase ID token + verified email for a write, trying silent
+ * Google auth first (no prompt) and falling back to interactive sign-in only
+ * when there's no cached grant. Shared by the popup's save flow and the
+ * background service worker's saveAnnotation handler so both use the exact
+ * same auth precedence. Throws on failure (e.g. interactive sign-in
+ * cancelled) — callers handle the rejection.
+ *
+ * @returns {Promise<{idToken: string, email: string}>}
+ */
+async function ensureWriteAuth() {
+  const t = await getGoogleAuthTokenSilent();
+  if (t) return await exchangeGoogleToken(t);
+  const it = await getGoogleAuthToken();
+  return await exchangeGoogleToken(it);
+}
+
+/**
  * Best-effort Firebase ID token for the history load, obtained without ever
  * triggering an interactive sign-in prompt. Returns null whenever silent auth
  * isn't available (non-Google authMode, no cached Google grant, or any
@@ -149,11 +189,21 @@ async function fetchHistory(variationId, idToken) {
   if (root) {
     root.authError = authError;
     root.getGoogleAuthTokenSilent = getGoogleAuthTokenSilent;
+    root.getGoogleAuthToken = getGoogleAuthToken;
     root.exchangeGoogleToken = exchangeGoogleToken;
     root.silentIdToken = silentIdToken;
+    root.ensureWriteAuth = ensureWriteAuth;
     root.fetchHistory = fetchHistory;
   }
 })(typeof self !== 'undefined' ? self : (typeof window !== 'undefined' ? window : null));
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { authError, getGoogleAuthTokenSilent, exchangeGoogleToken, silentIdToken, fetchHistory };
+  module.exports = {
+    authError,
+    getGoogleAuthTokenSilent,
+    getGoogleAuthToken,
+    exchangeGoogleToken,
+    silentIdToken,
+    ensureWriteAuth,
+    fetchHistory
+  };
 }

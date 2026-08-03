@@ -60,28 +60,6 @@ async function signInWithGoogle() {
 }
 
 /**
- * Gets a Google OAuth access token via chrome.identity. Requires the `oauth2`
- * block in manifest.json (client id + scopes) and, for a Chrome Extension OAuth
- * client, the client id to match this extension's id.
- *
- * @returns {Promise<string>}
- */
-function getGoogleAuthToken() {
-  return new Promise((resolve, reject) => {
-    chrome.identity.getAuthToken({ interactive: true }, (token) => {
-      if (chrome.runtime.lastError || !token) {
-        reject(new Error(
-          (chrome.runtime.lastError && chrome.runtime.lastError.message) ||
-          'Google sign-in was cancelled or returned no token.'
-        ));
-        return;
-      }
-      resolve(token);
-    });
-  });
-}
-
-/**
  * Ensures we have a valid Firebase ID token for an anonymous user, using the
  * Identity Toolkit REST API. Caches the refresh token in chrome.storage.local
  * so the same anonymous identity is reused across popups.
