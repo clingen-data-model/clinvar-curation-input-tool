@@ -203,67 +203,88 @@ let historyRows = [];
  * update the current-SCV highlight. Builds DOM nodes with textContent only
  * (never innerHTML) since notes/user_email are curator-entered text.
  */
-function renderHistory(rows, currentScv) {
+/**
+ * Renders the "Prior annotations" panel for the SELECTED SCV only (from the
+ * cached historyRows). No SCV selected → "select an scv"; selected but no
+ * history → "no prior scv annotations exist"; otherwise one block per prior
+ * annotation, newest-first, showing date + curator then indented
+ * action/reason/notes. textContent only (curator-entered text) — no innerHTML.
+ */
+function renderHistory(scv) {
   const emptyEl = document.getElementById('history-empty');
   const listEl = document.getElementById('history-list');
   if (!emptyEl || !listEl) return;
 
   const historyViewFn = (typeof window !== 'undefined' && window.historyView) ||
     require('./popup-view.js').historyView;
-  const displayRows = historyViewFn(rows || [], currentScv || '');
+  const entries = historyViewFn(historyRows, scv || '');
 
   while (listEl.firstChild) listEl.removeChild(listEl.firstChild);
 
-  if (displayRows.length === 0) {
+  if (!scv) {
+    emptyEl.textContent = 'select an scv';
+    emptyEl.style.display = '';
+    return;
+  }
+  if (entries.length === 0) {
+    emptyEl.textContent = 'no prior scv annotations exist';
     emptyEl.style.display = '';
     return;
   }
   emptyEl.style.display = 'none';
 
-  displayRows.forEach((r) => {
+  function field(label, value) {
+    const row = document.createElement('div');
+    row.className = 'history-field';
+    const l = document.createElement('span');
+    l.className = 'h-label';
+    l.textContent = label;
+    const v = document.createElement('span');
+    v.className = 'h-val';
+    v.textContent = value;
+    row.appendChild(l);
+    row.appendChild(v);
+    return row;
+  }
+
+  entries.forEach((e) => {
     const entry = document.createElement('div');
-    entry.className = r.isCurrent ? 'history-entry current' : 'history-entry';
+    entry.className = 'history-entry';
 
-    const metaRow = document.createElement('div');
-    metaRow.className = 'row';
-    const metaLabel = document.createElement('span');
-    metaLabel.textContent = `${r.when} · ${r.who}`;
-    const metaValue = document.createElement('span');
-    metaValue.textContent = r.summary;
-    metaRow.appendChild(metaLabel);
-    metaRow.appendChild(metaValue);
-    entry.appendChild(metaRow);
+    const head = document.createElement('div');
+    head.className = 'history-head';
+    const date = document.createElement('span');
+    date.className = 'h-date';
+    date.textContent = e.when;
+    const who = document.createElement('span');
+    who.className = 'h-who';
+    who.textContent = e.who;
+    head.appendChild(date);
+    head.appendChild(who);
+    entry.appendChild(head);
 
-    if (r.notes) {
-      const notesRow = document.createElement('div');
-      notesRow.className = 'row';
-      const notesLabel = document.createElement('span');
-      notesLabel.textContent = 'Notes';
-      const notesValue = document.createElement('span');
-      notesValue.textContent = r.notes;
-      notesRow.appendChild(notesLabel);
-      notesRow.appendChild(notesValue);
-      entry.appendChild(notesRow);
-    }
+    entry.appendChild(field('Action', e.action));
+    if (e.reason) entry.appendChild(field('Reason', e.reason));
+    if (e.notes) entry.appendChild(field('Notes', e.notes));
 
     listEl.appendChild(entry);
   });
 }
 
 /**
- * Loads and renders prior-annotation history for the current ClinVar
- * variation. Best-effort and non-blocking: leaves the panel's built-in empty
- * state untouched whenever there's no variationId, no silent auth available
- * (never prompts interactively), or the fetch fails for any reason — history
- * must never block or break the save flow.
+ * Fetches + caches prior-annotation history for the whole variation (used for
+ * both the per-SCV panel and the dropdown counts). Best-effort and
+ * non-blocking: leaves historyRows empty whenever there's no variationId, no
+ * silent auth (never prompts interactively), or the fetch fails — history must
+ * never block or break the save flow. Rendering is driven separately by the
+ * SCV selection.
  */
-async function loadHistory(variationId, currentScv) {
+async function loadHistory(variationId) {
   if (!variationId) return;
   try {
     const idToken = await silentIdToken();
     if (!idToken) return;
     historyRows = await fetchHistory(variationId, idToken);
-    renderHistory(historyRows, currentScv);
   } catch (e) {
     console.info('CvC: history load failed —', e && e.message);
   }
@@ -283,7 +304,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const vcvIdEl = document.getElementById('vcvid');
   const variantNameEl = document.getElementById('variant_name');
 
-  const readOnlyIds = ['interp_ro', 'review_ro', 'eval_date_ro', 'submitter_ro', 'origin_ro', 'method_ro'];
+  const readOnlyIds = ['interp_ro', 'review_ro', 'eval_date_ro', 'submitter_ro'];
 
   let clinvarData = null;
 
@@ -296,8 +317,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('review_ro').textContent = scvRow.review || '';
     document.getElementById('eval_date_ro').textContent = scvRow.eval_date || '';
     document.getElementById('submitter_ro').textContent = scvRow.submitter || '';
-    document.getElementById('origin_ro').textContent = scvRow.origin || '';
-    document.getElementById('method_ro').textContent = scvRow.method || '';
   }
 
   function populateVcvDisplay(data) {
@@ -332,9 +351,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     scvSelect.appendChild(opt);
   });
 
-  // Best-effort, silent-auth-only history load — never blocks the picker and
-  // never prompts for interactive sign-in just because the popup was opened.
-  loadHistory(clinvarData.variation_id, '');
+  // The currently selected SCV accession ('' when none chosen).
+  function currentScv() {
+    const v = scvSelect.value;
+    return v && clinvarData ? clinvarData.row[Number(v)].scv : '';
+  }
+
+  // Appends a `(CvC N)` suffix to each SCV option that has prior annotations.
+  // Rebuilt from scvOptionLabel(row) each time so it's idempotent.
+  function applyHistoryCounts() {
+    const counts = {};
+    (historyRows || []).forEach((r) => { if (r && r.scv) counts[r.scv] = (counts[r.scv] || 0) + 1; });
+    Array.from(scvSelect.options).forEach((opt) => {
+      if (!opt.value) return; // skip the "Choose..." option
+      const row = clinvarData.row[Number(opt.value)];
+      if (!row) return;
+      const n = counts[row.scv] || 0;
+      opt.textContent = scvOptionLabel(row) + (n ? ` (CvC ${n})` : '');
+    });
+  }
+
+  // Panel starts on "select an scv"; the prior-annotation history + dropdown
+  // counts fill in once the best-effort, silent-auth-only fetch resolves
+  // (never blocks the picker, never prompts interactive sign-in on open).
+  renderHistory('');
+  loadHistory(clinvarData.variation_id).then(() => {
+    applyHistoryCounts();
+    renderHistory(currentScv());
+  });
 
   scvSelect.addEventListener('change', () => {
     const selectedVal = scvSelect.value;
@@ -350,14 +394,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!selectedVal || !clinvarData) {
       resetScvDisplay();
       actionSelect.disabled = true;
-      renderHistory(historyRows, '');
+      renderHistory('');
       return;
     }
     const scvRow = clinvarData.row[Number(selectedVal)];
     populateScvDisplay(scvRow);
     actionSelect.disabled = false;
-    // Re-render (not refetch) so this SCV's prior entries are highlighted.
-    renderHistory(historyRows, scvRow.scv);
+    // Show prior annotations for the newly selected SCV (from the cache).
+    renderHistory(scvRow.scv);
   });
 
   actionSelect.addEventListener('change', () => {

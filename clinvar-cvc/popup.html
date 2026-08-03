@@ -97,12 +97,26 @@
       overflow-wrap: anywhere;
     }
     .readonly-panel.muted { color: #9ca3af; }
+    #history-empty { font-style: italic; color: #9ca3af; }
     .history-entry {
-      padding: 3px 0;
-      border-bottom: 1px solid #f3f4f6;
+      padding: 5px 0;
+      border-bottom: 1px solid #e5e7eb;
     }
     .history-entry:last-child { border-bottom: none; }
-    .history-entry.current { background: #eff6ff; }
+    .history-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .history-head .h-date { font-weight: 700; color: #374151; }
+    .history-head .h-who { color: #6b7280; overflow-wrap: anywhere; text-align: right; }
+    .history-field {
+      display: flex;
+      gap: 6px;
+      padding-left: 14px;
+    }
+    .history-field .h-label { flex: 0 0 46px; color: #6b7280; font-weight: 600; }
+    .history-field .h-val { flex: 1; color: #9ca3af; overflow-wrap: anywhere; }
     .panel-title {
       font-size: 11px;
       font-weight: 700;
@@ -131,8 +145,6 @@
     <div class="row"><span>Review status</span><span id="review_ro"><i>rev stat</i></span></div>
     <div class="row"><span>Evaluated</span><span id="eval_date_ro"><i>eval dt</i></span></div>
     <div class="row"><span>Submitter</span><span id="submitter_ro"><i>no submitter selected</i></span></div>
-    <div class="row"><span>Origin</span><span id="origin_ro"><i>origin</i></span></div>
-    <div class="row"><span>Method</span><span id="method_ro"><i>method</i></span></div>
   </div>
 
   <div class="panel-title">VCV Summary</div>
@@ -143,9 +155,9 @@
   </div>
 
   <div class="panel-title">Prior annotations</div>
-  <div id="historypanel" class="readonly-panel muted">
-    <div id="history-empty"><i>No prior annotations for this variation.</i></div>
-    <div id="history-list" style="max-height:160px; overflow:auto;"></div>
+  <div id="historypanel" class="readonly-panel">
+    <div id="history-empty">select an scv</div>
+    <div id="history-list" style="max-height:200px; overflow:auto;"></div>
   </div>
 
   <form id="annotation-form">

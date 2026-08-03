@@ -7,8 +7,6 @@ exports[`scrape.extractClinVarData > matches the pinned scraped-content shape (n
     {
       "eval_date": "Jun 30, 2024",
       "interp": "Uncertain significance",
-      "method": "",
-      "origin": "germline",
       "review": "criteria provided, single submitter",
       "scv": "SCV005831843.1",
       "subm_date": "Feb 25, 2025",
@@ -19,8 +17,6 @@ exports[`scrape.extractClinVarData > matches the pinned scraped-content shape (n
     {
       "eval_date": "Oct 08, 2018",
       "interp": "Uncertain significance",
-      "method": "",
-      "origin": "germline",
       "review": "no assertion criteria provided",
       "scv": "SCV000853300.2",
       "subm_date": "Jan 26, 2019",
@@ -31,8 +27,6 @@ exports[`scrape.extractClinVarData > matches the pinned scraped-content shape (n
     {
       "eval_date": "-",
       "interp": "Uncertain significance",
-      "method": "",
-      "origin": "inherited",
       "review": "no assertion criteria provided",
       "scv": "SCV001439095.1",
       "subm_date": "Oct 25, 2020",
