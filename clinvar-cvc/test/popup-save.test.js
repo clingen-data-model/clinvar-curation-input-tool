@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
-const { classifyWriteError } = require('../popup.js');
+const { classifyWriteError } = require('../firestore-write.js');
 describe('classifyWriteError', () => {
   it('detects ALREADY_EXISTS (409)', () => {
     expect(classifyWriteError(409, { error: { status: 'ALREADY_EXISTS' } })).toBe('alreadyExists');

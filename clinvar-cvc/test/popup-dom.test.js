@@ -38,6 +38,7 @@ describe('popup.html markup', () => {
       'popup-view.js',
       'history.js',
       'firestore-history.js',
+      'firestore-write.js',
       'popup.js'
     ]);
   });
