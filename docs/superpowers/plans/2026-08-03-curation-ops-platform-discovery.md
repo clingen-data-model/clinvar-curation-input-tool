@@ -139,8 +139,17 @@ annotations straight into a legacy `SCVs` sheet tab (config placeholder unset).
    `"Flagging Candidate"` in v4/Reflag) — a real silent-break risk; normalize centrally.
 7. **Irreversible finalize**, magic Drive/spreadsheet IDs, no central config, manual
    email-review gate — all things a web app formalizes.
-8. **Unmapped:** the impact-analysis SP body + its 11 tables, and the reflag-candidate
-   view — must be mapped before Phase 2 touches reflag/reporting.
+8. **Impact-analysis SP + 11 tables + reflag-candidate view — SOURCES LOCATED**
+   (2026-08-03): the DDL/procs/TVFs live as SQL files in
+   `clinvar-ingest-bq-tools/scripts/clinvar-curation/` (hyphenated), incl.
+   `cvc-impact-analysis/09-refresh-cvc-impact-analysis.sql` (the SP),
+   `cvc-impact-analysis/06-version-bump-flagging-intersection.sql` (the
+   flag-overwrite / reflag-candidate detection), `00-cvc-batch-enriched-view.sql`,
+   `02-cvc-conflict-attribution.sql`, and the annotation TVFs
+   `01/03/04-cvc-*-func.sql`. So Phase 0.3 is answerable from source — NO BQ
+   reverse-engineering and NO `clinvar_ingest` rework needed for now.
+   (`appscript-refresh-impact.js` currently exists in BOTH repos — drift caused by
+   the split; consolidation removes it.)
 
 ---
 
@@ -183,14 +192,41 @@ annotations straight into a legacy `SCVs` sheet tab (config placeholder unset).
 ---
 
 ## 5. Prerequisites / open questions before the Phase-2 build
-- Map the impact-analysis SP + 11 tables + reflag-candidate view (Phase 0.3).
-- Ownership/stability of the `clinvar_ingest` dataset (release + month functions).
+- Map the impact-analysis SP + 11 tables + reflag-candidate view — **sources located**
+  in `clinvar-ingest-bq-tools/scripts/clinvar-curation/` (see §2.8); read them in Phase 0.
+- `clinvar_ingest` (owned by **clinvar-ingest-bq-tools**): **no dev/prod split**, and it
+  will be **refactored eventually**. Treat it as the stable upstream the curator layer
+  depends on ONE-WAY (`release_on`, `determineMonthBasedOnRange`, release/version-history
+  tables). When it's refactored, the curator layer's references here must be re-verified —
+  flag to the user if any source is missing or a rework is needed.
 - ClinVar submission: file-only (current) vs. any API; confirm separate-files-per-action.
 - Which project hosts the web app + whether analytics stays in `clingen-dev:clinvar_curator`
   or moves alongside `clinvar_cvc_ext` (dev/prod split for the ops platform too).
 - Role model (curator/reviewer/admin) and who administers batches.
 - Go-live coupling: this platform becoming authoritative is the same milestone as
   "prod capture is the system of record" (then a fresh prod reload; retire scvc + sheet).
+
+## 5b. Repo consolidation — RECOMMENDED: make this repo the single CvC home
+
+The CvC curator SQL/procs/reports currently live in
+`clinvar-ingest-bq-tools/scripts/clinvar-curation/` — but they are **CvC-domain and a
+downstream CONSUMER of `clinvar_ingest`**, not ingest concerns. **Recommendation: move
+them into THIS repo** so it holds ALL CvC resources: capture (extension) + migration +
+the curator data layer/procs/reports + (eventually) the web app.
+
+- **Why:** one coherent home + clear ownership; a clean **one-way dependency** (CvC here
+  → `clinvar_ingest` upstream, which stays in its own repo); removes existing drift (e.g.
+  `appscript-refresh-impact.js` duplicated in both repos); co-locates the BQ objects with
+  their Phase-0 adapter and their Phase-2 web-app consumers.
+- **Boundary:** `clinvar_ingest` (release ingestion, VCV/SCV version history) stays in
+  clinvar-ingest-bq-tools as the upstream. Only the `scripts/clinvar-curation/` tree moves.
+- **How (do it deliberately in Phase 0, not ad hoc):** relocate `scripts/clinvar-curation/`
+  → e.g. this repo's `bigquery/curator/` (or `curator/`), bring a deployment mechanism
+  (the `00-run-cvc-impact-analysis.sh` + numbered-SQL apply order), keep dataset refs to
+  `clinvar_curator` / `clinvar_ingest` as-is, and delete the ingest-repo copies in the
+  same change so there's a single source of truth. Coordinate with clinvar-ingest-bq-tools.
+- **Open Q:** does the CvC analytics dataset (`clinvar_curator`) get a dev/prod split like
+  `clinvar_cvc_ext`, or stay single (matching `clinvar_ingest`)? Decide during Phase 0.
 
 ## 6. Immediate next step
 Recommended: open a **fresh context** and run superpowers:brainstorming →
