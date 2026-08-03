@@ -2,17 +2,27 @@
  * ClinVar CvC background service worker (classic MV3 worker — no
  * "type":"module" so importScripts works).
  *
- * Serves the in-page SCV highlight content script's request for a
- * variation's prior-annotation history. chrome.identity is unavailable in
- * content scripts, so only the worker (or an extension page) can mint a
- * token; routing the fetch through here reuses S6's silent-auth + history
- * fetch (firestore-history.js) and never triggers an interactive sign-in —
- * no cached Google grant simply means no highlight.
+ * Serves two requests from the in-page content script, which can't mint a
+ * Google/Firebase auth token itself (chrome.identity is unavailable in
+ * content scripts):
+ *  - getScvHistory: a variation's prior-annotation history, via S6's
+ *    silent-auth + history fetch (firestore-history.js). Never triggers an
+ *    interactive sign-in — no cached Google grant simply means no highlight.
+ *  - saveAnnotation: the S7 in-page Annotate form's save, via the same
+ *    create-only write path the popup uses (annotation.js +
+ *    firestore-write.js), with ensureWriteAuth's silent-then-interactive
+ *    auth fallback.
  */
-importScripts('env.js', 'firebase-config.js', 'history.js', 'firestore-history.js');
+importScripts(
+  'env.js',
+  'firebase-config.js',
+  'history.js',
+  'firestore-history.js',
+  'annotation.js',
+  'firestore-write.js'
+);
 
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (!message || message.subject !== 'getScvHistory') return false;
+function handleGetScvHistory(message, sendResponse) {
   (async () => {
     try {
       const idToken = await silentIdToken();
@@ -23,5 +33,34 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ ok: false, reason: 'error', rows: [] });
     }
   })();
-  return true;
+}
+
+function handleSaveAnnotation(message, sendResponse) {
+  (async () => {
+    try {
+      const { idToken, email } = await ensureWriteAuth();
+      const doc = buildAnnotation(message.scvRow, message.vcv, message.input, email);
+      const invalid = validateAnnotation(doc);
+      if (invalid) { sendResponse({ ok: false, reason: 'invalid', message: invalid }); return; }
+      await saveAnnotation(doc, idToken);
+      sendResponse({ ok: true, email });
+    } catch (e) {
+      if (e && e.alreadyExists) { sendResponse({ ok: false, reason: 'alreadyExists' }); return; }
+      if (e && e.notAuthorized) { sendResponse({ ok: false, reason: 'notAuthorized' }); return; }
+      sendResponse({ ok: false, reason: 'error', message: e && e.message });
+    }
+  })();
+}
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (!message) return false;
+  if (message.subject === 'getScvHistory') {
+    handleGetScvHistory(message, sendResponse);
+    return true;
+  }
+  if (message.subject === 'saveAnnotation') {
+    handleSaveAnnotation(message, sendResponse);
+    return true;
+  }
+  return false;
 });
