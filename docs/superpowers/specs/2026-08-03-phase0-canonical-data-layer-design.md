@@ -35,14 +35,26 @@ stored procedure. Repointing that one choke point at v4 repoints all 88 objects.
 6. **`annotation_id` stays `UNIX_MILLIS(annotation_date)`** for Phase 0 (content-hash ids
    are a Phase-2 concern) so the v4 lineage joins the existing legacy staging tables.
 7. **Duplicate-id reconciliation is non-destructive** (crosswalk views, no staging mutation).
+8. **Dedup is time-windowed (≤15 min).** Content-identical annotations are the same only if
+   created within 15 minutes of each other (gap-sessionized); ones spread further apart are
+   *distinct* curation events. The original migration's content-only dedup over-collapsed —
+   see §6.
+9. **Re-migrate v4 now with the 15-min key.** Clean-slate wipe + reload of prod-staging v4
+   (`clingen-cvc`) using the corrected dedup, emitting a dropped/impacted **audit log**.
+   Prod is already a re-loadable staging load, so this also preps the go-live migration.
+10. **One shared dedup module.** The content+15-min-cluster key lives in a single
+    `clinvar-cvc/` module used by **both** the batch migration (Phase 0) and the live reflag
+    capture (Phase 2), so the two can never diverge.
 
 ## 2. Scope & non-goals
 
 **In scope**
 - Repo consolidation (move + delete + parameterized deploy mechanism).
+- **Dedup correction & re-migration (§6):** a shared 15-min-windowed dedup module, a
+  clean-slate re-migration of prod-staging v4 using it, and a dropped/impacted **audit log**.
 - The **adapter**: incremental cross-region landing of v4 capture into a `US` native
   table with the choke-point column contract, the `UNIX_MILLIS`→`annotation_id`
-  conversion, and the duplicate-id crosswalk.
+  conversion, and the cluster-anchor crosswalk.
 - The **`clinvar_curator_v4` shadow lineage** (choke point + `refresh_cvc_impact_analysis_v4()`
   producing the 11 impact tables), sourced from v4, legacy left untouched.
 - **Parity verification** (shared-seed exact diff + drift reconciliation + sample-batch
@@ -172,12 +184,12 @@ contract mapping, sets `ignore = FALSE`, and computes
 `annotation_id = CAST(UNIX_MILLIS(annotation_date) AS STRING)`. Output is a **native
 table** so the shadow materialized view can sit over it. This is the single place the
 `UNIX_MILLIS` conversion happens.
-- **Changelog resolution semantics:** the document key is the Firestore `document_id`
-  (= `annotationDocId`, the content hash); "latest" is the newest changelog event for that
+- **Changelog resolution semantics:** the document key is the Firestore `document_id` (the
+  dedup key — post-re-migration this is `SHA-256(canonical(DEDUP_FIELDS) ‖ clusterAnchorMillis)`
+  per §6.2, not the old content-only hash); "latest" is the newest changelog event for that
   key ordered by (`timestamp`, then `event_id` as tiebreak). Capture is create-only so there
   are no deletes, but an idempotent re-save appends a further `CREATE` event for the same
-  key — latest-per-key collapses those to the surviving document. (This is the same
-  content-hash identity used by the migration and by §6.)
+  key — latest-per-key collapses those to the surviving document.
 
 ### 5.3 Interface (what consumers can rely on)
 `cvc_annotations_native_v4` is a drop-in for `clinvar_annotations_native`: identical column
@@ -185,46 +197,79 @@ names, types, and `annotation_id` semantics. A consumer needs to know only that 
 the §3.2 contract for the shared-seed population plus any post-seed v4 captures; it does not
 need to know how the copy or reshape work.
 
-## 6. Duplicate-id reconciliation (the 554)
+## 6. Dedup correction, re-migration & the cluster-anchor crosswalk
 
-**Problem.** The migration dropped 554 content-duplicate annotations (31,338 legacy native →
-30,784 v4). Legacy staging tables (`cvc_clinvar_submissions`/`reviews`/`batches`) may
-reference a **dropped twin's** `annotation_id`, which has no row in the v4 lineage (the
-surviving twin has a different `created_at` → different `annotation_id`).
+### 6.1 The defect: content-only dedup over-collapsed
+The original migration's dedup key (`annotationDocId` = SHA-256 of the 11 `DEDUP_FIELDS`,
+**excluding `created_at` and `name`**) treats two content-identical annotations as the same
+regardless of how far apart in time they were created. Per the corrected rule (decision 8),
+content-identical annotations are the same **only if created ≤15 min apart** (gap-sessionized);
+further apart, they are **distinct curation events**.
 
-**Empirical profile of the 554** (measured against
-`clingen-dev.clinvar_curator.clinvar_annotations_native`, `ignore` not true):
-- 31,362 rows → 30,808 distinct content → **554 surplus** (matches the migration drop).
-- **520** content groups have >1 distinct `annotation_id` (twins at different timestamps).
-- Of the double-staged groups: **submissions — 11 groups, all in *different* batches**;
-  **reviews — 509 groups: 394 in the *same* batch (accidental double-entry) + 115 in
-  *different* batches.**
-- Interpretation: collapse is unambiguously correct for the ~394 same-batch review dups;
-  the genuinely-distinct cross-batch events are few and enumerable (**11 submitted + 115
-  reviewed**).
+**Empirical profile** (measured against
+`clingen-dev.clinvar_curator.clinvar_annotations_native`, `ignore` not true; the 554 matches
+the migration's `31,338 → 30,784` drop, modulo ~24 rows of post-seed sheet drift — the current
+snapshot is 31,362 rows / 30,808 distinct content). Clustering each content group by a >15-min
+gap splits the 554 dropped rows into:
 
-**Solution — non-destructive crosswalk with dedup-after-remap.**
-- Build `cvc_annotation_id_xwalk(legacy_annotation_id STRING, canonical_annotation_id STRING)`:
-  group legacy `clinvar_annotations_native` by the v4 dedup fields (the `annotationDocId`
-  content fields, §3.2); for each group the `canonical_annotation_id` = `UNIX_MILLIS` of the
-  surviving v4 row (join native→v4 by content). Dropped-twin ids map to the surviving id;
-  singletons map to themselves.
-- Apply it as thin **crosswalk views** over the shared staging tables (e.g.
-  `cvc_clinvar_submissions_x` = the staging rows with `annotation_id` replaced by
-  `canonical_annotation_id`). The shadow lineage binds its "staging source" to these `_x`
-  views (see §7.1). **No staging table is mutated.**
-- **Collapse-cardinality rule (the reviewer's gap):** because both twins of a group can
-  independently carry staging rows, remapping can produce two rows sharing one
-  `canonical_annotation_id`. The `_x` views therefore **`SELECT DISTINCT` after remap**, so
-  two accidental same-batch review rows collapse to one (correct) and joins keyed on
-  `annotation_id` cannot fan out within a batch. Rows that differ only by `batch_id` (the
-  11 submitted / 115 reviewed cross-batch cases) legitimately remain multiple rows — one
-  canonical annotation associated with more than one batch. That residual cardinality change
-  is **expected, quantified, and bucketed in the parity method** (§7.2), not an adapter bug.
-- **Semantic caveat (out of Phase-0 scope, flagged in §10):** the v4 dedup excludes
-  `created_at`, so it treats a same-content re-flag/re-review in a *later* batch as the same
-  annotation. That is a domain question for the Phase-1 cutover and Phase-2 reflag capture,
-  not a Phase-0 blocker — Phase 0 only needs the delta measured and explained.
+| action | surplus dropped | **distinct events wrongly dropped** (>15 min → restore) | true dupes correctly dropped (≤15 min) |
+|---|---|---|---|
+| no change | 367 | 158 | 209 |
+| flagging candidate | 184 | **128** | 56 |
+| remove flagged submission | 3 | 0 | 3 |
+| **total** | **554** | **286** | **268** |
+
+So **286 of the 554 were distinct events wrongly merged** (incl. **128 flagging-candidate**
+events; of those, **11 were submitted to ClinVar in two different batches**), and only **268**
+were genuine ≤15-min accidental double-saves. `no change` never enters the submission file, so
+its collapses have no submission impact; the flag/remove cases are the audit priority.
+
+### 6.2 Two distinct id layers (do not conflate)
+- **Firestore document id** = the dedup key. **New scheme:** `SHA-256(canonical(DEDUP_FIELDS)
+  ‖ clusterAnchorMillis)`, where `clusterAnchorMillis` = `UNIX_MILLIS` of the **earliest**
+  `created_at` in the row's ≤15-min cluster. All rows in a cluster share the anchor → identical
+  id → collapse; distinct clusters get distinct ids → coexist. This lives in the **shared dedup
+  module** (decision 10).
+- **Downstream `annotation_id`** = `CAST(UNIX_MILLIS(annotation_date) AS STRING)`, computed in
+  BigQuery (§3.3), independent of the Firestore doc id. Because each cluster's survivor keeps
+  its cluster-anchor `created_at`, distinct clusters have distinct downstream `annotation_id`s
+  naturally.
+
+### 6.3 Re-migration (decision 9)
+Update `clinvar-cvc/migration/` to consume the shared 15-min dedup module, then **clean-slate
+wipe + reload** prod-staging v4 (`clingen-cvc`) from the current
+`clingen-dev.clinvar_curator.clinvar_annotations_native` (paced per the documented
+burst-drop/`run.invoker` recipe; verify `run.invoker` **before** the load). Result: v4 holds
+one document per (content, ≤15-min cluster) — the ~268-fewer-than-legacy corrected population
+(~31,094 for the current snapshot) — each survivor carrying its cluster-anchor `created_at`.
+The 286 previously-dropped distinct events are thereby **restored**, so their downstream
+`annotation_id`s exist and staging references resolve.
+
+### 6.4 The unified cluster-anchor crosswalk (non-destructive)
+- Build `cvc_annotation_id_xwalk(legacy_annotation_id STRING, canonical_annotation_id STRING)`
+  directly from legacy native: group by the `DEDUP_FIELDS` (the `annotationDocId` fields —
+  **excluding `annotation_date`/`created_at` and `name`**; *not* the §3.2 contract columns,
+  which include `annotation_date`), gap-cluster each group at 15 min, and set
+  `canonical_annotation_id = UNIX_MILLIS(earliest created_at of the row's cluster)`. This one
+  rule handles **both** the 268 ≤15-min collapses **and** any within-restored-cluster remaps;
+  singletons map to themselves. By construction the crosswalk's canonical ids equal the
+  re-migrated v4 survivors' `annotation_id`s.
+- Apply it as thin **crosswalk `_x` views** over the shared staging tables (e.g.
+  `cvc_clinvar_submissions_x` = staging rows with `annotation_id` replaced by
+  `canonical_annotation_id`), **`SELECT DISTINCT` after remap** so two ≤15-min-collapsed
+  staging rows can't fan out a join. The shadow lineage binds its "staging source" to these
+  `_x` views only (§7.1). **No staging table is mutated** (the destructive in-table rewrite is
+  a Phase-1 cutover option). Rows differing only by `batch_id` legitimately remain distinct.
+
+### 6.5 Dropped/impacted audit log (deliverable)
+The re-migration and crosswalk emit an **audit log** enumerating, for every legacy row that is
+collapsed or remapped: its `annotation_id`, the `canonical_annotation_id` it maps to, the
+content fields, `action`, `curator`, `created_at`, cluster membership, and **which downstream
+records referenced it** (rows in `cvc_clinvar_reviews`/`submissions`/`batches`). It is
+**segmented by action with `flagging candidate` and `remove flagged submission` called out
+first**, and specifically lists the **11 cross-batch flagging-candidate submissions** (same flag
+submitted in two batches). This gives curators a reviewable record of exactly what the dedup
+merged, before any of it feeds a submission file.
 
 ## 7. The shadow lineage & parity
 
@@ -243,34 +288,44 @@ views apply to reconcile the 554 dropped twins). Includes
 byte-for-byte unchanged → true side-by-side comparison.
 
 ### 7.2 Parity method (drift-aware)
-1. **Comparison population = the intersection** keyed by `annotationDocId` (content hash) —
-   the shared seed. **Within it, parity must be exact at the annotation/choke-point level:**
-   row-for-row and column-for-column, and `annotation_id` id-integrity (0 orphaned staging
-   ids after the crosswalk). Keying by content (not `annotation_id`) means the 554 twins
-   collapse identically on both sides at this level, so the annotation-level diff stays clean.
+Because Phase 0 **re-migrates** v4 with the corrected 15-min dedup (§6.3), the v4 population
+now matches the legacy population **modulo the 268 genuine ≤15-min collapses** — the 286
+distinct events are restored, so they are no longer a delta. Parity is evaluated with the
+**cluster-anchor crosswalk applied to the legacy side too**, so both lineages are compared on
+canonical (cluster) identity.
+
+1. **Comparison population = the shared seed**, identified by **cluster identity**
+   (`DEDUP_FIELDS` content + 15-min cluster anchor = the `canonical_annotation_id`). Apply the
+   §6.4 crosswalk to legacy `cvc_annotations` so its 268 ≤15-min twins collapse to their anchor,
+   exactly as v4 does. **Within this population, parity must be exact** at the annotation/
+   choke-point level (row- and column-for-column) with `annotation_id` id-integrity: 0 orphaned
+   staging ids after the crosswalk.
 2. **Parity anchors:** `cvc_version_bumps` / `cvc_full_record_version_bumps` (pure-upstream)
    must be **identical** across lineages; a difference indicates an environment/config
    problem, not an adapter problem.
-3. **Id-integrity check:** for the non-duplicate majority, assert
-   `UNIX_MILLIS(v4 created_at) == legacy annotation_id` matches ≈100%. This also detects
-   whether the migration's second-precision truncation
-   (`FORMAT_TIMESTAMP('%Y-%m-%dT%H:%M:%SZ', …)`) was lossless. If the match rate is below
-   ~100%, widen the crosswalk to cover all shifted ids (mechanically identical fix).
-4. **Choke-point diff:** `cvc_annotations("all")` vs `cvc_annotations_v4("all")` — counts
-   plus full column diff keyed by `annotation_id`, restricted to the shared seed.
+3. **Id-integrity check:** every crosswalk `canonical_annotation_id` must equal a re-migrated v4
+   survivor's `annotation_id`, and every legacy staging id must resolve through the crosswalk to
+   exactly one canonical (0 orphans). Also assert `UNIX_MILLIS(v4 created_at) == canonical id`
+   ≈100% — this doubles as a check that the migration's second-precision truncation
+   (`FORMAT_TIMESTAMP('%Y-%m-%dT%H:%M:%SZ', …)`) was lossless; if below ~100%, widen the
+   crosswalk to cover all shifted ids (mechanically identical fix).
+4. **Choke-point diff:** `cvc_annotations("all")` (crosswalk-collapsed) vs
+   `cvc_annotations_v4("all")` — counts plus full column diff keyed by `canonical_annotation_id`,
+   restricted to the shared seed. **Expectation:** exact after collapse. The only permitted count
+   delta is the **268 ≤15-min raw-legacy duplicate rows** that collapse to their anchor (bucketed,
+   item 6); any delta *outside* that bucket is an adapter bug. (This closes the pass-1/pass-2
+   reviewer concern that an `annotation_id`-keyed diff would surface an unbucketed cardinality
+   delta at the choke point.)
 5. **End-to-end batch parity:** choose a batch **finalized before the seed boundary** (stable
    membership); diff all 11 impact tables (especially #8 `cvc_flagging_version_bump_intersection`,
    #9 `cvc_resubmission_candidates`, #11 `cvc_impact_summary`) and the **generated submission
-   file** (`cvc_annotations("unreviewed")` JOIN submissions) legacy-vs-v4.
-6. **Dedup-collapse bucket (staging/downstream level):** the shared seed is *not* row-for-row
-   exact at the staging and 11-table level, because the 554 content-twins are distinct rows in
-   legacy but collapse to one canonical annotation in v4 (§6). This is an **expected,
-   quantified** delta, enumerated up front: 520 multi-id content groups; after the `_x`
-   dedup, the residual multi-row cases are the **11 cross-batch submissions** and **115
-   cross-batch reviews**. Downstream diffs (choke-point `is_reviewed`/`is_submitted`, batch
-   membership, the 11 impact tables) must reconcile against this enumerated set; a delta that
-   maps to a known collapse group is **expected**, and only a delta *outside* it is an adapter
-   bug. (The same-batch review dups collapse cleanly and should produce no delta.)
+   file** (`cvc_annotations("unreviewed")` JOIN submissions) legacy-vs-v4, both crosswalk-collapsed.
+6. **Dedup-collapse bucket (the 268):** the only expected, quantified delta is the **268 genuine
+   ≤15-min collapses** (no change 209, flagging candidate 56, remove flagged 3). Both sides
+   collapse these to the cluster anchor via the crosswalk, so they should produce **no residual
+   delta** once collapsed; a diff that maps to a known collapse cluster is expected, and only a
+   diff *outside* it is an adapter bug. (The 286 restored distinct events must appear on **both**
+   sides — their absence would be a re-migration defect, caught here.)
 7. **Drift reconciliation:** enumerate and categorize every row outside the intersection —
    `sheet-only (post-seed)`, `v4-only (new capture)` — with **zero unexplained deltas
    attributable to adapter logic**. Snapshot both sources at one instant and record the
@@ -278,48 +333,58 @@ byte-for-byte unchanged → true side-by-side comparison.
 
 ### 7.3 Parity report (deliverable)
 A short written report: anchor results, id-integrity match rate, shared-seed diff result,
-the **dedup-collapse reconciliation** (§7.2.6 — the 520 groups / 11 cross-batch submissions
-/ 115 cross-batch reviews accounted for), sample-batch end-to-end result, and the drift
-reconciliation. This is the **go/no-go evidence** for Phase 1.
+the **dedup-collapse reconciliation** (§7.2 item 6 — the 268 ≤15-min collapses accounted for
+and the 286 restored distinct events confirmed present on both sides), sample-batch end-to-end
+result, and the drift reconciliation. It also references the **§6.5 dropped/impacted audit log**.
+This is the **go/no-go evidence** for Phase 1.
 
 ## 8. Testing
 
-This layer is BigQuery SQL + a shell deploy (no JS module to unit-test here), so:
+This layer is a mix of a JS dedup module (unit-testable) and BigQuery SQL + a shell deploy:
+- The **shared 15-min dedup module** (decision 10) is unit-tested with Vitest (this repo's
+  existing harness): cluster boundaries at exactly 15 min, chained gaps, singletons, and the
+  key property that batch-migration clustering and the live-capture path derive the same
+  `(docId, clusterAnchor)` for identical inputs.
 - Parity assertions are **diff queries** checked into `bigquery/curator/tests/`, each
   returning **0 rows on success**, runnable via `bq`.
-- The adapter reshape (contract mapping, `annotation_id` formula, crosswalk) gets small
-  fixture-based checks where feasible (e.g. a synthetic content-dup set proving the
-  crosswalk collapses to the surviving id).
+- The adapter reshape + crosswalk get small fixture-based checks (e.g. a synthetic set of
+  ≤15-min and >15-min twins proving the ≤15-min pair collapses to the anchor and the >15-min
+  pair stays two distinct annotations).
+- The re-migration is validated by reconciling counts (Firestore ≈ BQ view ≈ corrected
+  legacy population) and by the §6.5 audit log.
 - The deploy mechanism is validated by deploying the shadow dataset and confirming all
   objects create cleanly and `refresh_cvc_impact_analysis_v4()` runs end-to-end.
 
 ## 9. Deliverables
 
 1. `bigquery/curator/` — moved, parameterized SQL + deploy script; ingest-repo copies deleted.
-2. Adapter — incremental copy job + `cvc_annotations_native_v4` reshape + `cvc_annotation_id_xwalk`
-   + crosswalk views.
-3. `clinvar_curator_v4` shadow lineage + `refresh_cvc_impact_analysis_v4()`.
-4. Parity test suite (`bigquery/curator/tests/`) + the written parity report.
-5. Impact-SP dependency map (§3.6) captured in `bigquery/curator/` docs.
+2. **Shared 15-min dedup module** (`clinvar-cvc/`) + updated `clinvar-cvc/migration/` using it;
+   the corrected clean-slate re-migration of prod-staging v4; the **§6.5 dropped/impacted
+   audit log**.
+3. Adapter — incremental copy job + `cvc_annotations_native_v4` reshape +
+   `cvc_annotation_id_xwalk` (cluster-anchor) + crosswalk `_x` views.
+4. `clinvar_curator_v4` shadow lineage + `refresh_cvc_impact_analysis_v4()`.
+5. Parity test suite (`bigquery/curator/tests/`) + the written parity report.
+6. Impact-SP dependency map (§3.6) captured in `bigquery/curator/` docs.
 
 ## 10. Risks
 
-- **Second-precision truncation** could shift more ids than the 554 dups. Surfaced early by
-  §7.2(3); the fix (widen the crosswalk) is mechanically identical.
+- **Re-migration drops post-seed v4-only captures.** The clean-slate reload sources from
+  legacy `clinvar_annotations_native` (sheet-derived), so any annotations captured **only** in
+  the v4 extension since the seed (not in the sheet) are lost. Acceptable during staging (the
+  `scvc/` sheet is the system of record now, and prod is explicitly re-loadable), but the plan
+  must **enumerate any such v4-only rows first** and confirm with the user before wiping.
+- **Second-precision truncation** could shift ids beyond the ≤15-min collapses. Surfaced early
+  by §7.2 item 3; the fix (widen the crosswalk) is mechanically identical.
 - **Source drift** means Phase-0 parity proves correctness on the **shared seed only**;
   full-population authority still needs the Phase-1 union bridge or a re-seed at cutover.
 - **`clinvar_ingest` refactor** (external, future) could move reference tables; out of scope
   now, flagged; the parity anchors (§7.2) would catch a break.
 - **Cross-region copy mechanism** (DTS vs EXPORT→LOAD) is deferred to the plan; both meet the
   incremental + on-demand requirement, but the plan must confirm watermark correctness and
-  on-demand latency for the reviewer Refresh path.
-- **Dedup semantics vs distinct cross-batch curation (domain question, not Phase-0-blocking).**
-  The v4 dedup excludes `created_at`, so a same-content re-flag/re-review in a later batch
-  collapses to one annotation (measured: **11 submissions + 115 reviews** across different
-  batches). Two implications to raise with the domain owner **before Phase-1 cutover**: (a)
-  whether those historical cross-batch events should stay distinct (if so, the dedup key or
-  the cutover reconciliation needs `created_at`/batch awareness); and (b) the **Phase-2 reflag
-  capture** consequence — a live re-flag of the same SCV/reason would hit `ALREADY_EXISTS`
-  under the current `annotationDocId`, so the reflag write path likely needs a dedup key that
-  includes a batch/time discriminator. Phase 0 only measures and documents this; it does not
-  resolve it.
+  on-demand latency for the (Phase-2) reviewer Refresh path.
+- **Live reflag-capture dedup key is a Phase-2 item.** The 15-min rule is *resolved for
+  history* by the re-migration (§6.3), and the shared module (decision 10) will hold the key,
+  but wiring the **read-within-15-min** check into the live extension write path so a genuine
+  re-flag doesn't hit `ALREADY_EXISTS` is Phase-2 work, not resolved here. Phase 0 delivers the
+  shared key and proves it on the batch/migration side.
