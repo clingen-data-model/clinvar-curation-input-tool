@@ -39,7 +39,34 @@ function decorateForScv(summary) {
   return { cssClass, badge, tooltip };
 }
 
+// Display-ready history entries for a single SCV, newest-first — feeds the
+// in-page click-to-expand popover. Self-contained (sorts internally) so it
+// doesn't depend on history.js being loaded in the content script.
+function entriesForScv(rows, scv) {
+  return (rows || [])
+    .filter(function (r) { return r && r.scv === scv; })
+    .slice()
+    .sort(function (a, b) {
+      const ad = String(a.created_at || '');
+      const bd = String(b.created_at || '');
+      if (ad === bd) return 0;
+      return ad < bd ? 1 : -1;
+    })
+    .map(function (r) {
+      return {
+        when: r.created_at ? String(r.created_at).slice(0, 10) : '',
+        who: r.user_email || '',
+        summary: r.reason ? `${r.action} — ${r.reason}` : (r.action || ''),
+        notes: r.notes || ''
+      };
+    });
+}
+
 (function (root) {
-  if (root) { root.summarizeHistoryByScv = summarizeHistoryByScv; root.decorateForScv = decorateForScv; }
+  if (root) {
+    root.summarizeHistoryByScv = summarizeHistoryByScv;
+    root.decorateForScv = decorateForScv;
+    root.entriesForScv = entriesForScv;
+  }
 })(typeof self !== 'undefined' ? self : (typeof window !== 'undefined' ? window : null));
-if (typeof module !== 'undefined' && module.exports) { module.exports = { summarizeHistoryByScv, decorateForScv }; }
+if (typeof module !== 'undefined' && module.exports) { module.exports = { summarizeHistoryByScv, decorateForScv, entriesForScv }; }
