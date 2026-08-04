@@ -55,6 +55,18 @@ SELECT
   -- whole-second (annotation_date), so their _nanoseconds is 0.
   SAFE_CAST(JSON_VALUE(data, '$.created_at._seconds') AS INT64) * 1000
     + DIV(SAFE_CAST(JSON_VALUE(data, '$.created_at._nanoseconds') AS INT64), 1000000) AS created_at_millis,
+  -- v4 docs store annotation_id = UNIX_MILLIS(created_at) as a string at write
+  -- time (clinvar-cvc/annotation.js buildAnnotation). Any pre-existing doc
+  -- captured before that field was added falls back to the equivalent value
+  -- derived from the same created_at_millis expression above (a SELECT-list
+  -- alias can't be referenced within the same SELECT, so it's inlined here).
+  COALESCE(
+    JSON_VALUE(data, '$.annotation_id'),
+    CAST(
+      SAFE_CAST(JSON_VALUE(data, '$.created_at._seconds') AS INT64) * 1000
+        + DIV(SAFE_CAST(JSON_VALUE(data, '$.created_at._nanoseconds') AS INT64), 1000000)
+      AS STRING)
+  ) AS annotation_id,
   timestamp                                               AS synced_at
 FROM `clingen-cvc.clinvar_cvc_ext.annotations_raw_latest`
 WHERE data IS NOT NULL;   -- exclude tombstone rows for deleted documents
