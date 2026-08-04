@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Stand up a durable, v4-sourced BigQuery data layer for the CvC downstream — consolidating the curator SQL into this repo, correcting the migration dedup to a 15-minute rule, and proving a parallel `clinvar_curator_v4` lineage matches the legacy one — without disturbing the live Review&Submit pipeline.
+**Goal:** Stand up a durable, v4-sourced BigQuery data layer for the CvC downstream — consolidating the curator SQL into this repo, storing a computed `annotation_id` on each v4 document (so the downstream never recomputes it), loading **all** historical annotations without dedup, and proving a parallel `clinvar_curator_v4` lineage matches the legacy one — without disturbing the live Review&Submit pipeline.
 
-**Architecture:** A shared 15-min-windowed dedup module drives a clean-slate re-migration of prod-staging v4 (`clingen-cvc`). An incremental cross-region transfer lands that capture into a `US` native table (`cvc_annotations_native_v4`) carrying the choke-point contract. A parameterized deploy builds a shadow `clinvar_curator_v4` lineage (choke point + 11-table impact SP) over it, reconciled to the legacy staging tables through a non-destructive cluster-anchor crosswalk, then diff-tested for parity. Legacy `clinvar_curator` is never mutated.
+**Architecture:** `annotation_id = UNIX_MILLIS(created_at)` is computed at write time and stored as a field on every v4 doc (added to the Chrome extension's `buildAnnotation` and the historical migration). Historical `created_at` values are all unique (verified: 31,362 rows → 31,362 distinct `annotation_id`, 0 collisions), so **no dedup is applied to history** — a clean-slate re-migration of prod-staging v4 (`clingen-cvc`) loads every record, keyed by its `annotation_id` doc id. A full-snapshot cross-region copy lands that capture into a `US` native table (`cvc_annotations_native_v4`) carrying the choke-point contract (with `annotation_id` passed through, not recomputed). A parameterized deploy builds a shadow `clinvar_curator_v4` lineage (choke point + 11-table impact SP) over it — its `base_mv` reading the stored `annotation_id` via an `@@ANNO_ID@@` token — then diff-tested for parity. Legacy `clinvar_curator` is never mutated; the extension's live content-hash doc id (double-save guard) is unchanged.
 
-**Tech Stack:** BigQuery (Standard SQL, `bq` CLI, US + us-central1), GCS (cross-region staging), Firestore REST (re-migration), Node.js + Vitest (dedup module + migration tooling), bash (deploy + transfer scripts).
+**Tech Stack:** BigQuery (Standard SQL, `bq` CLI, US + us-central1), GCS (cross-region staging), Firestore REST (re-migration), Node.js + Vitest (extension + migration tooling), bash (deploy + transfer scripts).
 
 **Spec:** `docs/superpowers/specs/2026-08-03-phase0-canonical-data-layer-design.md` — read it before starting. Section references below (e.g. "spec §6.4") point into it.
 
@@ -25,27 +25,27 @@
 - `bigquery/curator/deploy.sh` — parameterized deploy: substitutes a dataset token + source-binding token into the numbered SQL and applies in order.
 - `bigquery/curator/README.md` — how to deploy legacy vs `_v4`; the impact-SP dependency map (spec §3.6).
 
-**New — shared dedup module (Chunk 2):**
-- `clinvar-cvc/dedup.js` — the single source of truth for the content+15-min-cluster dedup key.
-- `clinvar-cvc/test/dedup.test.js` — Vitest unit tests.
+**Modified — store `annotation_id` on the doc (Chunk 2):**
+- `clinvar-cvc/annotation.js` — `buildAnnotation` adds `annotation_id: String(created_at.getTime())`; keep it OUT of `DEDUP_FIELDS` (derived from `created_at`).
+- `clinvar-cvc/migration/native-to-v4.js` — `nativeRowToV4Doc` adds `annotation_id` (from the row's `annotation_id`, computed in `source.sql`).
+- `clinvar-cvc/migration/source.sql` — add `CAST(UNIX_MILLIS(TIMESTAMP(annotation_date)) AS STRING) AS annotation_id`.
+- `clinvar-cvc/bigquery/annotations_view.sql` — expose the `annotation_id` field (with `COALESCE(annotation_id, CAST(created_at_millis AS STRING))` fallback for any legacy doc lacking it).
+- `clinvar-cvc/test/*.test.js` — cover the new field.
 
-**Modified — migration (Chunk 3):**
-- `clinvar-cvc/annotation.js` — export `DEDUP_FIELDS` + `canonicalContent()` (DRY; consumed by `dedup.js`).
-- `clinvar-cvc/migration/native-to-v4.js` — no dedup logic change; add `annotation_date`-aware helpers only if needed.
-- `clinvar-cvc/migration/migrate.js` — replace content-only dedup with `dedup.js` clustering.
-- `bigquery/curator/audit/dropped-impacted-audit.sql` — the dropped/impacted audit log (spec §6.5).
+**Modified — re-migration, no dedup (Chunk 3):**
+- `clinvar-cvc/migration/migrate.js` — doc id becomes the record's `annotation_id` (unique); **no content-hash dedup** — every historical record is loaded.
+- `bigquery/curator/audit/restored-records-audit.sql` — the "records previously dropped by content-hash dedup, now restored" audit (action-segmented).
 
 **New — adapter (Chunk 4):**
-- `bigquery/curator/adapter/refresh-native-v4.sh` — **full-snapshot** cross-region copy (materialize view → GCS → LOAD) + reshape trigger (see the Chunk-4 mechanism note; deliberately not the incremental mirror, given the tiny data).
-- `bigquery/curator/adapter/native_v4_reshape.sql` — latest-per-doc + contract reshape + `annotation_id`.
-- `bigquery/curator/adapter/cvc_annotation_id_xwalk.sql` — cluster-anchor crosswalk build.
-- `bigquery/curator/adapter/staging_x_views.sql` — the `_x` crosswalk views.
+- `bigquery/curator/adapter/refresh-native-v4.sh` — **full-snapshot** cross-region copy (materialize view → GCS → LOAD) + reshape trigger.
+- `bigquery/curator/adapter/native_v4_reshape.sql` — flatten + contract reshape, **passing `annotation_id` through** (`COALESCE` fallback), not recomputing. (No crosswalk — every staging id resolves directly.)
 
 **New — shadow lineage (Chunk 5):**
-- (Deployed via `deploy.sh` with `DATASET=clinvar_curator_v4`, `ANNO_SOURCE=cvc_annotations_native_v4`, `STAGING=_x views`.)
+- `bigquery/curator/adapter/staging_passthrough_views.sql` — plain `SELECT *` views of the staging tables in `clinvar_curator_v4` (no id remap needed).
+- (Deployed via `deploy.sh` with `DATASET=clinvar_curator_v4`, `ANNO_SOURCE=cvc_annotations_native_v4`, `MV=""`, `ANNO_ID=annotation_id`.)
 
 **New — parity (Chunk 6):**
-- `bigquery/curator/tests/*.sql` — parity diff queries (each returns 0 rows on success).
+- `bigquery/curator/tests/*.sql` — parity diff queries (each returns 0 rows on success; shared seed is now **exact** — no collapse bucket).
 - `bigquery/curator/tests/run-parity.sh` — runs all diff queries, prints pass/fail.
 - `docs/superpowers/plans/2026-08-03-phase0-parity-report.md` — the written go/no-go report (filled during execution).
 
@@ -216,303 +216,225 @@ git commit -m "docs(curator): impact-SP dependency map + deploy usage"
 
 ---
 
-## Chunk 2: Shared 15-minute dedup module (TDD)
+## Chunk 2: Store `annotation_id` on every v4 document
 
-Builds the single source of truth for the content+15-min-cluster dedup key (spec §6.2, decision 10). Pure JS, unit-tested with Vitest. Consumed by the migration in Chunk 3 and (in Phase 2) by live reflag capture. Uses this repo's existing test harness (`cd clinvar-cvc && npm test`).
+Computes `annotation_id = UNIX_MILLIS(created_at)` at write time and stores it as a field, in BOTH the live extension and the historical migration, so the downstream never recomputes it (spec §6). Kept OUT of the dedup hash. Pure code + Vitest (`cd clinvar-cvc && npm test`; tests live in `clinvar-cvc/test/`, use the `createRequire` header).
 
-**Module interface (what Chunk 3 will rely on):**
-- `canonicalContent(doc)` → the stable string of the 11 `DEDUP_FIELDS` (reused from `annotation.js`, so migration + capture can't diverge).
-- `clusterKey(doc, clusterAnchorMillis)` → `Promise<string>` = SHA-256 hex of `canonicalContent(doc) + '|' + clusterAnchorMillis`.
-- `clusterAnnotations(rows, windowMs = 15*60*1000)` → returns `rows` annotated with `{ clusterAnchorMillis }`, where rows are grouped by `canonicalContent`, sorted by `created_at`, and a new cluster starts when the **consecutive gap** exceeds `windowMs`; the anchor is the **earliest** `created_at` in the cluster. Each `row.created_at` is an ISO string or `Date`.
-
-### Task 2.1: Export the shared content canonicalization from `annotation.js`
+### Task 2.1: Add `annotation_id` to the extension's `buildAnnotation`
 
 **Files:**
 - Modify: `clinvar-cvc/annotation.js`
-- Test: `clinvar-cvc/test/annotation.test.js` (existing; add one case)
-
-> **Repo test convention (verified):** `vitest.config.js` sets `include: ['test/**/*.test.js']`, so all test files live under `clinvar-cvc/test/` and import via `createRequire` + `../module.js` (not ESM named imports). Follow it exactly, or `npm test` silently finds no tests.
+- Test: `clinvar-cvc/test/annotation.test.js`
 
 - [ ] **Step 1: Write the failing test**
 
-Add to `clinvar-cvc/test/annotation.test.js` (reuse its existing `createRequire` header):
+Add to `clinvar-cvc/test/annotation.test.js` (reuse its `createRequire` header):
 ```js
-const { canonicalContent, DEDUP_FIELDS } = require('../annotation.js');
+const { buildAnnotation, annotationDocId } = require('../annotation.js');
 
-test('canonicalContent is stable and excludes name + created_at', () => {
-  const base = { variation_id: '1', vcv: 'VCV1', scv: 'SCV1', submitter: 'S', submitter_id: '9',
-    interp: 'Pathogenic', review_status: 'criteria', action: 'Flagging Candidate',
-    reason: 'r', notes: 'n', user_email: 'a@b.org' };
-  const a = canonicalContent({ ...base, name: 'X', created_at: '2020-01-01T00:00:00Z' });
-  const b = canonicalContent({ ...base, name: 'Y', created_at: '2021-06-06T12:00:00Z' });
-  expect(a).toBe(b);                       // name + created_at do not affect content identity
-  expect(DEDUP_FIELDS).toContain('scv');   // still the 11-field set
-  expect(DEDUP_FIELDS).not.toContain('name');
+test('buildAnnotation stores annotation_id = UNIX_MILLIS(created_at) as a string', () => {
+  const scv = { scv: 'SCV1', submitter: 'S', submitter_id: '9', interp: 'Pathogenic', review: 'criteria' };
+  const vcv = { variation_id: '1', vcv: 'VCV1', name: 'X' };
+  const a = buildAnnotation(scv, vcv, { action: 'Flagging Candidate', reason: 'r', notes: 'n' }, 'a@b.org');
+  expect(a.annotation_id).toBe(String(a.created_at.getTime()));
+  expect(typeof a.annotation_id).toBe('string');
+});
+
+test('annotation_id does NOT affect the dedup doc id (excluded from DEDUP_FIELDS)', async () => {
+  const scv = { scv: 'SCV1', submitter: 'S', submitter_id: '9', interp: 'Pathogenic', review: 'criteria' };
+  const vcv = { variation_id: '1', vcv: 'VCV1', name: 'X' };
+  const a = buildAnnotation(scv, vcv, { action: 'No Change', reason: '', notes: '' }, 'a@b.org');
+  const b = { ...a, annotation_id: 'different', created_at: new Date(0) };
+  expect(await annotationDocId(a)).toBe(await annotationDocId(b));
 });
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [ ] **Step 2: Run to verify it fails**
 
-Run: `cd clinvar-cvc && npx vitest run annotation.test.js -t canonicalContent`
-Expected: FAIL — `canonicalContent` is not exported.
+Run: `cd clinvar-cvc && npx vitest run annotation.test.js -t annotation_id`
+Expected: FAIL — `buildAnnotation` doesn't set `annotation_id` yet.
 
-- [ ] **Step 3: Implement `canonicalContent` in `annotation.js`**
+- [ ] **Step 3: Implement**
 
-Refactor `annotationDocId` to reuse it (DRY), and export both `DEDUP_FIELDS` and `canonicalContent`:
+In `buildAnnotation`, capture `created_at` once and derive `annotation_id`:
 ```js
-function canonicalContent(doc) {
-  return JSON.stringify(DEDUP_FIELDS.map(f => String(doc[f] ?? '')));
-}
-async function annotationDocId(doc) {
-  const bytes = new TextEncoder().encode(canonicalContent(doc));
-  const digest = await crypto.subtle.digest('SHA-256', bytes);
-  return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+function buildAnnotation(scvRow, vcv, input, userEmail) {
+  const created_at = new Date();
+  return {
+    variation_id: vcv.variation_id, vcv: vcv.vcv, name: vcv.name,
+    scv: scvRow.scv, submitter: scvRow.submitter, submitter_id: scvRow.submitter_id,
+    interp: scvRow.interp, review_status: scvRow.review,
+    action: input.action, reason: input.reason, notes: input.notes,
+    user_email: userEmail,
+    created_at,
+    annotation_id: String(created_at.getTime())
+  };
 }
 ```
-Add `canonicalContent` and `DEDUP_FIELDS` to the `module.exports` and `window.*` blocks.
+Do NOT add `annotation_id` to `DEDUP_FIELDS` (it's derived from `created_at`, which is already excluded). No change to `annotationDocId`. `toFirestoreFields` already serializes string fields, so `annotation_id` is written automatically.
 
-- [ ] **Step 4: Run tests to verify pass (new + existing dedup tests unaffected)**
+- [ ] **Step 4: Run to verify pass (and no regressions)**
 
 Run: `cd clinvar-cvc && npm test`
-Expected: PASS — all existing tests still green (annotationDocId unchanged in behavior), plus the new case.
+Expected: PASS — new cases green; existing `annotationDocId`/`buildAnnotation` tests unchanged.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add clinvar-cvc/annotation.js clinvar-cvc/test/annotation.test.js
-git commit -m "refactor(cvc): extract canonicalContent + export DEDUP_FIELDS (DRY for dedup module)"
+git commit -m "feat(cvc): store annotation_id = UNIX_MILLIS(created_at) on the v4 doc (excluded from dedup)"
 ```
 
-### Task 2.2: `clusterKey` — time-anchored dedup id
+### Task 2.2: Add `annotation_id` to the migration source + doc mapping
 
 **Files:**
-- Create: `clinvar-cvc/dedup.js`
-- Test: `clinvar-cvc/test/dedup.test.js`
+- Modify: `clinvar-cvc/migration/source.sql`
+- Modify: `clinvar-cvc/migration/native-to-v4.js`
+- Test: `clinvar-cvc/test/migration.test.js`
 
-- [ ] **Step 1: Write the failing test** (new file under `test/`; copy the exact header from an existing test in `clinvar-cvc/test/`)
+- [ ] **Step 1: Write the failing test**
 
+Add to `clinvar-cvc/test/migration.test.js`:
 ```js
-import { createRequire } from 'node:module';
-const require = createRequire(import.meta.url);
-const { clusterKey } = require('../dedup.js');
+const { nativeRowToV4Doc } = require('../migration/native-to-v4.js');
 
-const doc = { variation_id: '1', vcv: 'VCV1', scv: 'SCV1', submitter: 'S', submitter_id: '9',
-  interp: 'Pathogenic', review_status: 'criteria', action: 'Flagging Candidate',
-  reason: 'r', notes: 'n', user_email: 'a@b.org' };
-
-test('same content + same anchor -> same key; different anchor -> different key', async () => {
-  const k1 = await clusterKey(doc, 1_000_000);
-  const k2 = await clusterKey(doc, 1_000_000);
-  const k3 = await clusterKey(doc, 2_000_000);
-  expect(k1).toBe(k2);
-  expect(k1).not.toBe(k3);
-  expect(k1).toMatch(/^[0-9a-f]{64}$/);
+test('nativeRowToV4Doc carries annotation_id through', () => {
+  const row = { variation_id: '1', vcv_id: 'VCV1', variation_name: 'X', scv_id: 'SCV1',
+    submitter_name: 'S', submitter_id: '9', interpretation: 'Pathogenic', review_status: 'criteria',
+    action: 'Flagging Candidate', reason: 'r', notes: 'n', curator_email: 'a@b.org',
+    annotation_date: '2020-01-01T00:00:05Z', annotation_id: '1577836805000' };
+  const doc = nativeRowToV4Doc(row);
+  expect(doc.annotation_id).toBe('1577836805000');
 });
 ```
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `cd clinvar-cvc && npx vitest run dedup.test.js -t 'same content'`
-Expected: FAIL — `dedup.js` / `clusterKey` not defined.
+Run: `cd clinvar-cvc && npx vitest run migration.test.js -t annotation_id`
+Expected: FAIL — `nativeRowToV4Doc` doesn't map `annotation_id`.
 
-- [ ] **Step 3: Implement `clusterKey` in `dedup.js`**
+- [ ] **Step 3: Implement**
 
-```js
-if (typeof globalThis.crypto === 'undefined') globalThis.crypto = require('node:crypto').webcrypto;
-const { canonicalContent } = (typeof require !== 'undefined') ? require('./annotation.js') : window;
-
-async function clusterKey(doc, clusterAnchorMillis) {
-  const material = canonicalContent(doc) + '|' + String(clusterAnchorMillis);
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(material));
-  return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
-}
-module.exports = { clusterKey };
+`source.sql`: add the column (before `annotation_date`, keep both):
+```sql
+  CAST(UNIX_MILLIS(TIMESTAMP(annotation_date)) AS STRING) AS annotation_id,
+  FORMAT_TIMESTAMP('%Y-%m-%dT%H:%M:%SZ', TIMESTAMP(annotation_date), 'UTC') AS annotation_date
 ```
+`native-to-v4.js` `nativeRowToV4Doc`: add `annotation_id: row.annotation_id` to the returned object (do NOT add it to any dedup logic).
 
 - [ ] **Step 4: Run to verify pass**
 
-Run: `cd clinvar-cvc && npx vitest run dedup.test.js -t 'same content'`
+Run: `cd clinvar-cvc && npm test`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add clinvar-cvc/dedup.js clinvar-cvc/test/dedup.test.js
-git commit -m "feat(cvc): dedup.js clusterKey (content + cluster-anchor SHA-256)"
+git add clinvar-cvc/migration/source.sql clinvar-cvc/migration/native-to-v4.js clinvar-cvc/test/migration.test.js
+git commit -m "feat(migration): compute + carry annotation_id (UNIX_MILLIS) on migrated v4 docs"
 ```
 
-### Task 2.3: `clusterAnnotations` — 15-minute gap sessionization
+### Task 2.3: Expose `annotation_id` in the flattened BQ view
 
 **Files:**
-- Modify: `clinvar-cvc/dedup.js`
-- Test: `clinvar-cvc/test/dedup.test.js`
+- Modify: `clinvar-cvc/bigquery/annotations_view.sql`
 
-- [ ] **Step 1: Write the failing tests (boundaries + chaining + content isolation)**
+- [ ] **Step 1: Add the field to the view**
 
-```js
-const { clusterAnnotations } = require('../dedup.js');   // same createRequire header as above
-const mk = (over) => ({ variation_id: '1', vcv: 'VCV1', scv: 'SCV1', submitter: 'S', submitter_id: '9',
-  interp: 'Pathogenic', review_status: 'criteria', action: 'Flagging Candidate', reason: 'r',
-  notes: 'n', user_email: 'a@b.org', ...over });
-const at = (min) => new Date(Date.UTC(2020,0,1,0,min,0)).toISOString();
-
-test('<=15 min apart collapse to one cluster (earliest anchor)', () => {
-  const rows = clusterAnnotations([mk({created_at: at(0)}), mk({created_at: at(15)})]);
-  const anchors = new Set(rows.map(r => r.clusterAnchorMillis));
-  expect(anchors.size).toBe(1);
-  expect([...anchors][0]).toBe(Date.parse(at(0)));
-});
-test('>15 min apart split into two clusters', () => {
-  const rows = clusterAnnotations([mk({created_at: at(0)}), mk({created_at: at(16)})]);
-  expect(new Set(rows.map(r => r.clusterAnchorMillis)).size).toBe(2);
-});
-test('chained <=15 min gaps stay one cluster even if span > 15 min', () => {
-  const rows = clusterAnnotations([mk({created_at: at(0)}), mk({created_at: at(15)}), mk({created_at: at(30)})]);
-  expect(new Set(rows.map(r => r.clusterAnchorMillis)).size).toBe(1);
-});
-test('different content never shares a cluster', () => {
-  const rows = clusterAnnotations([mk({created_at: at(0)}), mk({scv: 'SCV2', created_at: at(1)})]);
-  expect(new Set(rows.map(r => r.clusterAnchorMillis)).size).toBe(2);
-});
+Following the same extraction pattern the view already uses for the other string fields (e.g. `scv`, `user_email`), add an `annotation_id` column, with a fallback so any pre-existing doc without the field still resolves:
+```sql
+COALESCE(<extract annotation_id string from the doc>, CAST(created_at_millis AS STRING)) AS annotation_id
 ```
+(`created_at_millis` already exists in the view — it equals `UNIX_MILLIS(created_at)`, so the fallback is exact.)
 
-- [ ] **Step 2: Run to verify they fail**
+- [ ] **Step 2: Apply the view to dev capture and confirm the column**
 
-Run: `cd clinvar-cvc && npx vitest run dedup.test.js -t cluster`
-Expected: FAIL — `clusterAnnotations` not defined.
-
-- [ ] **Step 3: Implement `clusterAnnotations`**
-
-`canonicalContent` is already imported at the top of `dedup.js` (Task 2.2) — do NOT re-declare it. Add `WINDOW_MS` + `clusterAnnotations`, then replace the single `module.exports` line and add a `window.*` dual-mode block (matching sibling modules):
-```js
-const WINDOW_MS = 15 * 60 * 1000;
-
-function clusterAnnotations(rows, windowMs = WINDOW_MS) {
-  const ms = (v) => new Date(v).getTime();          // accepts ISO string or Date
-  const byContent = new Map();
-  for (const r of rows) {
-    const k = canonicalContent(r);
-    if (!byContent.has(k)) byContent.set(k, []);
-    byContent.get(k).push(r);
-  }
-  const out = [];
-  for (const group of byContent.values()) {
-    group.sort((a, b) => ms(a.created_at) - ms(b.created_at));
-    let anchor = null, prev = null;
-    for (const r of group) {
-      const t = ms(r.created_at);
-      if (prev === null || t - prev > windowMs) anchor = t;   // new cluster (>900_000 ms == SQL SECOND>900)
-      out.push({ ...r, clusterAnchorMillis: anchor });
-      prev = t;
-    }
-  }
-  return out;
-}
-
-module.exports = { clusterKey, clusterAnnotations, WINDOW_MS };
-if (typeof window !== 'undefined') { window.clusterKey = clusterKey; window.clusterAnnotations = clusterAnnotations; window.WINDOW_MS = WINDOW_MS; }
+Run (substitute the project; this recreates the view — safe, it's `CREATE OR REPLACE VIEW`):
+```bash
+sed 's/@@PROJECT@@/clingen-cvc/g' clinvar-cvc/bigquery/annotations_view.sql 2>/dev/null || cat clinvar-cvc/bigquery/annotations_view.sql
 ```
+Then verify against prod-staging (read-only) that the new view exposes `annotation_id` after Chunk 3's reload. For NOW, just dry-run-validate the SQL parses:
+```bash
+bq --project_id=clingen-cvc --location=us-central1 query --use_legacy_sql=false --dry_run --format=none < clinvar-cvc/bigquery/annotations_view.sql && echo "DRY-RUN OK"
+```
+Expected: `DRY-RUN OK`. (Actual recreation happens in Chunk 3 after the reload, so post-reload docs carry the field.)
 
-- [ ] **Step 4: Run to verify all dedup tests pass**
-
-Run: `cd clinvar-cvc && npx vitest run dedup.test.js`
-Expected: PASS — all cluster + clusterKey tests green.
-
-- [ ] **Step 5: Commit**
+- [ ] **Step 3: Commit**
 
 ```bash
-git add clinvar-cvc/dedup.js clinvar-cvc/test/dedup.test.js
-git commit -m "feat(cvc): clusterAnnotations 15-min gap sessionization (earliest anchor)"
+git add clinvar-cvc/bigquery/annotations_view.sql
+git commit -m "feat(cvc): expose annotation_id in the flattened BQ annotations view (COALESCE fallback)"
 ```
 
 ---
 
-## Chunk 3: Migration correction + gated re-migration + audit log
+## Chunk 3: Re-migration (no dedup) + restored-records audit
 
-Repoints the migration at the shared dedup module, produces the dropped/impacted audit log (spec §6.5), then executes the gated clean-slate re-migration of prod-staging v4 (spec §6.3). The re-migration is **irreversible** and touches capture, so it is fenced behind an enumeration + explicit user confirmation (spec §10).
+Loads ALL historical records — no content-hash dedup — keyed by their unique `annotation_id`. Verified premise: 31,362 legacy rows → 31,362 distinct `annotation_id`, 0 collisions (spec §6). The re-migration is **irreversible** and touches capture, so it stays fenced behind an enumeration + explicit user confirmation.
 
-### Task 3.1: Repoint `migrate.js` dedup at `clusterAnnotations`
-
-Currently `loadUniqueDocs` dedups by content-only `annotationDocId` and keeps the first-seen row. Change it to: cluster rows (15-min), keep the **earliest** row per cluster with `created_at` set to the cluster anchor, and use `clusterKey` as the Firestore doc id.
+### Task 3.1: Repoint `migrate.js` to key by `annotation_id`, no dedup
 
 **Files:**
 - Modify: `clinvar-cvc/migration/migrate.js`
-- Test: `clinvar-cvc/test/migration.test.js` (existing; under the `test/` include glob)
+- Test: `clinvar-cvc/test/migration.test.js`
 
 - [ ] **Step 1: Write the failing test**
 
-Add to `clinvar-cvc/test/migration.test.js` (reuse its existing `createRequire` header):
 ```js
-const { loadUniqueDocsFromRows } = require('../migration/migrate.js');   // new pure helper (rows in, docs out)
-
+const { loadDocsFromRows } = require('../migration/migrate.js');  // new pure helper (rows -> {id,doc}[])
 const row = (over) => ({ variation_id:'1', vcv_id:'VCV1', variation_name:'X', scv_id:'SCV1',
   submitter_name:'S', submitter_id:'9', interpretation:'Pathogenic', review_status:'criteria',
-  action:'Flagging Candidate', reason:'r', notes:'n', curator_email:'a@b.org', ...over });
-const at = (m) => new Date(Date.UTC(2020,0,1,0,m,0)).toISOString();
+  action:'Flagging Candidate', reason:'r', notes:'n', curator_email:'a@b.org',
+  annotation_date:'2020-01-01T00:00:05Z', annotation_id:'1577836805000', ...over });
 
-test('<=15 min twins collapse to ONE doc anchored at earliest; >15 min stay two', async () => {
-  const near = await loadUniqueDocsFromRows([row({annotation_date: at(0)}), row({annotation_date: at(10)})]);
-  expect(near.length).toBe(1);
-  expect(near[0].doc.created_at).toBe(at(0));
-  const far = await loadUniqueDocsFromRows([row({annotation_date: at(0)}), row({annotation_date: at(30)})]);
-  expect(far.length).toBe(2);
+test('loadDocsFromRows keys by annotation_id and drops NOTHING (content-identical, distinct timestamps both kept)', () => {
+  const out = loadDocsFromRows([
+    row({ annotation_id:'1577836805000' }),
+    row({ annotation_id:'1577836999000' })   // same content, different timestamp
+  ]);
+  expect(out.length).toBe(2);
+  expect(out.map(o => o.id).sort()).toEqual(['1577836805000','1577836999000']);
 });
 ```
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `cd clinvar-cvc && npx vitest run migration.test.js -t twins`
-Expected: FAIL — `loadUniqueDocsFromRows` not exported.
+Run: `cd clinvar-cvc && npx vitest run migration.test.js -t 'keys by annotation_id'`
+Expected: FAIL — `loadDocsFromRows` not exported.
 
-- [ ] **Step 3: Implement the pure helper + rewire `loadUniqueDocs`**
+- [ ] **Step 3: Implement**
 
-In `migrate.js`, add a pure helper that takes native rows and returns `{ id, doc }[]`:
+Replace the content-hash dedup in `migrate.js` with a straight map keyed by `annotation_id`:
 ```js
-const { clusterAnnotations, clusterKey } = require('../dedup.js');
 const { nativeRowToV4Doc } = require('./native-to-v4.js');
-
-async function loadUniqueDocsFromRows(rows) {
-  // map native -> v4 doc, carry created_at (= annotation_date) for clustering
-  const docs = rows.map(nativeRowToV4Doc);
-  const clustered = clusterAnnotations(docs);           // adds clusterAnchorMillis
-  const byId = new Map();                               // one doc per (content, cluster)
-  for (const d of clustered) {
-    const anchorIso = new Date(d.clusterAnchorMillis).toISOString();
-    const doc = { ...d, created_at: anchorIso };        // survivor anchored at earliest
-    delete doc.clusterAnchorMillis;
-    const id = await clusterKey(doc, d.clusterAnchorMillis);
-    if (!byId.has(id)) byId.set(id, { id, doc });       // earliest wins (sorted asc)
-  }
-  return [...byId.values()];
+function loadDocsFromRows(rows) {
+  return rows.map(r => { const doc = nativeRowToV4Doc(r); return { id: doc.annotation_id, doc }; });
 }
 ```
-Rewire the existing `loadUniqueDocs(sourcePath)` to `JSON.parse` the file, call `loadUniqueDocsFromRows`, and **return the summary shape `run()` destructures** — `{ totalRows, uniqueDocs, intraSourceDups }`, where `uniqueDocs = await loadUniqueDocsFromRows(rows)` and `intraSourceDups = totalRows - uniqueDocs.length` (the dry-run banner prints `uniqueDocs.length`). Export `loadUniqueDocsFromRows`.
-
-> **Note on `annotation_date` precision:** `source.sql` formats to whole seconds (`%Y-%m-%dT%H:%M:%SZ`), so every gap is a whole-second multiple and the JS `> 900_000 ms` split agrees **exactly** with the SQL `SECOND > 900`. (`new Date(ms).toISOString()` always emits `…000Z`, i.e. ms precision, but the `UNIX_MILLIS` *value* is identical to the crosswalk's at whole-second anchors.) Keep `source.sql` as-is.
+Rewire `loadUniqueDocs(sourcePath)` to `JSON.parse` the file and return `{ totalRows, uniqueDocs, intraSourceDups }` where `uniqueDocs = loadDocsFromRows(rows)` and `intraSourceDups = 0` (there is no dedup; if you want a guard, assert `new Set(uniqueDocs.map(d => d.id)).size === uniqueDocs.length` and throw on any `annotation_id` collision). Remove the `annotationDocId` import if now unused. Export `loadDocsFromRows`.
 
 - [ ] **Step 4: Run to verify pass**
 
 Run: `cd clinvar-cvc && npm test`
-Expected: PASS — new twins test green; existing migration tests still pass (adjust any that asserted content-only ids to the new `clusterKey` where they exercised true ≤15-min dupes).
+Expected: PASS — new case green; existing migration tests updated to the `annotation_id` doc-id where they asserted the old content-hash id.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add clinvar-cvc/migration/migrate.js clinvar-cvc/test/migration.test.js
-git commit -m "feat(migration): 15-min-windowed dedup via shared dedup.js (earliest-anchored survivor)"
+git commit -m "feat(migration): load ALL historical records keyed by annotation_id (no dedup)"
 ```
 
-### Task 3.2: Build the dropped/impacted audit log (SQL)
+### Task 3.2: Build the restored-records audit (SQL)
 
 **Files:**
-- Create: `bigquery/curator/audit/dropped-impacted-audit.sql`
+- Create: `bigquery/curator/audit/restored-records-audit.sql`
 
 - [ ] **Step 1: Write the audit query**
 
-It reproduces the 15-min clustering over legacy native, computes each row's `canonical_annotation_id = UNIX_MILLIS(earliest created_at in cluster)`, flags rows where `annotation_id != canonical_annotation_id` (collapsed/remapped), LEFT JOINs `cvc_clinvar_reviews`/`cvc_clinvar_submissions` (with their `batch_id`) to list impacted downstream records, and orders `flagging candidate` and `remove flagged submission` first. Persist to `clinvar_curator.cvc_dropped_impacted_audit` (a NEW table — allowed name, does not touch legacy objects). Full SQL:
-
+Lists the records the OLD content-hash dedup would have dropped (content-identical, distinct timestamps) — now all loaded — joined to any downstream review/submission they reference, action-segmented (`flagging candidate`/`remove flagged submission` first). Persist to a NEW table `clinvar_curator.cvc_restored_records_audit`:
 ```sql
-CREATE OR REPLACE TABLE `clingen-dev.clinvar_curator.cvc_dropped_impacted_audit` AS
+CREATE OR REPLACE TABLE `clingen-dev.clinvar_curator.cvc_restored_records_audit` AS
 WITH base AS (
   SELECT
     TO_JSON_STRING([
@@ -524,67 +446,51 @@ WITH base AS (
       COALESCE(CAST(curator_email AS STRING),'')
     ]) AS content_key,
     LOWER(action) AS action, scv_id, curator_email,
-    CAST(annotation_date AS TIMESTAMP) AS ts,
+    CAST(annotation_date AS TIMESTAMP) AS annotated_on,
     CAST(UNIX_MILLIS(CAST(annotation_date AS TIMESTAMP)) AS STRING) AS annotation_id
   FROM `clingen-dev.clinvar_curator.clinvar_annotations_native`
   WHERE `ignore` IS NOT TRUE
 ),
-gapped AS (
-  SELECT *, TIMESTAMP_DIFF(ts, LAG(ts) OVER (PARTITION BY content_key ORDER BY ts), SECOND) AS gap_s
-  FROM base
-),
-clustered AS (
-  SELECT *, COUNTIF(gap_s IS NULL OR gap_s > 900)
-              OVER (PARTITION BY content_key ORDER BY ts) AS cluster_id
-  FROM gapped
-),
-anchored AS (
-  SELECT *, CAST(UNIX_MILLIS(MIN(ts) OVER (PARTITION BY content_key, cluster_id)) AS STRING) AS canonical_annotation_id
-  FROM clustered
+dup_content AS (   -- content keys with >1 row = would have been collapsed by content-hash dedup
+  SELECT content_key FROM base GROUP BY content_key HAVING COUNT(*) > 1
 )
 SELECT
-  a.annotation_id, a.canonical_annotation_id,
-  (a.annotation_id != a.canonical_annotation_id) AS was_remapped,
-  a.action, a.scv_id, a.curator_email, a.ts AS annotated_on,
+  b.annotation_id, b.action, b.scv_id, b.curator_email, b.annotated_on,
   r.batch_id AS impacted_review_batch_id,
   s.batch_id AS impacted_submission_batch_id
-FROM anchored a
-LEFT JOIN `clingen-dev.clinvar_curator.cvc_clinvar_reviews`     r ON r.annotation_id = a.annotation_id
-LEFT JOIN `clingen-dev.clinvar_curator.cvc_clinvar_submissions` s ON s.annotation_id = a.annotation_id
-WHERE a.annotation_id != a.canonical_annotation_id            -- only collapsed/remapped rows
-   OR r.annotation_id IS NOT NULL OR s.annotation_id IS NOT NULL
+FROM base b
+JOIN dup_content d USING (content_key)
+LEFT JOIN `clingen-dev.clinvar_curator.cvc_clinvar_reviews`     r ON r.annotation_id = b.annotation_id
+LEFT JOIN `clingen-dev.clinvar_curator.cvc_clinvar_submissions` s ON s.annotation_id = b.annotation_id
 ORDER BY
-  CASE a.action WHEN 'flagging candidate' THEN 0 WHEN 'remove flagged submission' THEN 1 ELSE 2 END,
-  a.scv_id, a.ts;
+  CASE b.action WHEN 'flagging candidate' THEN 0 WHEN 'remove flagged submission' THEN 1 ELSE 2 END,
+  b.scv_id, b.annotated_on;
 ```
 
-- [ ] **Step 2: Run it and sanity-check the counts against the spec**
+- [ ] **Step 2: Run it and record the summary**
 
 Run:
 ```bash
-bq --project_id="$CURATOR_PROJECT" --location=US query --use_legacy_sql=false --format=none < bigquery/curator/audit/dropped-impacted-audit.sql
+bq --project_id="$CURATOR_PROJECT" --location=US query --use_legacy_sql=false --format=none < bigquery/curator/audit/restored-records-audit.sql
 bq --project_id="$CURATOR_PROJECT" --location=US query --use_legacy_sql=false --format=pretty \
-'SELECT action, COUNTIF(was_remapped) AS remapped, COUNTIF(impacted_submission_batch_id IS NOT NULL) AS impacted_submissions
- FROM `clingen-dev.clinvar_curator.cvc_dropped_impacted_audit` GROUP BY action ORDER BY action'
+'SELECT action, COUNT(*) AS restored_rows, COUNTIF(impacted_submission_batch_id IS NOT NULL) AS impacted_submissions
+ FROM `clingen-dev.clinvar_curator.cvc_restored_records_audit` GROUP BY action ORDER BY action'
 ```
-Expected: `flagging candidate` shows the impacted submissions including the **11 cross-batch** cases; totals reconcile with spec §6.1 (**≈267** remapped ≤15-min collapses across actions: no change 208, flagging candidate 56, remove flagged 3). Record the output for the parity report. (`cvc_clinvar_batches` has no `annotation_id` — it's keyed by `batch_id` — so batch-level impact is surfaced via the `batch_id` on the joined review/submission rows, not a separate join.)
+Expected: ~578 restored rows total (the records the old content-hash dedup dropped), `flagging candidate` showing the submission-impacting cases. Record for the parity report. (`cvc_clinvar_batches` has no `annotation_id`; batch impact is surfaced via the joined review/submission `batch_id`.)
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add bigquery/curator/audit/dropped-impacted-audit.sql
-git commit -m "feat(curator): dropped/impacted dedup audit log (flag/remove first)"
+git add bigquery/curator/audit/restored-records-audit.sql
+git commit -m "feat(curator): restored-records audit (previously content-dedup-dropped, now loaded)"
 ```
 
 ### Task 3.3: Enumerate post-seed v4-only captures (pre-wipe gate)
 
-Before wiping v4, list any annotations that exist **only** in v4 (not derivable from legacy native) so they are not silently lost (spec §10 risk). This is a hard gate: do not proceed to 3.4 until the user confirms.
+**Files:** none (operational)
 
-**Files:** none (operational query)
+- [ ] **Step 1: Export current v4 + legacy native as JSON**
 
-- [ ] **Step 1: Export the current v4 population and legacy native as JSON**
-
-The two datasets are in different locations, so compare **locally** (no cross-location join). Run:
 ```bash
 bq --project_id="$CVC_PROD" --location=us-central1 query --use_legacy_sql=false --format=json --max_rows=100000 \
 'SELECT variation_id, vcv, scv, submitter, submitter_id, interp, review_status, action, reason, notes, user_email, created_at
@@ -594,22 +500,25 @@ bq --project_id="$CURATOR_PROJECT" --location=US query --use_legacy_sql=false --
  FROM `clingen-dev.clinvar_curator.clinvar_annotations_native` WHERE `ignore` IS NOT TRUE' > /tmp/legacy-native.json
 ```
 
-- [ ] **Step 2: Report v4-only content (reusing the shared `canonicalContent`, DRY)**
+- [ ] **Step 2: Report v4-only content (reusing `annotationDocId` for a stable content key)**
 
-Run (maps legacy rows through `nativeRowToV4Doc` so both sides build the identical 11-field key):
 ```bash
 cd clinvar-cvc && node -e '
 const fs=require("node:fs");
-const {canonicalContent}=require("./annotation.js");
+const {annotationDocId}=require("./annotation.js");
 const {nativeRowToV4Doc}=require("./migration/native-to-v4.js");
-const v4=JSON.parse(fs.readFileSync("/tmp/v4-current.json","utf8"));
-const legacyKeys=new Set(JSON.parse(fs.readFileSync("/tmp/legacy-native.json","utf8")).map(r=>canonicalContent(nativeRowToV4Doc(r))));
-const only=v4.filter(r=>!legacyKeys.has(canonicalContent(r)));
-console.log("v4-only content rows (absent from sheet-derived legacy native):",only.length);
-console.log(JSON.stringify(only.slice(0,10),null,2));
+(async () => {
+  const v4=JSON.parse(fs.readFileSync("/tmp/v4-current.json","utf8"));
+  const legacy=JSON.parse(fs.readFileSync("/tmp/legacy-native.json","utf8")).map(nativeRowToV4Doc);
+  const legacyKeys=new Set(await Promise.all(legacy.map(annotationDocId)));
+  const v4keys=await Promise.all(v4.map(annotationDocId));
+  const only=v4.filter((_,i)=>!legacyKeys.has(v4keys[i]));
+  console.log("v4-only content rows (absent from sheet-derived legacy native):",only.length);
+  console.log(JSON.stringify(only.slice(0,10),null,2));
+})();
 '; cd -
 ```
-Expected: a count + up to 10 samples. (Content-key match is time-agnostic, so a *time-distinct* v4 capture of content that also exists in the sheet is NOT flagged — the reload recreates that content; only genuinely sheet-absent content is at risk.)
+Expected: a count + samples. (Content-key match is timestamp-agnostic; a time-distinct v4 capture of content also in the sheet is not flagged — the reload recreates it. Only sheet-absent content is at risk.)
 
 - [ ] **Step 2b: STOP — surface to the user (hard gate)**
 
@@ -617,78 +526,73 @@ Report: "N v4-only annotations found (not in the sheet). The clean-slate reload 
 
 ### Task 3.4: Execute the gated clean-slate re-migration
 
-**Files:** none (operational; uses existing `migration/` tooling + the `cvc-provision` skill for IAM)
+**Files:** none (operational; existing `migration/` tooling + `cvc-provision` skill for IAM)
 
 > **GATE:** proceed only if the user answered "proceed" at Task 3.3 Step 2b. This wipes and reloads prod-staging v4 and is irreversible.
-> **Auth:** every `migrate.js`/`wipe-collection.js` call needs `export GCP_TOKEN=$(gcloud auth print-access-token)` and an explicit `--project clingen-cvc` (their defaults target *dev* / require `--project`). Input is `--source <file>` (they read a file, not stdin).
+> **Auth:** every `migrate.js`/`wipe-collection.js` call needs `export GCP_TOKEN=$(gcloud auth print-access-token)` and an explicit `--project clingen-cvc`. Input is `--source <file>`.
 
-- [ ] **Step 1: Verify `run.invoker` BEFORE any load (the documented gotcha)**
+- [ ] **Step 1: Verify `run.invoker` BEFORE any load**
 
-Follow the `cvc-provision` skill §C check: confirm the compute SA and `ext-firestore-bigquery-export@clingen-cvc.iam` have `roles/run.invoker` on the us-central1 Cloud Run service. If not, grant it and wait. (A bulk load during a broken binding permanently drops events.)
+Follow the `cvc-provision` skill §C check: confirm the compute SA and `ext-firestore-bigquery-export@clingen-cvc.iam` have `roles/run.invoker` on the us-central1 Cloud Run service; grant + wait if missing. (A bulk load during a broken binding permanently drops events.)
 
-- [ ] **Step 2: Regenerate the migration source extract**
+- [ ] **Step 2: Regenerate the migration source extract (now includes annotation_id)**
 
-Run:
 ```bash
 bq --project_id="$CURATOR_PROJECT" --location=US query --use_legacy_sql=false --format=json --max_rows=100000 \
   "$(cat clinvar-cvc/migration/source.sql)" > /tmp/cvc-history.json
 ```
-Expected: JSON array of ~31k native rows.
+Expected: ~31,362 rows, each with an `annotation_id`.
 
-- [ ] **Step 3: Dry-run the migration to preview corrected doc count**
+- [ ] **Step 3: Dry-run the migration (expect the FULL population)**
 
-Run:
 ```bash
 export GCP_TOKEN=$(gcloud auth print-access-token)
 cd clinvar-cvc && node migration/migrate.js --dry-run --source /tmp/cvc-history.json --project clingen-cvc | tail -20; cd -
 ```
-Expected: reports ~31,095 unique docs (the corrected population = legacy rows − 267 ≤15-min collapses), NOT 30,784. If it still says ~30,784, the dedup wiring (Task 3.1) is wrong — stop.
+Expected: ~31,362 unique docs (ALL records — NOT 30,784). If it reports ~30,784, the dedup wasn't removed (Task 3.1) — stop.
 
-- [ ] **Step 4: Clean-slate wipe (paced)**
+- [ ] **Step 4: Recreate the flattened view with the annotation_id column (from Chunk 2.3)**
 
-Run:
+```bash
+bq --project_id="$CVC_PROD" --location=us-central1 query --use_legacy_sql=false --format=none < clinvar-cvc/bigquery/annotations_view.sql
+```
+
+- [ ] **Step 5: Clean-slate wipe (paced)**
+
 ```bash
 export GCP_TOKEN=$(gcloud auth print-access-token)
 cd clinvar-cvc && node migration/wipe-collection.js --project clingen-cvc --confirm --delay-ms 2000; cd -
 ```
-Expected: paginated paced delete completes; Firestore aggregate count → 0.
+Expected: Firestore aggregate count → 0.
 
-- [ ] **Step 5: Paced reload**
+- [ ] **Step 6: Paced reload**
 
-Run:
 ```bash
 export GCP_TOKEN=$(gcloud auth print-access-token)
 cd clinvar-cvc && node migration/migrate.js --source /tmp/cvc-history.json --project clingen-cvc --delay-ms 3000; cd -
 ```
-Expected: ~31,095 create-only writes, 0 errors.
+Expected: ~31,362 create-only writes, 0 errors.
 
-- [ ] **Step 6: Reconcile Firestore vs BigQuery**
+- [ ] **Step 7: Reconcile Firestore vs BigQuery + confirm annotation_id present**
 
-Run (Firestore aggregate count via the migration tooling's reconcile path, and the BQ view count):
 ```bash
 bq --project_id="$CVC_PROD" --location=us-central1 query --use_legacy_sql=false --format=pretty \
-'SELECT COUNT(*) AS bq_rows FROM `clingen-cvc.clinvar_cvc_ext.annotations`'
+'SELECT COUNT(*) AS bq_rows, COUNTIF(annotation_id IS NULL) AS missing_annotation_id
+ FROM `clingen-cvc.clinvar_cvc_ext.annotations`'
 ```
-Expected: `bq_rows` == the reloaded count (~31,095), matching Firestore. If BQ < Firestore, a streaming burst-drop occurred — re-check `run.invoker` and re-run the clean-slate (spec/`cvc-provision` §C).
+Expected: `bq_rows` ≈ 31,362 (== Firestore), `missing_annotation_id` = 0. If BQ < Firestore, a streaming burst-drop occurred — re-check `run.invoker`, re-run clean-slate.
 
-- [ ] **Step 7: Record the reconciliation in the parity report**
+- [ ] **Step 8: Record the reconciliation**
 
-Append the counts (legacy rows, corrected docs ≈31,095, ≈267 collapsed, ≈287 restored, Firestore==BQ) to `docs/superpowers/plans/2026-08-03-phase0-parity-report.md`.
-
-- [ ] **Step 8: Commit any tooling/doc changes**
-
-```bash
-git add clinvar-cvc/migration docs/superpowers/plans/2026-08-03-phase0-parity-report.md
-git commit -m "chore(migration): re-migration executed (15-min dedup) + reconciliation recorded"
-```
+Append counts (legacy rows 31,362, loaded docs ≈31,362, 578 restored, 0 dropped, Firestore==BQ, annotation_id present) to `docs/superpowers/plans/2026-08-03-phase0-parity-report.md`. Commit tooling/doc changes.
 
 ---
 
 ## Chunk 4: The adapter (v4 capture → US native contract table)
 
-Lands the corrected v4 capture into a `US` native table carrying the choke-point contract, plus the cluster-anchor crosswalk (spec §5, §6.4).
+Lands the full v4 capture into a `US` native table carrying the choke-point contract **with `annotation_id` passed through** (spec §5). No crosswalk — every staging id resolves directly.
 
-> **Copy-mechanism decision (spec §5.1 left this to the plan):** use a **full snapshot of the flattened `annotations` view per run**, at **on-demand + daily** cadence — not a 15-min cadence. Rationale: the flattened data is <60 MB / ~31k rows, so a full cross-region copy is pennies at low cadence and satisfies the spec's cost intent (which targeted the 15-min-cadence cost), while keeping the flatten logic in the **single** existing `annotations` view (no re-implementation, no watermark-correctness risk). If cadence ever rises, switch to an incremental changelog mirror; the reshape output is identical.
+> **Copy mechanism:** full snapshot of the flattened `annotations` view per run (on-demand + daily), not a 15-min cadence — the data is <60 MB, so a full cross-region copy is pennies and keeps the flatten logic in the single existing view.
 
 ### Task 4.1: Cross-region snapshot + load script
 
@@ -699,28 +603,23 @@ Lands the corrected v4 capture into a `US` native table carrying the choke-point
 
 ```bash
 #!/usr/bin/env bash
-# Snapshot flattened v4 capture (us-central1) -> US raw table in clinvar_curator, then reshape.
 set -euo pipefail
-: "${CVC_PROD:=clingen-cvc}"; : "${CURATOR_PROJECT:=clingen-dev}"; : "${GCS_BUCKET:?set GCS_BUCKET}"
+: "${CVC_PROD:=clingen-cvc}"; : "${CURATOR_PROJECT:=clingen-dev}"; : "${GCS_BUCKET:?set GCS_BUCKET (us-central1)}"
+cd "$(git rev-parse --show-toplevel)"
 SNAP="${CVC_PROD}:clinvar_cvc_ext._native_v4_snapshot"
 RAW="${CURATOR_PROJECT}:clinvar_curator._annotations_v4_raw"
-# 1) materialize the flattened view to a real us-central1 table (bq extract can't read a view)
-bq --project_id="$CVC_PROD" --location=us-central1 query --use_legacy_sql=false \
-   --destination_table="$SNAP" --replace \
+bq --project_id="$CVC_PROD" --location=us-central1 query --use_legacy_sql=false --destination_table="$SNAP" --replace \
   'SELECT * FROM `clingen-cvc.clinvar_cvc_ext.annotations`'
-# 2) extract to GCS (us-central1)
 bq --project_id="$CVC_PROD" --location=us-central1 extract --destination_format=NEWLINE_DELIMITED_JSON \
-   "$SNAP" "${GCS_BUCKET}/native_v4/*.json"
-# 3) load into US raw table (truncate — full snapshot)
+  "$SNAP" "${GCS_BUCKET}/native_v4/*.json"
 bq --project_id="$CURATOR_PROJECT" --location=US load --replace --source_format=NEWLINE_DELIMITED_JSON \
-   --autodetect "$RAW" "${GCS_BUCKET}/native_v4/*.json"
-# 4) reshape raw -> contract native table
+  --autodetect "$RAW" "${GCS_BUCKET}/native_v4/*.json"
 bq --project_id="$CURATOR_PROJECT" --location=US query --use_legacy_sql=false --format=none \
-   < bigquery/curator/adapter/native_v4_reshape.sql
+  < bigquery/curator/adapter/native_v4_reshape.sql
 echo "native_v4 refreshed."
 ```
 
-- [ ] **Step 2: `chmod +x` (do not run yet — needs 4.2's reshape SQL)**
+- [ ] **Step 2: `chmod +x` (run after 4.2 exists)**
 
 Run: `chmod +x bigquery/curator/adapter/refresh-native-v4.sh`
 
@@ -731,26 +630,26 @@ git add bigquery/curator/adapter/refresh-native-v4.sh
 git commit -m "feat(adapter): cross-region snapshot+load script for native_v4"
 ```
 
-### Task 4.2: Reshape raw → contract native table
+### Task 4.2: Reshape raw → contract native table (annotation_id passthrough)
 
 **Files:**
 - Create: `bigquery/curator/adapter/native_v4_reshape.sql`
 
 - [ ] **Step 1: Write the reshape SQL**
 
-Maps the flattened v4 columns → the §3.2 contract (renames + passthroughs), sets `ignore = FALSE`, and computes `annotation_id`. The flattened `annotations` view already exposes `variation_id, vcv, name, scv, submitter, submitter_id, interp, review_status, action, reason, notes, user_email, created_at, created_at_millis`.
-
+Maps the flattened v4 columns → the choke-point contract (renames + passthroughs), sets `ignore = FALSE`, and **passes `annotation_id` through** (COALESCE fallback), keeping `annotation_date` too:
 ```sql
 CREATE OR REPLACE TABLE `clingen-dev.clinvar_curator.cvc_annotations_native_v4` AS
 SELECT
+  COALESCE(annotation_id, CAST(created_at_millis AS STRING)) AS annotation_id,
   CAST(created_at AS TIMESTAMP) AS annotation_date,
   vcv           AS vcv_id,
   scv           AS scv_id,
   variation_id  AS variation_id,
   submitter_id  AS submitter_id,
-  action        AS action,           -- base_mv lowercases
+  action        AS action,
   user_email    AS curator_email,
-  interp        AS interpretation,   -- required by base_mv's scv_clinsig_map join
+  interp        AS interpretation,
   reason        AS reason,
   notes         AS notes,
   review_status AS review_status,
@@ -758,232 +657,155 @@ SELECT
 FROM `clingen-dev.clinvar_curator._annotations_v4_raw`;
 ```
 
-- [ ] **Step 2: Run the full adapter and verify the contract**
+- [ ] **Step 2: Run the full adapter and verify**
 
-Run:
 ```bash
 ./bigquery/curator/adapter/refresh-native-v4.sh
 bq --project_id="$CURATOR_PROJECT" --location=US query --use_legacy_sql=false --format=pretty \
-'SELECT COUNT(*) rows,
-        COUNT(DISTINCT CAST(UNIX_MILLIS(annotation_date) AS STRING)) distinct_ids
+'SELECT COUNT(*) rows, COUNT(DISTINCT annotation_id) distinct_ids, COUNTIF(annotation_id IS NULL) null_ids
  FROM `clingen-dev.clinvar_curator.cvc_annotations_native_v4`'
 ```
-Expected: `rows` ≈ corrected population (~31,095). `distinct_ids` should be **very close to** `rows` but need NOT equal it: two *distinct-content* clusters whose anchors fall in the same whole second collide on `annotation_id = UNIX_MILLIS(annotation_date)`. Spec §7.2 item 3 anticipates exactly this (`UNIX_MILLIS == canonical ≈100%`; widen the crosswalk only if materially below ~100%). Column names match `clinvar_annotations_native`.
+Expected: `rows` ≈ 31,362; `distinct_ids` == `rows` (all unique); `null_ids` = 0.
 
-- [ ] **Step 3: Verify schema parity with the legacy source**
+- [ ] **Step 3: Confirm annotation_id matches the legacy-computed id (sample)**
 
-Run:
 ```bash
-diff <(bq show --schema --format=prettyjson "$CURATOR_PROJECT:clinvar_curator.clinvar_annotations_native" | jq -S 'map({name,type})') \
-     <(bq show --schema --format=prettyjson "$CURATOR_PROJECT:clinvar_curator.cvc_annotations_native_v4" | jq -S 'map({name,type})') \
-  && echo "SCHEMA MATCH" || echo "REVIEW DIFF (extra legacy columns like override_* are OK)"
+bq --project_id="$CURATOR_PROJECT" --location=US query --use_legacy_sql=false --format=pretty \
+'SELECT COUNT(*) AS mismatches
+ FROM `clingen-dev.clinvar_curator.cvc_annotations_native_v4` n
+ WHERE n.annotation_id != CAST(UNIX_MILLIS(n.annotation_date) AS STRING)'
 ```
-Expected: the 12 contract columns match on name+type (legacy may carry extra unused columns — that's fine; base_mv only reads the contract subset).
+Expected: 0 (the stored id equals `UNIX_MILLIS(annotation_date)` — proves stored == legacy-computed).
 
 - [ ] **Step 4: Commit**
 
 ```bash
 git add bigquery/curator/adapter/native_v4_reshape.sql
-git commit -m "feat(adapter): native_v4 reshape to choke-point contract"
-```
-
-### Task 4.3: Build the cluster-anchor crosswalk
-
-**Files:**
-- Create: `bigquery/curator/adapter/cvc_annotation_id_xwalk.sql`
-
-- [ ] **Step 1: Write the crosswalk SQL**
-
-Same 15-min clustering as the audit query; canonical = `UNIX_MILLIS(earliest created_at of the cluster)`:
-```sql
-CREATE OR REPLACE TABLE `clingen-dev.clinvar_curator.cvc_annotation_id_xwalk` AS
-WITH base AS (
-  SELECT
-    TO_JSON_STRING([
-      COALESCE(CAST(variation_id AS STRING),''), COALESCE(CAST(vcv_id AS STRING),''),
-      COALESCE(CAST(scv_id AS STRING),''), COALESCE(CAST(submitter_name AS STRING),''),
-      COALESCE(CAST(submitter_id AS STRING),''), COALESCE(CAST(interpretation AS STRING),''),
-      COALESCE(CAST(review_status AS STRING),''), COALESCE(CAST(action AS STRING),''),
-      COALESCE(CAST(reason AS STRING),''), COALESCE(CAST(notes AS STRING),''),
-      COALESCE(CAST(curator_email AS STRING),'')
-    ]) AS content_key,
-    CAST(annotation_date AS TIMESTAMP) AS ts,
-    CAST(UNIX_MILLIS(CAST(annotation_date AS TIMESTAMP)) AS STRING) AS legacy_annotation_id
-  FROM `clingen-dev.clinvar_curator.clinvar_annotations_native`
-  WHERE `ignore` IS NOT TRUE
-),
-gapped AS (
-  SELECT *, TIMESTAMP_DIFF(ts, LAG(ts) OVER (PARTITION BY content_key ORDER BY ts), SECOND) AS gap_s FROM base
-),
-clustered AS (
-  SELECT *, COUNTIF(gap_s IS NULL OR gap_s > 900) OVER (PARTITION BY content_key ORDER BY ts) AS cluster_id FROM gapped
-)
-SELECT DISTINCT
-  legacy_annotation_id,
-  CAST(UNIX_MILLIS(MIN(ts) OVER (PARTITION BY content_key, cluster_id)) AS STRING) AS canonical_annotation_id
-FROM clustered;
-```
-
-- [ ] **Step 2: Run it and assert crosswalk ↔ native_v4 consistency**
-
-Run:
-```bash
-bq --project_id="$CURATOR_PROJECT" --location=US query --use_legacy_sql=false --format=none < bigquery/curator/adapter/cvc_annotation_id_xwalk.sql
-bq --project_id="$CURATOR_PROJECT" --location=US query --use_legacy_sql=false --format=pretty \
-'SELECT
-   COUNT(*) AS legacy_ids,
-   COUNTIF(legacy_annotation_id != canonical_annotation_id) AS remapped,
-   (SELECT COUNT(*) FROM `clingen-dev.clinvar_curator.cvc_annotation_id_xwalk` x
-     WHERE NOT EXISTS (SELECT 1 FROM `clingen-dev.clinvar_curator.cvc_annotations_native_v4` n
-       WHERE CAST(UNIX_MILLIS(n.annotation_date) AS STRING) = x.canonical_annotation_id)) AS canonical_without_v4_row
- FROM `clingen-dev.clinvar_curator.cvc_annotation_id_xwalk`'
-```
-Expected: `remapped` ≈ 267 (the ≤15-min collapses); `canonical_without_v4_row` = **0** (every canonical id exists in `native_v4` — proves crosswalk and re-migration agree).
-
-- [ ] **Step 3: Commit**
-
-```bash
-git add bigquery/curator/adapter/cvc_annotation_id_xwalk.sql
-git commit -m "feat(adapter): cluster-anchor annotation-id crosswalk"
+git commit -m "feat(adapter): native_v4 reshape (annotation_id passthrough, no recompute)"
 ```
 
 ---
 
 ## Chunk 5: The shadow `clinvar_curator_v4` lineage
 
-Deploys the full curator object graph into a new `clinvar_curator_v4` dataset over `native_v4`, with staging reconciled through the `_x` crosswalk views (spec §7.1). Legacy `clinvar_curator` is never touched.
+Deploys the full curator object graph into `clinvar_curator_v4` over `native_v4`, reading the stored `annotation_id` via the `@@ANNO_ID@@` token, with plain passthrough staging views (spec §7.1). Legacy `clinvar_curator` untouched.
 
-**Key structural move:** in `clinvar_curator_v4`, the objects named `cvc_clinvar_reviews/submissions/batches` and `cvc_rejected_scvs` are **views** (crosswalk-applied / shared) rather than tables, so the templated `@@DATASET@@` substitution makes `base_mv` read them automatically. This requires separating the legacy `CREATE TABLE` staging DDL out of the deployed core.
-
-### Task 5.1: Separate staging-table DDL from the deployed core
+### Task 5.1: Split staging-table DDL + add the `@@ANNO_ID@@` token
 
 **Files:**
 - Modify: `bigquery/curator/00-initialize-cvc-tables.sql`
-- Create: `bigquery/curator/staging-tables.sql` (NOT matched by `deploy.sh`'s `0*-*.sql` glob)
+- Modify: `bigquery/curator/deploy.sh`
+- Create: `bigquery/curator/staging-tables.sql`
 
-- [ ] **Step 1: Move the three `CREATE TABLE` blocks**
+- [ ] **Step 1: Move the three `CREATE TABLE` staging blocks out**
 
-Cut the `CREATE TABLE @@DATASET@@.cvc_clinvar_reviews`, `...cvc_clinvar_submissions`, `...cvc_clinvar_batches` statements from `00-initialize-cvc-tables.sql` into a new `bigquery/curator/staging-tables.sql`. What remains in `00-initialize-cvc-tables.sql` is the view/MV layer (base_mv, cvc_annotations_view, cvc_batch_scv_max_annotation_view, cvc_submitted_annotations_view, cvc_submitted_outcomes_view).
+Cut `CREATE TABLE @@DATASET@@.cvc_clinvar_reviews/submissions/batches` from `00-initialize-cvc-tables.sql` into new `bigquery/curator/staging-tables.sql` (header: legacy-only bootstrap; the v4 shadow uses passthrough VIEWS of the same names). The view/MV layer stays in `00-initialize`.
 
-- [ ] **Step 2: Add a header note to `staging-tables.sql`**
+- [ ] **Step 2: Tokenize the base_mv `annotation_id` expression**
 
-At the top: `-- Legacy-only bootstrap: the real staging tables live in clinvar_curator (created once). The v4 shadow uses crosswalk VIEWS of the same names (see staging_x_views.sql), so this file is NOT deployed to clinvar_curator_v4.`
+In `00-initialize-cvc-tables.sql`, the base_mv currently derives `CAST(UNIX_MILLIS(a.annotation_date) AS STRING) AS annotation_id`. Replace the expression with `@@ANNO_ID@@ AS annotation_id` (legacy substitutes `@@ANNO_ID@@` → `CAST(UNIX_MILLIS(a.annotation_date) AS STRING)`; shadow → `a.annotation_id`).
 
-- [ ] **Step 3: Dry-run-validate the trimmed 00 file (legacy binding)**
+- [ ] **Step 3: Add `@@ANNO_ID@@` to `deploy.sh`**
 
-Run:
+Add `: "${ANNO_ID:=CAST(UNIX_MILLIS(a.annotation_date) AS STRING)}"` (legacy default) and a fourth sed substitution `-e "s#@@ANNO_ID@@#${ANNO_ID}#g"` (use `#` delimiter — the value has parens/spaces but no `#`).
+
+- [ ] **Step 4: Dry-run-validate the trimmed 00 (legacy binding)**
+
 ```bash
 sed -e 's/@@DATASET@@/clinvar_curator/g' -e 's#@@ANNO_SOURCE@@#clinvar_curator.clinvar_annotations_native#g' \
+    -e 's/@@MV@@/MATERIALIZED /g' -e 's#@@ANNO_ID@@#CAST(UNIX_MILLIS(a.annotation_date) AS STRING)#g' \
   bigquery/curator/00-initialize-cvc-tables.sql \
   | bq --project_id="$CURATOR_PROJECT" --location=US query --use_legacy_sql=false --dry_run --format=none && echo "DRY-RUN OK"
 ```
-Expected: `DRY-RUN OK`.
+Expected: `DRY-RUN OK` (the trimmed file has no `CREATE TABLE` collision now).
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add bigquery/curator/00-initialize-cvc-tables.sql bigquery/curator/staging-tables.sql
-git commit -m "refactor(curator): split legacy staging-table DDL out of the deployed core"
+git add bigquery/curator/00-initialize-cvc-tables.sql bigquery/curator/staging-tables.sql bigquery/curator/deploy.sh
+git commit -m "refactor(curator): split staging DDL + @@ANNO_ID@@ token (shadow reads stored annotation_id)"
 ```
 
-### Task 5.2: Write the `_x` staging + shared-reference views
+### Task 5.2: Passthrough staging views for the shadow
 
 **Files:**
-- Create: `bigquery/curator/adapter/staging_x_views.sql`
+- Create: `bigquery/curator/adapter/staging_passthrough_views.sql`
 
-- [ ] **Step 1: Write the views (created in `clinvar_curator_v4`, named as the tables)**
+- [ ] **Step 1: Write the views (in `clinvar_curator_v4`, named as the tables)**
 
-Each staging view passes rows through unchanged **except** `annotation_id` is remapped via the crosswalk, then `SELECT DISTINCT` (spec §6.4 collapse-cardinality rule). `cvc_rejected_scvs` is a plain shared view.
-
-Use `<alias>.* REPLACE(...)` so columns are NOT hardcoded (the live staging tables have drifted past the `00-initialize` DDL — e.g. `cvc_clinvar_batches` has extra `batch_release_date`/`batch_end_date`/`submission` columns that `base_mv` reads). The `REPLACE` swaps only `annotation_id`; `SELECT DISTINCT` collapses ≤15-min twins that map to one anchor.
-
+No id remap is needed (all staging ids resolve directly), so these are plain passthroughs:
 ```sql
--- reviews & submissions: remap annotation_id -> canonical (cluster anchor), then DISTINCT
-CREATE OR REPLACE VIEW `clingen-dev.clinvar_curator_v4.cvc_clinvar_reviews` AS
-SELECT DISTINCT r.* REPLACE (COALESCE(x.canonical_annotation_id, r.annotation_id) AS annotation_id)
-FROM `clingen-dev.clinvar_curator.cvc_clinvar_reviews` r
-LEFT JOIN `clingen-dev.clinvar_curator.cvc_annotation_id_xwalk` x ON x.legacy_annotation_id = r.annotation_id;
-CREATE OR REPLACE VIEW `clingen-dev.clinvar_curator_v4.cvc_clinvar_submissions` AS
-SELECT DISTINCT s.* REPLACE (COALESCE(x.canonical_annotation_id, s.annotation_id) AS annotation_id)
-FROM `clingen-dev.clinvar_curator.cvc_clinvar_submissions` s
-LEFT JOIN `clingen-dev.clinvar_curator.cvc_annotation_id_xwalk` x ON x.legacy_annotation_id = s.annotation_id;
--- batches + rejected_scvs: shared, no annotation_id -> plain passthrough views
-CREATE OR REPLACE VIEW `clingen-dev.clinvar_curator_v4.cvc_clinvar_batches` AS
-SELECT * FROM `clingen-dev.clinvar_curator.cvc_clinvar_batches`;
-CREATE OR REPLACE VIEW `clingen-dev.clinvar_curator_v4.cvc_rejected_scvs` AS
-SELECT * FROM `clingen-dev.clinvar_curator.cvc_rejected_scvs`;
+CREATE OR REPLACE VIEW `clingen-dev.clinvar_curator_v4.cvc_clinvar_reviews`     AS SELECT * FROM `clingen-dev.clinvar_curator.cvc_clinvar_reviews`;
+CREATE OR REPLACE VIEW `clingen-dev.clinvar_curator_v4.cvc_clinvar_submissions` AS SELECT * FROM `clingen-dev.clinvar_curator.cvc_clinvar_submissions`;
+CREATE OR REPLACE VIEW `clingen-dev.clinvar_curator_v4.cvc_clinvar_batches`     AS SELECT * FROM `clingen-dev.clinvar_curator.cvc_clinvar_batches`;
+CREATE OR REPLACE VIEW `clingen-dev.clinvar_curator_v4.cvc_rejected_scvs`       AS SELECT * FROM `clingen-dev.clinvar_curator.cvc_rejected_scvs`;
 ```
 
-- [ ] **Step 2: Commit (deployed in Task 5.3)**
+- [ ] **Step 2: Commit**
 
 ```bash
-git add bigquery/curator/adapter/staging_x_views.sql
-git commit -m "feat(shadow): crosswalk _x staging views + shared-ref views for clinvar_curator_v4"
+git add bigquery/curator/adapter/staging_passthrough_views.sql
+git commit -m "feat(shadow): passthrough staging + shared-ref views for clinvar_curator_v4"
 ```
 
-### Task 5.3: Deploy the shadow lineage and run the impact SP
+### Task 5.3: Deploy the shadow lineage + run the impact SP
 
 **Files:** none (uses `deploy.sh`)
 
-- [ ] **Step 1: Create the dataset (US) and deploy the `_x` + shared views first**
+- [ ] **Step 1: Create the dataset + deploy passthrough views first**
 
-Run:
 ```bash
 bq --project_id="$CURATOR_PROJECT" mk --location=US --dataset "$CURATOR_PROJECT:clinvar_curator_v4" || echo "exists"
-bq --project_id="$CURATOR_PROJECT" --location=US query --use_legacy_sql=false --format=none < bigquery/curator/adapter/staging_x_views.sql
+bq --project_id="$CURATOR_PROJECT" --location=US query --use_legacy_sql=false --format=none < bigquery/curator/adapter/staging_passthrough_views.sql
 ```
-Expected: dataset created; four views created (they depend on the crosswalk from Task 4.3, which exists).
 
-- [ ] **Step 2: Dry-run the v4 binding, then deploy the core + impact SP**
+- [ ] **Step 2: Dry-run the v4 binding, then deploy**
 
-`MV=""` makes the shadow `cvc_annotations_base_mv` a **plain VIEW** (so it can legally read the `_x` staging *views*; a materialized view could not — spec §3.4). Dry-run first (this is the check the legacy dry-run in Task 5.1 could not exercise — the staging-view path), then deploy for real:
+`MV=""` → plain view (can read the passthrough views); `ANNO_ID=a.annotation_id` → reads the stored id.
 ```bash
-DATASET=clinvar_curator_v4 ANNO_SOURCE=clinvar_curator.cvc_annotations_native_v4 MV="" ./bigquery/curator/deploy.sh --dry-run
-DATASET=clinvar_curator_v4 ANNO_SOURCE=clinvar_curator.cvc_annotations_native_v4 MV="" ./bigquery/curator/deploy.sh
+DATASET=clinvar_curator_v4 ANNO_SOURCE=clinvar_curator.cvc_annotations_native_v4 MV="" ANNO_ID="a.annotation_id" ./bigquery/curator/deploy.sh --dry-run
+DATASET=clinvar_curator_v4 ANNO_SOURCE=clinvar_curator.cvc_annotations_native_v4 MV="" ANNO_ID="a.annotation_id" ./bigquery/curator/deploy.sh
 ```
-Expected: dry-run passes (validates base_mv-as-view over the `_x` views); then `>>` per file and `deploy complete`. base_mv now reads `native_v4` + the `_x` staging views; funcs/TVFs/SP created in `clinvar_curator_v4`.
+Expected: dry-run passes; then `>>` per file and `deploy complete`.
 
-> **Naming note:** the shadow SP is `clinvar_curator_v4.refresh_cvc_impact_analysis` and it writes `clinvar_curator_v4.cvc_*` tables (dataset-qualified, unsuffixed). This IS the spec's "`refresh_cvc_impact_analysis_v4()` → 11 `*_v4` tables" — the `_v4` lives in the dataset name, not the object name. Tests reference the unsuffixed names in `clinvar_curator_v4`.
+> **Naming note:** the shadow SP is `clinvar_curator_v4.refresh_cvc_impact_analysis` writing `clinvar_curator_v4.cvc_*` tables — the `_v4` is in the dataset name, matching the spec's `_v4` intent.
 
 - [ ] **Step 3: Run the shadow impact SP**
 
-Run:
 ```bash
 bq --project_id="$CURATOR_PROJECT" --location=US query --use_legacy_sql=false --format=none \
   'CALL `clingen-dev.clinvar_curator_v4.refresh_cvc_impact_analysis`()'
 ```
-Expected: completes; the 11 `clinvar_curator_v4.cvc_*` tables are populated.
+Expected: completes; the 11 `clinvar_curator_v4.cvc_*` tables populate.
 
-- [ ] **Step 4: Smoke-check the shadow choke point returns rows**
+- [ ] **Step 4: Smoke-check the shadow choke point**
 
-Run:
 ```bash
 bq --project_id="$CURATOR_PROJECT" --location=US query --use_legacy_sql=false --format=pretty \
 'SELECT COUNT(*) rows FROM `clingen-dev.clinvar_curator_v4.cvc_annotations`("all")'
 ```
-Expected: ~31,095 rows (the corrected population); no error.
+Expected: ~31,362 rows; no error.
 
-- [ ] **Step 5: Commit any deploy-script tweaks discovered here**
+- [ ] **Step 5: Commit any deploy tweaks**
 
 ```bash
 git add bigquery/curator
-git commit -m "chore(shadow): deploy clinvar_curator_v4 lineage (notes/fixes from first deploy)" || echo "nothing to commit"
+git commit -m "chore(shadow): deploy clinvar_curator_v4 lineage" || echo "nothing to commit"
 ```
 
 ---
 
 ## Chunk 6: Parity verification + go/no-go report
 
-Proves the v4 lineage matches legacy on the shared seed (spec §7.2), with every diff query returning 0 rows on success. Runs the crosswalk-collapsed comparison on both sides.
+Proves the v4 lineage matches legacy on the shared seed (spec §7.2). Because no dedup is applied and the stored `annotation_id` equals the legacy-computed one, the shared seed is **exact** — no collapse bucket, no crosswalk on either side.
 
-### Task 6.1: Parity anchors (pure-upstream tables must be identical)
+### Task 6.1: Parity anchors (pure-upstream tables identical)
 
 **Files:**
 - Create: `bigquery/curator/tests/01-anchor-version-bumps.sql`
 
 - [ ] **Step 1: Write the anchor diff**
 
-`cvc_version_bumps` / `cvc_full_record_version_bumps` are pure-`clinvar_ingest`-derived (spec §3.6), so they must be byte-identical across datasets. (Legacy versions exist only after the legacy SP has run; assume the legacy `clinvar_curator.cvc_version_bumps` is current.)
 ```sql
 -- returns 0 rows on success
 SELECT 'version_bumps' AS tbl, * FROM (
@@ -995,19 +817,19 @@ SELECT 'version_bumps' AS tbl, * FROM (
 );
 ```
 
-- [ ] **Step 2: Run and expect 0 rows**
+- [ ] **Step 2: Run, expect 0 rows**
 
 Run: `bq --project_id="$CURATOR_PROJECT" --location=US query --use_legacy_sql=false --format=pretty < bigquery/curator/tests/01-anchor-version-bumps.sql`
-Expected: 0 rows. Non-zero ⇒ an environment/config difference, not the adapter — investigate before continuing.
+Expected: 0 rows. Non-zero ⇒ environment/config difference, not the adapter.
 
 - [ ] **Step 3: Commit**
 
 ```bash
 git add bigquery/curator/tests/01-anchor-version-bumps.sql
-git commit -m "test(parity): pure-upstream version-bump anchors identical across lineages"
+git commit -m "test(parity): pure-upstream version-bump anchors identical"
 ```
 
-### Task 6.2: Id-integrity — 0 orphans, canonical resolves
+### Task 6.2: Id-integrity — 0 orphans, stored == computed
 
 **Files:**
 - Create: `bigquery/curator/tests/02-id-integrity.sql`
@@ -1015,94 +837,78 @@ git commit -m "test(parity): pure-upstream version-bump anchors identical across
 - [ ] **Step 1: Write the diff**
 
 ```sql
--- returns 0 rows on success: every staging annotation_id resolves to a native_v4 row via the crosswalk
-WITH staged AS (
+-- returns 0 rows on success
+-- (a) every staging annotation_id exists in native_v4
+SELECT s.annotation_id AS orphan_staging_id
+FROM (
   SELECT annotation_id FROM `clingen-dev.clinvar_curator.cvc_clinvar_reviews` WHERE annotation_id IS NOT NULL
   UNION DISTINCT
   SELECT annotation_id FROM `clingen-dev.clinvar_curator.cvc_clinvar_submissions` WHERE annotation_id IS NOT NULL
-)
-SELECT s.annotation_id AS orphan_staging_id
-FROM staged s
-LEFT JOIN `clingen-dev.clinvar_curator.cvc_annotation_id_xwalk` x ON x.legacy_annotation_id = s.annotation_id
-LEFT JOIN `clingen-dev.clinvar_curator.cvc_annotations_native_v4` n
-       ON CAST(UNIX_MILLIS(n.annotation_date) AS STRING) = COALESCE(x.canonical_annotation_id, s.annotation_id)
-WHERE n.annotation_date IS NULL
+) s
+LEFT JOIN `clingen-dev.clinvar_curator.cvc_annotations_native_v4` n ON n.annotation_id = s.annotation_id
+WHERE n.annotation_id IS NULL
 UNION ALL
--- lossless-id (spec §7.2 item 3): every native_v4 annotation_id must BE a crosswalk canonical
--- (Task 4.3 checked the converse; together they prove the anchor↔canonical bijection)
-SELECT CAST(UNIX_MILLIS(n.annotation_date) AS STRING) AS orphan_staging_id
+-- (b) stored annotation_id equals UNIX_MILLIS(annotation_date) for every v4 row
+SELECT n.annotation_id
 FROM `clingen-dev.clinvar_curator.cvc_annotations_native_v4` n
-WHERE CAST(UNIX_MILLIS(n.annotation_date) AS STRING) NOT IN (
-  SELECT canonical_annotation_id FROM `clingen-dev.clinvar_curator.cvc_annotation_id_xwalk`
-);
+WHERE n.annotation_id != CAST(UNIX_MILLIS(n.annotation_date) AS STRING);
 ```
 
-- [ ] **Step 2: Run and expect 0 rows**
+- [ ] **Step 2: Run, expect 0 rows**
 
 Run: `bq --project_id="$CURATOR_PROJECT" --location=US query --use_legacy_sql=false --format=pretty < bigquery/curator/tests/02-id-integrity.sql`
-Expected: 0 rows. Non-zero ⇒ a staging id references an annotation missing from v4 (a re-migration/crosswalk gap) — list them for the report.
+Expected: 0 rows (no orphans; stored id == computed id everywhere).
 
 - [ ] **Step 3: Commit**
 
 ```bash
 git add bigquery/curator/tests/02-id-integrity.sql
-git commit -m "test(parity): staging id-integrity (0 orphans after crosswalk)"
+git commit -m "test(parity): id-integrity (0 orphans; stored==computed annotation_id)"
 ```
 
-### Task 6.3: Choke-point canonical-keyed column diff (must be 0)
+### Task 6.3: Choke-point column diff (exact on shared seed)
 
 **Files:**
 - Create: `bigquery/curator/tests/03-chokepoint-diff.sql`
 
 - [ ] **Step 1: Write the diff**
 
-Compare `cvc_annotations("all")` legacy vs v4 on the shared seed, keyed by `canonical_annotation_id` (apply the crosswalk to the legacy side so its ≈267 ≤15-min twins collapse to the anchor, exactly as v4). Restrict to the shared seed (exclude post-seed drift by `annotation_release_date`/content intersection). Compare the stable business columns (`variation_id, vcv_id, scv_id, action, reason, notes, curator, review_status`).
-
-The shared seed = cids present in **both** lineages (an INTERSECT of cids). Compare business columns only on that set, both directions; cids on one side only are drift (Task 6.5), not adapter bugs.
-
+Compare `cvc_annotations("all")` legacy vs v4 on shared `annotation_id`s (they match directly now). Column diff must be exactly 0.
 ```sql
--- returns 0 rows on success (shared-seed column parity at the choke point)
-WITH leg1 AS (
-  SELECT DISTINCT COALESCE(x.canonical_annotation_id, a.annotation_id) AS cid,
-         a.variation_id, a.vcv_id, a.scv_id, a.action, a.reason, a.notes, a.curator, a.clinvar_review_status
-  FROM `clingen-dev.clinvar_curator.cvc_annotations`("all") a
-  LEFT JOIN `clingen-dev.clinvar_curator.cvc_annotation_id_xwalk` x ON x.legacy_annotation_id = a.annotation_id
+-- returns 0 rows on success
+WITH leg AS (
+  SELECT annotation_id, variation_id, vcv_id, scv_id, action, reason, notes, curator, clinvar_review_status
+  FROM `clingen-dev.clinvar_curator.cvc_annotations`("all")
 ),
 v4 AS (
-  SELECT annotation_id AS cid, variation_id, vcv_id, scv_id, action, reason, notes, curator, clinvar_review_status
+  SELECT annotation_id, variation_id, vcv_id, scv_id, action, reason, notes, curator, clinvar_review_status
   FROM `clingen-dev.clinvar_curator_v4.cvc_annotations`("all")
 ),
-shared AS (SELECT cid FROM leg1 INTERSECT DISTINCT SELECT cid FROM v4)
+shared AS (SELECT annotation_id FROM leg INTERSECT DISTINCT SELECT annotation_id FROM v4)
 SELECT 'legacy_only_cols' AS side, * FROM (
-  SELECT * FROM leg1 WHERE cid IN (SELECT cid FROM shared)
+  SELECT * FROM leg WHERE annotation_id IN (SELECT annotation_id FROM shared)
   EXCEPT DISTINCT
-  SELECT * FROM v4 WHERE cid IN (SELECT cid FROM shared))
+  SELECT * FROM v4 WHERE annotation_id IN (SELECT annotation_id FROM shared))
 UNION ALL
-SELECT 'v4_only_cols' AS side, * FROM (
-  SELECT * FROM v4 WHERE cid IN (SELECT cid FROM shared)
+SELECT 'v4_only_cols', * FROM (
+  SELECT * FROM v4 WHERE annotation_id IN (SELECT annotation_id FROM shared)
   EXCEPT DISTINCT
-  SELECT * FROM leg1 WHERE cid IN (SELECT cid FROM shared));
+  SELECT * FROM leg WHERE annotation_id IN (SELECT annotation_id FROM shared));
 ```
 
-Also record the **raw-count** artifact (spec §7.2 item 4): the un-collapsed legacy `cvc_annotations("all")` has ≈267 more rows than `leg1`/v4 (the ≤15-min twins). That ≈267 delta is expected and lives in the audit, not here:
-```sql
-SELECT (SELECT COUNT(*) FROM `clingen-dev.clinvar_curator.cvc_annotations`("all")) AS legacy_raw,
-       (SELECT COUNT(*) FROM `clingen-dev.clinvar_curator_v4.cvc_annotations`("all")) AS v4_rows;
-```
-
-- [ ] **Step 2: Run and expect 0 rows (drift enumerated separately)**
+- [ ] **Step 2: Run, expect 0 rows**
 
 Run: `bq --project_id="$CURATOR_PROJECT" --location=US query --use_legacy_sql=false --format=pretty < bigquery/curator/tests/03-chokepoint-diff.sql`
-Expected: 0 rows on the shared seed. Any `legacy_only`/`v4_only` row that is NOT explained by §7.2 drift is an adapter bug — record and fix. (Raw row-count difference of ~267 is expected and lives in the audit, not here.)
+Expected: 0 rows on the shared seed. Any diff is an adapter bug (drift is enumerated separately, Task 6.5).
 
 - [ ] **Step 3: Commit**
 
 ```bash
 git add bigquery/curator/tests/03-chokepoint-diff.sql
-git commit -m "test(parity): choke-point canonical-keyed column diff = 0 on shared seed"
+git commit -m "test(parity): choke-point column diff = 0 on shared seed"
 ```
 
-### Task 6.4: End-to-end batch parity (11 impact tables + submission file)
+### Task 6.4: End-to-end batch parity
 
 **Files:**
 - Create: `bigquery/curator/tests/04-batch-endtoend.sql`
@@ -1110,73 +916,53 @@ git commit -m "test(parity): choke-point canonical-keyed column diff = 0 on shar
 
 - [ ] **Step 1: Pick a pre-seed finalized batch**
 
-Run:
 ```bash
 bq --project_id="$CURATOR_PROJECT" --location=US query --use_legacy_sql=false --format=pretty \
 'SELECT batch_id, finalized_datetime FROM `clingen-dev.clinvar_curator.cvc_clinvar_batches`
  ORDER BY finalized_datetime DESC LIMIT 10'
 ```
-Choose a `batch_id` finalized well before the `clingen-cvc` seed boundary (stable membership). Record it as `$BATCH`.
+Choose a `batch_id` finalized before the `clingen-cvc` seed boundary. Record as `$BATCH`.
 
-- [ ] **Step 2: Write the batch diff SQL (`04-batch-endtoend.sql`)**
+- [ ] **Step 2: Write the batch diff SQL**
 
-Three concrete checks. `@batch` is bound via `--parameter=batch:STRING:$BATCH`. `SELECT * EXCEPT(annotation_id)` drops the one column the crosswalk changes (the id itself), so a stable pre-seed batch diffs to 0; if a table's id column is named differently, adjust the `EXCEPT` list.
-
+For the chosen batch, symmetric `EXCEPT DISTINCT` (both directions) of `cvc_flagging_version_bump_intersection` and `cvc_resubmission_candidates` scoped `WHERE batch_id=@batch` (full rows — `annotation_id` now matches on both sides, so no `EXCEPT(annotation_id)` needed), plus a whole-table diff of `cvc_impact_summary`, plus the current submission set (`cvc_annotations("unreviewed")` JOIN submissions, `action != 'no change'`, on shared `scv_id`). Each sub-query returns 0 rows on success:
 ```sql
--- (a) #8 + #9: batch-scoped symmetric diff, id column excluded -> expect 0 rows
+-- #8 flagging_version_bump_intersection (batch-scoped, symmetric)
 WITH d8 AS (
-  (SELECT * EXCEPT(annotation_id) FROM `clingen-dev.clinvar_curator.cvc_flagging_version_bump_intersection` WHERE batch_id=@batch
-   EXCEPT DISTINCT
-   SELECT * EXCEPT(annotation_id) FROM `clingen-dev.clinvar_curator_v4.cvc_flagging_version_bump_intersection` WHERE batch_id=@batch)
+  (SELECT * FROM `clingen-dev.clinvar_curator.cvc_flagging_version_bump_intersection` WHERE batch_id=@batch
+   EXCEPT DISTINCT SELECT * FROM `clingen-dev.clinvar_curator_v4.cvc_flagging_version_bump_intersection` WHERE batch_id=@batch)
   UNION ALL
-  (SELECT * EXCEPT(annotation_id) FROM `clingen-dev.clinvar_curator_v4.cvc_flagging_version_bump_intersection` WHERE batch_id=@batch
-   EXCEPT DISTINCT
-   SELECT * EXCEPT(annotation_id) FROM `clingen-dev.clinvar_curator.cvc_flagging_version_bump_intersection` WHERE batch_id=@batch)
+  (SELECT * FROM `clingen-dev.clinvar_curator_v4.cvc_flagging_version_bump_intersection` WHERE batch_id=@batch
+   EXCEPT DISTINCT SELECT * FROM `clingen-dev.clinvar_curator.cvc_flagging_version_bump_intersection` WHERE batch_id=@batch)
 ),
 d9 AS (
-  (SELECT * EXCEPT(annotation_id) FROM `clingen-dev.clinvar_curator.cvc_resubmission_candidates` WHERE batch_id=@batch
-   EXCEPT DISTINCT
-   SELECT * EXCEPT(annotation_id) FROM `clingen-dev.clinvar_curator_v4.cvc_resubmission_candidates` WHERE batch_id=@batch)
+  (SELECT * FROM `clingen-dev.clinvar_curator.cvc_resubmission_candidates` WHERE batch_id=@batch
+   EXCEPT DISTINCT SELECT * FROM `clingen-dev.clinvar_curator_v4.cvc_resubmission_candidates` WHERE batch_id=@batch)
   UNION ALL
-  (SELECT * EXCEPT(annotation_id) FROM `clingen-dev.clinvar_curator_v4.cvc_resubmission_candidates` WHERE batch_id=@batch
-   EXCEPT DISTINCT
-   SELECT * EXCEPT(annotation_id) FROM `clingen-dev.clinvar_curator.cvc_resubmission_candidates` WHERE batch_id=@batch)
+  (SELECT * FROM `clingen-dev.clinvar_curator_v4.cvc_resubmission_candidates` WHERE batch_id=@batch
+   EXCEPT DISTINCT SELECT * FROM `clingen-dev.clinvar_curator.cvc_resubmission_candidates` WHERE batch_id=@batch)
+),
+d11 AS (
+  (SELECT * FROM `clingen-dev.clinvar_curator.cvc_impact_summary`
+   EXCEPT DISTINCT SELECT * FROM `clingen-dev.clinvar_curator_v4.cvc_impact_summary`)
+  UNION ALL
+  (SELECT * FROM `clingen-dev.clinvar_curator_v4.cvc_impact_summary`
+   EXCEPT DISTINCT SELECT * FROM `clingen-dev.clinvar_curator.cvc_impact_summary`)
 )
-SELECT 'flag_vbump_intersection' AS t, TO_JSON_STRING(d8) AS row FROM d8
-UNION ALL SELECT 'resubmission_candidates', TO_JSON_STRING(d9) FROM d9;
+SELECT 'flag_vbump' t, TO_JSON_STRING(d8) row FROM d8
+UNION ALL SELECT 'resubmission', TO_JSON_STRING(d9) FROM d9
+UNION ALL SELECT 'impact_summary', TO_JSON_STRING(d11) FROM d11;
 ```
 
-```sql
--- (b) submission-set parity: what Generate would emit NOW (action != 'no change', latest per scv),
---     legacy crosswalk-collapsed vs v4, on shared scvs -> expect 0 rows
-WITH leg AS (
-  SELECT DISTINCT a.scv_id, a.action, a.reason
-  FROM `clingen-dev.clinvar_curator.cvc_annotations`("unreviewed") a
-  WHERE a.action != 'no change'
-),
-v4 AS (
-  SELECT DISTINCT scv_id, action, reason
-  FROM `clingen-dev.clinvar_curator_v4.cvc_annotations`("unreviewed")
-  WHERE action != 'no change'
-),
-shared AS (SELECT scv_id FROM leg INTERSECT DISTINCT SELECT scv_id FROM v4)
-SELECT 'leg' side, * FROM (SELECT * FROM leg WHERE scv_id IN (SELECT scv_id FROM shared)
-                           EXCEPT DISTINCT SELECT * FROM v4 WHERE scv_id IN (SELECT scv_id FROM shared))
-UNION ALL
-SELECT 'v4' side, * FROM (SELECT * FROM v4 WHERE scv_id IN (SELECT scv_id FROM shared)
-                          EXCEPT DISTINCT SELECT * FROM leg WHERE scv_id IN (SELECT scv_id FROM shared));
-```
-
-> **#11 `cvc_impact_summary` is a global monthly rollup (no `annotation_id`, not batch-scoped).** Because the re-migration restores ≈287 events, its aggregate counts can legitimately shift. Treat its diff as **reconciliation, not a 0-row gate**: run `SELECT * EXCEPT DISTINCT` both ways over the whole table and confirm every differing month maps to restored/collapsed events in that month (record in the report). This is the one impact table where a nonzero diff is expected.
-
-- [ ] **Step 3: Write `run-parity.sh` to run all diff queries**
+- [ ] **Step 3: Write `run-parity.sh`**
 
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
 : "${CURATOR_PROJECT:=clingen-dev}"; : "${BATCH:?set BATCH}"
 fail=0
-for q in bigquery/curator/tests/0*.sql; do
+for q in bigquery/curator/tests/0[1-4]*.sql; do
   echo "== $q =="
   n=$(bq --project_id="$CURATOR_PROJECT" --location=US query --use_legacy_sql=false --format=csv \
         --parameter=batch:STRING:"$BATCH" "$(cat "$q")" | tail -n +2 | wc -l | tr -d ' ')
@@ -1185,16 +971,16 @@ done
 exit $fail
 ```
 
-- [ ] **Step 4: Run the full suite**
+- [ ] **Step 4: Run the suite**
 
 Run: `chmod +x bigquery/curator/tests/run-parity.sh && BATCH=$BATCH ./bigquery/curator/tests/run-parity.sh`
-Expected: `PASS` for every query. Any `FAIL` ⇒ investigate (adapter bug vs documented drift/collapse) before declaring parity.
+Expected: `PASS` for every query. Any `FAIL` ⇒ investigate before declaring parity.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add bigquery/curator/tests/04-batch-endtoend.sql bigquery/curator/tests/run-parity.sh
-git commit -m "test(parity): end-to-end batch diff (impact tables + submission file) + runner"
+git commit -m "test(parity): end-to-end batch diff + runner"
 ```
 
 ### Task 6.5: Drift enumeration (sheet-only vs v4-only)
@@ -1202,34 +988,27 @@ git commit -m "test(parity): end-to-end batch diff (impact tables + submission f
 **Files:**
 - Create: `bigquery/curator/tests/05-drift-enumeration.sql`
 
-- [ ] **Step 1: Count cids present on only one side (spec §7.2 item 7)**
+- [ ] **Step 1: Count annotation_ids on only one side (informational, spec §7.2 item 7)**
 
-These are NOT adapter bugs — they are the diverging-live-population drift the shared-seed diffs (6.3/6.4) deliberately exclude. This task quantifies them for the report.
 ```sql
-WITH leg AS (
-  SELECT DISTINCT COALESCE(x.canonical_annotation_id, a.annotation_id) AS cid
-  FROM `clingen-dev.clinvar_curator.cvc_annotations`("all") a
-  LEFT JOIN `clingen-dev.clinvar_curator.cvc_annotation_id_xwalk` x ON x.legacy_annotation_id = a.annotation_id
-),
-v4 AS (SELECT DISTINCT annotation_id AS cid FROM `clingen-dev.clinvar_curator_v4.cvc_annotations`("all"))
+WITH leg AS (SELECT DISTINCT annotation_id AS aid FROM `clingen-dev.clinvar_curator.cvc_annotations`("all")),
+     v4  AS (SELECT DISTINCT annotation_id AS aid FROM `clingen-dev.clinvar_curator_v4.cvc_annotations`("all"))
 SELECT
-  (SELECT COUNT(*) FROM (SELECT cid FROM leg EXCEPT DISTINCT SELECT cid FROM v4)) AS sheet_only_drift,
-  (SELECT COUNT(*) FROM (SELECT cid FROM v4 EXCEPT DISTINCT SELECT cid FROM leg)) AS v4_only_drift;
+  (SELECT COUNT(*) FROM (SELECT aid FROM leg EXCEPT DISTINCT SELECT aid FROM v4)) AS sheet_only_drift,
+  (SELECT COUNT(*) FROM (SELECT aid FROM v4 EXCEPT DISTINCT SELECT aid FROM leg)) AS v4_only_drift;
 ```
 
-- [ ] **Step 2: Run and record (no pass/fail; these feed the report)**
+- [ ] **Step 2: Run and record (no pass/fail; feeds the report)**
 
 Run: `bq --project_id="$CURATOR_PROJECT" --location=US query --use_legacy_sql=false --format=pretty < bigquery/curator/tests/05-drift-enumeration.sql`
-Expected: two counts; both should be small and explainable by the seed boundary. Record them in the parity report. (`run-parity.sh` should skip this one for pass/fail, or treat any count as informational.)
+Expected: two small counts, explainable by the seed boundary. Record in the report. (The runner's `0[1-4]*` glob excludes this file from pass/fail.)
 
 - [ ] **Step 3: Commit**
 
 ```bash
 git add bigquery/curator/tests/05-drift-enumeration.sql
-git commit -m "test(parity): drift enumeration (sheet-only vs v4-only counts)"
+git commit -m "test(parity): drift enumeration (sheet-only vs v4-only)"
 ```
-
-> **On spec §7.2 item 5 ("diff all 11 impact tables"):** Chunk 6 diffs the 3 highest-signal tables (#8/#9/#11) + the submission set directly. The other 8 derive from the same choke point + the pure-upstream version-bump anchors (Task 6.1, proven identical), so they are covered transitively. If full coverage is wanted, extend `run-parity.sh` with a `SELECT * EXCEPT DISTINCT` symmetric diff loop over all 11 `clinvar_curator[_v4].cvc_*` impact tables (cheap) and reconcile any diff against the collapse/drift buckets.
 
 ### Task 6.6: Write the go/no-go parity report
 
@@ -1238,7 +1017,7 @@ git commit -m "test(parity): drift enumeration (sheet-only vs v4-only counts)"
 
 - [ ] **Step 1: Fill the report**
 
-Sections (spec §7.3): re-migration reconciliation (Chunk 3), anchor result, id-integrity (0 orphans), choke-point diff (0 on shared seed), the **267 collapse** and **287 restored** accounting, drift enumeration (sheet-only / v4-only counts), batch end-to-end result, and a reference to the §6.5 audit log (with the 11 cross-batch flag submissions). End with an explicit **GO / NO-GO for Phase 1** recommendation.
+Sections (spec §7.3): re-migration reconciliation (all 31,362 loaded, 578 restored, 0 dropped, Firestore==BQ, annotation_id present), anchor result, id-integrity (0 orphans; stored==computed), choke-point diff (0 on shared seed), batch end-to-end result, drift enumeration counts, and a reference to the §6 restored-records audit. End with an explicit **GO / NO-GO for Phase 1** recommendation.
 
 - [ ] **Step 2: Commit**
 
@@ -1251,7 +1030,8 @@ git commit -m "docs(parity): Phase-0 go/no-go parity report"
 
 ## Done criteria
 
-- `bigquery/curator/` is the single CvC SQL home; ingest-repo copies deleted; `deploy.sh` deploys legacy or `_v4` from one templated tree.
-- Shared `dedup.js` (15-min) unit-tested; migration re-run; prod-staging v4 corrected (~31,095; 287 restored, 267 collapsed); Firestore == BQ.
-- `cvc_annotations_native_v4`, `cvc_annotation_id_xwalk`, `_x` views, and the full `clinvar_curator_v4` lineage (incl. 11-table SP) build and run.
-- Parity suite is green (0-row diffs) on the shared seed; drift + collapse enumerated; audit log produced; **go/no-go report written**.
+- `bigquery/curator/` is the single CvC SQL home; `deploy.sh` deploys legacy or `_v4` from one templated tree (`@@DATASET@@/@@ANNO_SOURCE@@/@@MV@@/@@ANNO_ID@@`).
+- `annotation_id = UNIX_MILLIS(created_at)` is stored on every v4 doc (extension + migration); exposed in the BQ view; passed through (not recomputed) by the v4 lineage.
+- Prod-staging v4 re-migrated with NO dedup: all ~31,362 records loaded (578 restored, 0 dropped); Firestore == BQ; annotation_id present.
+- `cvc_annotations_native_v4` + the full `clinvar_curator_v4` lineage (incl. 11-table SP) build and run; every staging id resolves directly (no crosswalk).
+- Parity suite green (0-row diffs) on an exact shared seed; drift enumerated; restored-records audit produced; **go/no-go report written**.
