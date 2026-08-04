@@ -18,7 +18,6 @@ if (!globalThis.crypto) globalThis.crypto = require('node:crypto').webcrypto;
 
 const fs = require('node:fs');
 
-const { annotationDocId } = require('../annotation.js');
 const { nativeRowToV4Doc, toFirestoreFields, chunk } = require('./native-to-v4.js');
 
 const BATCH_SIZE = 500;
@@ -78,8 +77,21 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// Reads the bq --format=json export, maps every row to a v4 doc, computes its
-// dedup id, and drops in-source duplicates (first occurrence wins).
+// Maps every native BigQuery row to a v4 doc, keyed by its stored
+// `annotation_id` (UNIX_MILLIS(created_at), unique per historical record).
+// No dedup: every record is loaded (spec §6 — 31,362 rows -> 31,362 distinct
+// annotation_ids, 0 collisions).
+function loadDocsFromRows(rows) {
+  return rows.map(r => {
+    const doc = nativeRowToV4Doc(r);
+    return { id: doc.annotation_id, doc };
+  });
+}
+
+// Reads the bq --format=json export and maps every row to a v4 doc keyed by
+// annotation_id. No dedup is applied; intraSourceDups is always 0. Guards
+// against any unexpected annotation_id collision (would indicate a source
+// data problem, not something to silently collapse).
 async function loadUniqueDocs(sourcePath) {
   const raw = fs.readFileSync(sourcePath, 'utf8');
   const rows = JSON.parse(raw);
@@ -87,23 +99,19 @@ async function loadUniqueDocs(sourcePath) {
     throw new Error(`Expected a JSON array in ${sourcePath}, got ${typeof rows}`);
   }
 
-  const seen = new Map(); // id -> doc
-  let intraSourceDups = 0;
+  const uniqueDocs = loadDocsFromRows(rows);
 
-  for (const row of rows) {
-    const doc = nativeRowToV4Doc(row);
-    const id = await annotationDocId(doc);
-    if (seen.has(id)) {
-      intraSourceDups++;
-      continue;
-    }
-    seen.set(id, doc);
+  const distinctIds = new Set(uniqueDocs.map(d => d.id));
+  if (distinctIds.size !== uniqueDocs.length) {
+    throw new Error(
+      `annotation_id collision detected: ${uniqueDocs.length} docs but only ${distinctIds.size} distinct annotation_ids`
+    );
   }
 
   return {
     totalRows: rows.length,
-    uniqueDocs: [...seen.entries()].map(([id, doc]) => ({ id, doc })),
-    intraSourceDups
+    uniqueDocs,
+    intraSourceDups: 0
   };
 }
 
@@ -269,4 +277,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { parseArgs, loadUniqueDocs, classifyStatus, docPath };
+module.exports = { parseArgs, loadUniqueDocs, loadDocsFromRows, classifyStatus, docPath };

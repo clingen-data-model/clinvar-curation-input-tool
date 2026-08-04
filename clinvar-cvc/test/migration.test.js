@@ -3,6 +3,7 @@ import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const { nativeRowToV4Doc, toFirestoreFields, chunk } = require('../migration/native-to-v4.js');
 const { buildAnnotation, annotationDocId } = require('../annotation.js');
+const { loadDocsFromRows } = require('../migration/migrate.js');  // new pure helper (rows -> {id,doc}[])
 
 const nativeRow = {
   variation_id: '590935',
@@ -113,6 +114,20 @@ test('nativeRowToV4Doc carries annotation_id through', () => {
     annotation_date: '2020-01-01T00:00:05Z', annotation_id: '1577836805000' };
   const doc = nativeRowToV4Doc(row);
   expect(doc.annotation_id).toBe('1577836805000');
+});
+
+const migrationRow = (over) => ({ variation_id:'1', vcv_id:'VCV1', variation_name:'X', scv_id:'SCV1',
+  submitter_name:'S', submitter_id:'9', interpretation:'Pathogenic', review_status:'criteria',
+  action:'Flagging Candidate', reason:'r', notes:'n', curator_email:'a@b.org',
+  annotation_date:'2020-01-01T00:00:05Z', annotation_id:'1577836805000', ...over });
+
+test('loadDocsFromRows keys by annotation_id and drops NOTHING (content-identical, distinct timestamps both kept)', () => {
+  const out = loadDocsFromRows([
+    migrationRow({ annotation_id:'1577836805000' }),
+    migrationRow({ annotation_id:'1577836999000' })   // same content, different timestamp
+  ]);
+  expect(out.length).toBe(2);
+  expect(out.map(o => o.id).sort()).toEqual(['1577836805000','1577836999000']);
 });
 
 describe('chunk', () => {
