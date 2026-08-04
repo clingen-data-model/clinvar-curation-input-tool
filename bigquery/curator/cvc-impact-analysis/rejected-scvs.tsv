@@ -1,0 +1,245 @@
+# ClinVar Rejected SCVs
+# Format: batch_id	scv_id	scv_ver	rejection_reason	date_rejected
+# Add rejected SCVs below this line (tab-separated)
+# Example: 101	SCV000257712	2	version_mismatch	2023-10-15
+## In batch 119 the error cases “SCV current but with previous version 2025-04-13” are due to
+## our recent replacement of <Gender> to <Sex> that incremented scv version.
+101	SCV000052685	2	deleted SCV	2023-09-26
+101	SCV000348566	2	deleted SCV	2023-09-26
+101	SCV000348567	2	deleted SCV	2023-09-26
+101	SCV000355247	2	deleted SCV	2023-09-26
+101	SCV000357981	2	deleted SCV	2023-09-26
+101	SCV000358212	3	deleted SCV	2023-09-26
+101	SCV000359464	2	deleted SCV	2023-09-26
+101	SCV000359465	2	deleted SCV	2023-09-26
+101	SCV000359467	2	deleted SCV	2023-09-26
+101	SCV000359559	2	deleted SCV	2023-09-26
+101	SCV000359561	2	deleted SCV	2023-09-26
+101	SCV000359562	2	deleted SCV	2023-09-26
+101	SCV000363525	2	deleted SCV	2023-09-26
+101	SCV000363526	2	deleted SCV	2023-09-26
+101	SCV000749451	2	secondary SCV	2023-09-26
+101	SCV000794286	2	SCV current but with previous version	2023-09-26
+101	SCV000813233	2	secondary SCV	2023-09-26
+101	SCV000839015	2	deleted SCV	2023-09-26
+101	SCV000958124	2	secondary SCV	2023-09-26
+101	SCV001138451	1	deleted SCV	2023-09-26
+101	SCV002010048	1	deleted SCV	2023-09-26
+101	SCV002010437	1	deleted SCV	2023-09-26
+101	SCV002010683	1	deleted SCV	2023-09-26
+101	SCV002011109	1	deleted SCV	2023-09-26
+101	SCV002009115	1	deleted SCV	2023-09-26
+101	SCV002009247	1	deleted SCV	2023-09-26
+101	SCV002009366	1	deleted SCV	2023-09-26
+101	SCV002010149	1	deleted SCV	2023-09-26
+101	SCV002010730	1	deleted SCV	2023-09-26
+101	SCV002010818	1	deleted SCV	2023-09-26
+101	SCV002010939	1	deleted SCV	2023-09-26
+101	SCV002011451	1	deleted SCV	2023-09-26
+101	SCV002009684	1	deleted SCV	2023-09-26
+102	SCV000693185	20	SCV current but with previous version	2023-12-04
+102	SCV001250102	16	SCV current but with previous version	2023-12-04
+102	SCV000575149	22	SCV current but with previous version	2023-12-04
+102	SCV000372474	3	deleted SCV	2023-12-04
+102	SCV000224806	5	duplicate scv_accession.version, already in clingen_flagged	2023-12-04
+102	SCV001147466	17	SCV current but with previous version	2023-12-04
+102	SCV001147657	17	SCV current but with previous version	2023-12-04
+102	SCV001148113	17	SCV current but with previous version	2023-12-04
+102	SCV001148166	17	SCV current but with previous version	2023-12-04
+102	SCV001148928	17	SCV current but with previous version	2023-12-04
+102	SCV001148970	17	SCV current but with previous version	2023-12-04
+102	SCV001149436	17	SCV current but with previous version	2023-12-04
+102	SCV001292670	1	deleted SCV	2023-12-04
+102	SCV002562949	6	SCV current but with previous version	2023-12-04
+102	SCV001335032	15	SCV current but with previous version	2023-12-04
+102	SCV001291700	1	deleted SCV	2023-12-04
+102	SCV000892167	18	SCV current but with previous version	2023-12-04
+102	SCV001985207	2	SCV current but with previous version	2023-12-04
+102	SCV000609098	15	SCV current but with previous version	2023-12-04
+102	SCV000609074	20	SCV current but with previous version	2023-12-04
+102	SCV002564058	6	SCV current but with previous version	2023-12-04
+102	SCV001247594	16	SCV current but with previous version	2023-12-04
+102	SCV001247522	16	SCV current but with previous version	2023-12-04
+102	SCV000803580	1	SCV current but with previous version	2023-12-02
+102	SCV001150435	17	SCV current but with previous version	2023-12-04
+102	SCV001151515	17	SCV current but with previous version	2023-12-04
+102	SCV001150391	17	SCV current but with previous version	2023-12-04
+102	SCV002821656	4	SCV current but with previous version	2023-12-04
+105	SCV003444353	2	mistaken submission	2024-03-05
+106	SCV000838857	2	deleted SCV	2024-04-08
+106	SCV001138573	1	SCV current but with previous version	2024-04-08
+109	SCV000493560	28	SCV current but with previous version	2024-06-17
+109	SCV000608710	26	SCV current but with previous version	2024-06-17
+109	SCV000608751	26	SCV current but with previous version	2024-06-17
+109	SCV000780867	24	SCV current but with previous version	2024-06-17
+109	SCV000891511	1	SCV current but with previous version	2024-06-23
+109	SCV001148785	22	SCV current but with previous version	2024-06-17
+109	SCV001747865	15	SCV current but with previous version	2024-06-17
+109	SCV004195413	1	SCV current but with previous version	2024-06-17
+110	SCV000249847	10	duplicate scv_accession.version, already in clingen_flagged	2024-07-16
+110	SCV000250462	13	duplicate scv_accession.version, already in clingen_flagged	2024-07-16
+110	SCV005039210	1	SCV current but with previous version	2024-07-16
+111	SCV001153523	24	SCV current but with previous version	2024-07-23
+111	SCV001153642	24	SCV current but with previous version	2024-07-23
+111	SCV001155767	24	SCV current but with previous version	2024-07-23
+111	SCV001500731	20	SCV current but with previous version	2024-07-23
+111	SCV001500883	20	SCV current but with previous version	2024-07-23
+111	SCV001747008	17	SCV current but with previous version	2024-07-23
+111	SCV004161309	7	SCV current but with previous version	2024-07-23
+111	SCV004702857	5	SCV current but with previous version	2024-07-23
+114	SCV000575246	31	SCV current but with previous version	2024-10-25
+114	SCV000575469	31	SCV current but with previous version	2024-10-25
+114	SCV001150886	26	SCV current but with previous version	2024-10-25
+114	SCV001154518	26	SCV current but with previous version	2024-10-25
+114	SCV001248486	25	SCV current but with previous version	2024-10-25
+114	SCV001248782	25	SCV current but with previous version	2024-10-25
+114	SCV004142959	9	SCV current but with previous version	2024-10-25
+115	SCV005373563	1	SCV current but with previous version	2024-12-02
+117	SCV000363344	3	duplicate scv_accession.version, already in clingen_flagged	2025-02-14
+117	SCV002522377	2	duplicate scv_accession.version, already in clingen_flagged	2025-02-14
+117	SCV004482221	1	duplicate scv_accession.version, already in clingen_flagged	2025-02-14
+117	SCV004539864	1	duplicate scv_accession.version, already in clingen_flagged	2025-02-14
+117	SCV004848687	1	duplicate scv_accession.version, already in clingen_flagged	2025-02-14
+117	SCV005042681	1	duplicate scv_accession.version, already in clingen_flagged	2025-02-14
+119	SCV000058551	1	duplicate scv_accession.version, already in clingen_flagged	2025-04-18
+119	SCV000114103	8	SCV current but with previous version	2025-04-18
+119	SCV000240098	1	SCV current but with previous version	2025-04-18
+119	SCV000333848	4	SCV current but with previous version	2025-04-18
+119	SCV000335872	3	SCV current but with previous version	2025-04-18
+119	SCV000336710	4	SCV current but with previous version	2025-04-18
+119	SCV000345118	4	SCV current but with previous version	2025-04-18
+119	SCV000598825	1	SCV current but with previous version	2025-04-18
+119	SCV000599431	1	duplicate scv_accession.version, already in clingen_flagged	2025-04-18
+119	SCV000606702	1	duplicate scv_accession.version, already in clingen_flagged	2025-04-18
+119	SCV000701674	2	SCV current but with previous version	2025-04-18
+119	SCV000705789	1	SCV current but with previous version	2025-04-18
+119	SCV000705914	2	SCV current but with previous version	2025-04-18
+119	SCV000707765	2	SCV current but with previous version	2025-04-18
+119	SCV000804413	2	SCV current but with previous version	2025-04-18
+119	SCV000804306	2	SCV current but with previous version	2025-04-18
+119	SCV000840457	1	SCV current but with previous version	2025-04-18
+119	SCV000859750	1	SCV current but with previous version	2025-04-18
+119	SCV000861432	1	SCV current but with previous version	2025-04-18
+119	SCV000862789	1	SCV current but with previous version	2025-04-18
+119	SCV001547509	2	SCV current but with previous version	2025-04-18
+119	SCV001760146	1	duplicate scv_accession.version, already in clingen_flagged	2025-04-18
+119	SCV002504684	2	SCV current but with previous version	2025-04-18
+119	SCV002605470	2	duplicate scv_accession.version, already in clingen_flagged	2025-04-18
+119	SCV005368345	1	SCV current but with previous version	2025-04-18
+120	SCV000896172	1	duplicate scv_accession.version, already in clingen_flagged	2025-05-20
+120	SCV000915079	1	deleted SCV	2025-05-20
+120	SCV001760363	1	deleted SCV	2025-05-20
+122	SCV005061961	1	duplicate scv_accession.version, already in clingen_flagged	2025-07-16
+123	SCV000796074	2	duplicate scv_accession.version, already in clingen_flagged	2025-08-26
+123	SCV001134323	3	duplicate scv_accession.version, already in clingen_flagged	2025-08-26
+123	SCV003809926	2	duplicate scv_accession.version, already in clingen_flagged	2025-08-26
+123	SCV003810589	2	duplicate scv_accession.version, already in clingen_flagged	2025-08-26
+123	SCV004239231	1	duplicate scv_accession.version, already in clingen_flagged	2025-08-26
+124	SCV000334155	5	duplicate scv_accession.version, already in clingen_flagged	2025-09-25
+124	SCV001367011	2	duplicate scv_accession.version, already in clingen_flagged	2024-09-25
+125	SCV000852291	1	duplicate scv_accession.version, already in clingen_flagged	2025-11-13
+125	SCV001571911	2	duplicate scv_accession.version, already in clingen_flagged	2025-11-13
+125	SCV005425332	1	duplicate scv_accession.version, already in clingen_flagged	2025-11-13
+125	SCV006058548	1	duplicate scv_accession.version, already in clingen_flagged	2025-11-13
+126	SCV000257712	2	duplicate scv_accession.version, already in clingen_flagged	2025-11-17
+126	SCV000575149	39	SCV current but with previous version	2025-11-17
+126	SCV000577108	4	duplicate scv_accession.version, already in clingen_flagged	2025-11-17
+126	SCV000608559	38	SCV current but with previous version	2025-11-17
+126	SCV002011389	3	duplicate scv_accession.version, already in clingen_flagged	2025-11-17
+126	SCV002822534	21	SCV current but with previous version	2025-11-17
+126	SCV004834253	1	duplicate scv_accession.version, already in clingen_flagged	2025-11-17
+127	SCV000267430	1	previously submitted flagging candidates	2025-12-29
+127	SCV000331383	5	previously submitted flagging candidates	2025-12-29
+127	SCV000807527	2	previously submitted flagging candidates	2025-12-29
+127	SCV000809046	1	previously submitted flagging candidates	2025-12-29
+127	SCV001571751	2	previously submitted flagging candidates	2025-12-29
+127	SCV003814377	3	previously submitted flagging candidates	2025-12-29
+127	SCV004211495	1	previously submitted flagging candidates	2025-12-29
+127	SCV004211496	1	previously submitted flagging candidates	2025-12-29
+127	SCV004211505	1	previously submitted flagging candidates	2025-12-29
+127	SCV004211509	1	previously submitted flagging candidates	2025-12-29
+127	SCV004211513	1	previously submitted flagging candidates	2025-12-29
+127	SCV004211523	1	previously submitted flagging candidates	2025-12-29
+127	SCV004211525	1	previously submitted flagging candidates	2025-12-29
+127	SCV004211528	1	previously submitted flagging candidates	2025-12-29
+127	SCV004211532	1	previously submitted flagging candidates	2025-12-29
+127	SCV004211538	1	previously submitted flagging candidates	2025-12-29
+127	SCV004211548	1	previously submitted flagging candidates	2025-12-29
+127	SCV004211549	1	previously submitted flagging candidates	2025-12-29
+127	SCV004211550	1	previously submitted flagging candidates	2025-12-29
+127	SCV004211551	1	previously submitted flagging candidates	2025-12-29
+127	SCV004211553	1	previously submitted flagging candidates	2025-12-29
+127	SCV004211558	1	previously submitted flagging candidates	2025-12-29
+127	SCV004211562	1	previously submitted flagging candidates	2025-12-29
+127	SCV004211564	1	previously submitted flagging candidates	2025-12-29
+127	SCV004211568	1	previously submitted flagging candidates	2025-12-29
+127	SCV004211570	1	previously submitted flagging candidates	2025-12-29
+127	SCV004211572	1	previously submitted flagging candidates	2025-12-29
+127	SCV004211576	1	previously submitted flagging candidates	2025-12-29
+127	SCV004211578	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213735	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213738	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213739	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213742	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213745	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213746	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213747	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213749	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213750	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213753	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213754	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213755	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213758	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213759	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213760	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213763	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213764	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213765	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213769	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213770	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213772	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213774	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213775	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213776	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213779	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213780	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213782	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213786	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213787	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213788	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213789	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213790	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213792	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213793	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213795	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213797	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213798	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213800	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213802	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213808	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213809	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213810	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213812	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213814	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213815	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213816	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213817	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213819	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213820	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213821	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213822	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213823	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213824	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213826	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213827	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213828	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213831	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213832	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213834	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213836	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213837	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213838	1	previously submitted flagging candidates	2025-12-29
+127	SCV004213839	1	previously submitted flagging candidates	2025-12-29
+127	SCV004820813	2	previously submitted flagging candidates	2025-12-29
+127	SCV004822571	1	previously submitted flagging candidates	2025-12-29
+127	SCV005425063	1	previously submitted flagging candidates	2025-12-29
