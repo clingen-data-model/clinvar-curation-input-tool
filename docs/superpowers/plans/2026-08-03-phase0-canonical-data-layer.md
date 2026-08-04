@@ -719,10 +719,14 @@ sed -e 's/@@DATASET@@/clinvar_curator/g' -e 's#@@ANNO_SOURCE@@#clinvar_curator.c
 ```
 Expected: `DRY-RUN OK` (the trimmed file has no `CREATE TABLE` collision now).
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Update the README token list**
+
+Add `@@ANNO_ID@@` (legacy → `CAST(UNIX_MILLIS(a.annotation_date) AS STRING)`, shadow → `a.annotation_id`) to the token explanation in `bigquery/curator/README.md`, and note the shadow reads the stored `annotation_id`.
+
+- [ ] **Step 6: Commit**
 
 ```bash
-git add bigquery/curator/00-initialize-cvc-tables.sql bigquery/curator/staging-tables.sql bigquery/curator/deploy.sh
+git add bigquery/curator/00-initialize-cvc-tables.sql bigquery/curator/staging-tables.sql bigquery/curator/deploy.sh bigquery/curator/README.md
 git commit -m "refactor(curator): split staging DDL + @@ANNO_ID@@ token (shadow reads stored annotation_id)"
 ```
 
