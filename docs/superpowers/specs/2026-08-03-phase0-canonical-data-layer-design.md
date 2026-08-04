@@ -236,13 +236,13 @@ gap splits the 554 dropped rows into:
 
 | action | surplus dropped | **distinct events wrongly dropped** (>15 min → restore) | true dupes correctly dropped (≤15 min) |
 |---|---|---|---|
-| no change | 367 | 158 | 209 |
+| no change | 367 | 159 | 208 |
 | flagging candidate | 184 | **128** | 56 |
 | remove flagged submission | 3 | 0 | 3 |
-| **total** | **554** | **286** | **268** |
+| **total** | **554** | **287** | **267** |
 
-So **286 of the 554 were distinct events wrongly merged** (incl. **128 flagging-candidate**
-events; of those, **11 were submitted to ClinVar in two different batches**), and only **268**
+So **287 of the 554 were distinct events wrongly merged** (incl. **128 flagging-candidate**
+events; of those, **11 were submitted to ClinVar in two different batches**), and only **267**
 were genuine ≤15-min accidental double-saves. `no change` never enters the submission file, so
 its collapses have no submission impact; the flag/remove cases are the audit priority.
 
@@ -262,9 +262,9 @@ Update `clinvar-cvc/migration/` to consume the shared 15-min dedup module, then 
 wipe + reload** prod-staging v4 (`clingen-cvc`) from the current
 `clingen-dev.clinvar_curator.clinvar_annotations_native` (paced per the documented
 burst-drop/`run.invoker` recipe; verify `run.invoker` **before** the load). Result: v4 holds
-one document per (content, ≤15-min cluster) — the ~268-fewer-than-legacy corrected population
-(~31,094 for the current snapshot) — each survivor carrying its cluster-anchor `created_at`.
-The 286 previously-dropped distinct events are thereby **restored**, so their downstream
+one document per (content, ≤15-min cluster) — the ~267-fewer-than-legacy corrected population
+(~31,095 for the current snapshot) — each survivor carrying its cluster-anchor `created_at`.
+The 287 previously-dropped distinct events are thereby **restored**, so their downstream
 `annotation_id`s exist and staging references resolve.
 
 ### 6.4 The unified cluster-anchor crosswalk (non-destructive)
@@ -273,7 +273,7 @@ The 286 previously-dropped distinct events are thereby **restored**, so their do
   **excluding `annotation_date`/`created_at` and `name`**; *not* the §3.2 contract columns,
   which include `annotation_date`), gap-cluster each group at 15 min, and set
   `canonical_annotation_id = UNIX_MILLIS(earliest created_at of the row's cluster)`. This one
-  rule handles **both** the 268 ≤15-min collapses **and** any within-restored-cluster remaps;
+  rule handles **both** the 267 ≤15-min collapses **and** any within-restored-cluster remaps;
   singletons map to themselves. By construction the crosswalk's canonical ids equal the
   re-migrated v4 survivors' `annotation_id`s.
 - Apply it as thin **crosswalk `_x` views** over the shared staging tables (e.g.
@@ -305,21 +305,21 @@ Deploy the full templated curator object graph into a new **`clinvar_curator_v4`
   unchanged except for the id remap + dedup);
 - reference data = the **same** `clinvar_ingest` (US) as legacy.
 So the **only** variable vs legacy is the annotation source (and the id-remap the `_x`
-views apply to **collapse the 268 ≤15-min twins** — the 286 distinct events are reconciled by
+views apply to **collapse the 267 ≤15-min twins** — the 287 distinct events are reconciled by
 the re-migration, restored as their own cluster anchors that map to themselves). Includes
 `refresh_cvc_impact_analysis_v4()` writing 11 `*_v4` tables. Legacy `clinvar_curator` is
 byte-for-byte unchanged → true side-by-side comparison.
 
 ### 7.2 Parity method (drift-aware)
 Because Phase 0 **re-migrates** v4 with the corrected 15-min dedup (§6.3), the v4 population
-now matches the legacy population **modulo the 268 genuine ≤15-min collapses** — the 286
+now matches the legacy population **modulo the 267 genuine ≤15-min collapses** — the 287
 distinct events are restored, so they are no longer a delta. Parity is evaluated with the
 **cluster-anchor crosswalk applied to the legacy side too**, so both lineages are compared on
 canonical (cluster) identity.
 
 1. **Comparison population = the shared seed**, identified by **cluster identity**
    (`DEDUP_FIELDS` content + 15-min cluster anchor = the `canonical_annotation_id`). Apply the
-   §6.4 crosswalk to legacy `cvc_annotations` so its 268 ≤15-min twins collapse to their anchor,
+   §6.4 crosswalk to legacy `cvc_annotations` so its 267 ≤15-min twins collapse to their anchor,
    exactly as v4 does. **Within this population, parity must be exact** at the annotation/
    choke-point level (row- and column-for-column) with `annotation_id` id-integrity: 0 orphaned
    staging ids after the crosswalk.
@@ -335,20 +335,20 @@ canonical (cluster) identity.
 4. **Choke-point diff:** `cvc_annotations("all")` (crosswalk-collapsed) vs
    `cvc_annotations_v4("all")` — two distinct checks on the shared seed: (a) a **canonical-keyed
    column diff** grouped by `canonical_annotation_id`, which must be **exactly 0 rows**; and
-   (b) a **raw row-count** comparison, where the *only* permitted difference is the **268 ≤15-min
+   (b) a **raw row-count** comparison, where the *only* permitted difference is the **267 ≤15-min
    raw-legacy duplicate rows** that collapse to their anchor (a raw-count artifact, bucketed in
-   item 6). Any canonical-keyed diff, or any raw-count delta beyond the 268, is an adapter bug.
+   item 6). Any canonical-keyed diff, or any raw-count delta beyond the 267, is an adapter bug.
    (This closes the pass-1/pass-2 reviewer concern that an `annotation_id`-keyed diff would
    surface an unbucketed cardinality delta at the choke point.)
 5. **End-to-end batch parity:** choose a batch **finalized before the seed boundary** (stable
    membership); diff all 11 impact tables (especially #8 `cvc_flagging_version_bump_intersection`,
    #9 `cvc_resubmission_candidates`, #11 `cvc_impact_summary`) and the **generated submission
    file** (`cvc_annotations("unreviewed")` JOIN submissions) legacy-vs-v4, both crosswalk-collapsed.
-6. **Dedup-collapse bucket (the 268):** the only expected, quantified delta is the **268 genuine
-   ≤15-min collapses** (no change 209, flagging candidate 56, remove flagged 3). Both sides
+6. **Dedup-collapse bucket (the 267):** the only expected, quantified delta is the **267 genuine
+   ≤15-min collapses** (no change 208, flagging candidate 56, remove flagged 3). Both sides
    collapse these to the cluster anchor via the crosswalk, so they should produce **no residual
    delta** once collapsed; a diff that maps to a known collapse cluster is expected, and only a
-   diff *outside* it is an adapter bug. (The 286 restored distinct events must appear on **both**
+   diff *outside* it is an adapter bug. (The 287 restored distinct events must appear on **both**
    sides — their absence would be a re-migration defect, caught here.)
 7. **Drift reconciliation:** enumerate and categorize every row outside the intersection —
    `sheet-only (post-seed)`, `v4-only (new capture)` — with **zero unexplained deltas
@@ -357,8 +357,8 @@ canonical (cluster) identity.
 
 ### 7.3 Parity report (deliverable)
 A short written report: anchor results, id-integrity match rate, shared-seed diff result,
-the **dedup-collapse reconciliation** (§7.2 item 6 — the 268 ≤15-min collapses accounted for
-and the 286 restored distinct events confirmed present on both sides), sample-batch end-to-end
+the **dedup-collapse reconciliation** (§7.2 item 6 — the 267 ≤15-min collapses accounted for
+and the 287 restored distinct events confirmed present on both sides), sample-batch end-to-end
 result, and the drift reconciliation. It also references the **§6.5 dropped/impacted audit log**.
 This is the **go/no-go evidence** for Phase 1.
 
