@@ -12,10 +12,6 @@
  * real network writes unless --dry-run is passed; it is not run by CI/tests.
  */
 
-// Node shim: annotationDocId (annotation.js) uses global crypto.subtle, which
-// browsers provide natively but plain `node` only exposes via node:crypto.
-if (!globalThis.crypto) globalThis.crypto = require('node:crypto').webcrypto;
-
 const fs = require('node:fs');
 
 const { nativeRowToV4Doc, toFirestoreFields, chunk } = require('./native-to-v4.js');
