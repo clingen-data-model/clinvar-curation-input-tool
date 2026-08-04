@@ -197,6 +197,28 @@ names, types, and `annotation_id` semantics. A consumer needs to know only that 
 the §3.2 contract for the shared-seed population plus any post-seed v4 captures; it does not
 need to know how the copy or reshape work.
 
+### 5.4 Source-environment separation (dev vs prod capture)
+The single `clinvar_curator` project (decision 1) is **source-agnostic**: it holds *named*
+native tables, each deterministically bound to exactly one capture project by its transfer
+job. Capture environments stay separated **structurally — by named table + lineage, never by
+row-mixing**:
+- `clinvar_annotations_native` — legacy sheet source → live legacy lineage.
+- `cvc_annotations_native_v4` — v4 **prod-staging** (`clingen-cvc`) → shadow `clinvar_curator_v4`.
+  **This is the only v4 source Phase 0 wires.**
+- `clingen-cvc-dev` is **not** a downstream source in Phase 0; it exists to exercise the capture
+  extension, not the analytics pipeline.
+
+There is no code path that reads two capture sources into one table: each native table has a
+unique name, a single-valued source binding, its own transfer watermark, and its own suffixed
+shadow lineage. If a dev-sourced downstream is ever needed, it is a **parallel `_dev`-suffixed
+lineage** (`cvc_annotations_native_v4_dev` fed from `clingen-cvc-dev` → `clinvar_curator_v4_dev`),
+same templated DDL, different binding — coexisting with zero contamination. Because
+`clinvar_curator`'s staging tables are single and sheet-derived, such a run validates
+adapter/capture plumbing, not a fully isolated ops environment (a true ops dev/prod split is
+the deferred discovery open-question, not this). **Durable rule:** the single downstream tracks
+the **prod** capture (the eventual system of record); dev capture feeds it only via a transient
+`_dev` lineage for testing.
+
 ## 6. Dedup correction, re-migration & the cluster-anchor crosswalk
 
 ### 6.1 The defect: content-only dedup over-collapsed
