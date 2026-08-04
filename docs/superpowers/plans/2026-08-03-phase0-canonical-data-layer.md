@@ -27,7 +27,7 @@
 
 **New — shared dedup module (Chunk 2):**
 - `clinvar-cvc/dedup.js` — the single source of truth for the content+15-min-cluster dedup key.
-- `clinvar-cvc/dedup.test.js` — Vitest unit tests.
+- `clinvar-cvc/test/dedup.test.js` — Vitest unit tests.
 
 **Modified — migration (Chunk 3):**
 - `clinvar-cvc/annotation.js` — export `DEDUP_FIELDS` + `canonicalContent()` (DRY; consumed by `dedup.js`).
@@ -279,7 +279,7 @@ Expected: PASS — all existing tests still green (annotationDocId unchanged in 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add clinvar-cvc/annotation.js clinvar-cvc/annotation.test.js
+git add clinvar-cvc/annotation.js clinvar-cvc/test/annotation.test.js
 git commit -m "refactor(cvc): extract canonicalContent + export DEDUP_FIELDS (DRY for dedup module)"
 ```
 
@@ -337,7 +337,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add clinvar-cvc/dedup.js clinvar-cvc/dedup.test.js
+git add clinvar-cvc/dedup.js clinvar-cvc/test/dedup.test.js
 git commit -m "feat(cvc): dedup.js clusterKey (content + cluster-anchor SHA-256)"
 ```
 
@@ -345,7 +345,7 @@ git commit -m "feat(cvc): dedup.js clusterKey (content + cluster-anchor SHA-256)
 
 **Files:**
 - Modify: `clinvar-cvc/dedup.js`
-- Test: `clinvar-cvc/dedup.test.js`
+- Test: `clinvar-cvc/test/dedup.test.js`
 
 - [ ] **Step 1: Write the failing tests (boundaries + chaining + content isolation)**
 
@@ -421,7 +421,7 @@ Expected: PASS — all cluster + clusterKey tests green.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add clinvar-cvc/dedup.js clinvar-cvc/dedup.test.js
+git add clinvar-cvc/dedup.js clinvar-cvc/test/dedup.test.js
 git commit -m "feat(cvc): clusterAnnotations 15-min gap sessionization (earliest anchor)"
 ```
 
@@ -437,13 +437,13 @@ Currently `loadUniqueDocs` dedups by content-only `annotationDocId` and keeps th
 
 **Files:**
 - Modify: `clinvar-cvc/migration/migrate.js`
-- Test: `clinvar-cvc/migration/migrate.test.js` (existing)
+- Test: `clinvar-cvc/test/migration.test.js` (existing; under the `test/` include glob)
 
 - [ ] **Step 1: Write the failing test**
 
-Add to `clinvar-cvc/migration/migrate.test.js`:
+Add to `clinvar-cvc/test/migration.test.js` (reuse its existing `createRequire` header):
 ```js
-import { loadUniqueDocsFromRows } from './migrate.js';   // new pure helper (rows in, docs out)
+const { loadUniqueDocsFromRows } = require('../migration/migrate.js');   // new pure helper (rows in, docs out)
 
 const row = (over) => ({ variation_id:'1', vcv_id:'VCV1', variation_name:'X', scv_id:'SCV1',
   submitter_name:'S', submitter_id:'9', interpretation:'Pathogenic', review_status:'criteria',
@@ -461,7 +461,7 @@ test('<=15 min twins collapse to ONE doc anchored at earliest; >15 min stay two'
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `cd clinvar-cvc && npx vitest run migration/migrate.test.js -t twins`
+Run: `cd clinvar-cvc && npx vitest run migration.test.js -t twins`
 Expected: FAIL — `loadUniqueDocsFromRows` not exported.
 
 - [ ] **Step 3: Implement the pure helper + rewire `loadUniqueDocs`**
@@ -498,7 +498,7 @@ Expected: PASS — new twins test green; existing migration tests still pass (ad
 - [ ] **Step 5: Commit**
 
 ```bash
-git add clinvar-cvc/migration/migrate.js clinvar-cvc/migration/migrate.test.js
+git add clinvar-cvc/migration/migrate.js clinvar-cvc/test/migration.test.js
 git commit -m "feat(migration): 15-min-windowed dedup via shared dedup.js (earliest-anchored survivor)"
 ```
 
@@ -648,6 +648,7 @@ Expected: reports ~31,095 unique docs (the corrected population = legacy rows �
 
 Run:
 ```bash
+export GCP_TOKEN=$(gcloud auth print-access-token)
 cd clinvar-cvc && node migration/wipe-collection.js --project clingen-cvc --confirm --delay-ms 2000; cd -
 ```
 Expected: paginated paced delete completes; Firestore aggregate count → 0.
@@ -656,6 +657,7 @@ Expected: paginated paced delete completes; Firestore aggregate count → 0.
 
 Run:
 ```bash
+export GCP_TOKEN=$(gcloud auth print-access-token)
 cd clinvar-cvc && node migration/migrate.js --source /tmp/cvc-history.json --project clingen-cvc --delay-ms 3000; cd -
 ```
 Expected: ~31,095 create-only writes, 0 errors.
