@@ -21,7 +21,7 @@
 --
 -- =============================================================================
 
-CREATE OR REPLACE VIEW `clinvar_curator.cvc_batches_enriched`
+CREATE OR REPLACE VIEW `@@DATASET@@.cvc_batches_enriched`
 AS
 SELECT
   b.batch_id,
@@ -40,6 +40,6 @@ SELECT
     FROM `clinvar_ingest.clinvar_releases`
     WHERE release_date > DATE_ADD(b.batch_end_date, INTERVAL 60 DAY)
   ) AS first_release_after_grace_period
-FROM `clinvar_curator.cvc_clinvar_batches` b
+FROM `@@DATASET@@.cvc_clinvar_batches` b
 WHERE b.batch_end_date IS NOT NULL
 ORDER BY b.batch_id;

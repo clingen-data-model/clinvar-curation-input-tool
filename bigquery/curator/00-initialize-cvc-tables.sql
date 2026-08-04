@@ -1,6 +1,6 @@
 -- TABLES to support the clinvar curation dashboard, reporting and downstream processing
 
-CREATE TABLE `clinvar_curator.cvc_clinvar_reviews`
+CREATE TABLE `@@DATASET@@.cvc_clinvar_reviews`
 (
   annotation_id STRING,
   date_added TIMESTAMP,
@@ -12,7 +12,7 @@ CREATE TABLE `clinvar_curator.cvc_clinvar_reviews`
 )
 ;
 
-CREATE TABLE `clinvar_curator.cvc_clinvar_submissions`
+CREATE TABLE `@@DATASET@@.cvc_clinvar_submissions`
 (
   annotation_id STRING,
   scv_id STRING,
@@ -21,7 +21,7 @@ CREATE TABLE `clinvar_curator.cvc_clinvar_submissions`
 )
 ;
 
-CREATE TABLE `clinvar_curator.cvc_clinvar_batches`
+CREATE TABLE `@@DATASET@@.cvc_clinvar_batches`
 (
   batch_id STRING,
   finalized_datetime TIMESTAMP
@@ -67,7 +67,7 @@ CREATE TABLE `clinvar_curator.cvc_clinvar_batches`
 --   Use this view as a base for querying curated ClinVar annotation data,
 --   including review and submission status, for reporting and analysis.
 -- ============================================================================
-CREATE OR REPLACE MATERIALIZED VIEW clinvar_curator.cvc_annotations_base_mv
+CREATE OR REPLACE @@MV@@VIEW @@DATASET@@.cvc_annotations_base_mv
 AS
 WITH anno AS (
   SELECT
@@ -98,7 +98,7 @@ WITH anno AS (
     a.ignore,
     map.cv_clinsig_type as clinsig_type,
     def.rank
-  FROM `clinvar_curator.clinvar_annotations_native` AS a
+  FROM `@@ANNO_SOURCE@@` AS a
   JOIN `clinvar_ingest.all_releases_materialized` AS rel
     ON a.annotation_date >= TIMESTAMP(rel.release_date + INTERVAL 1 DAY)
     -- This logic prevents the date overflow error for the max date
@@ -133,11 +133,11 @@ anno_review AS (
     b_rev.batch_release_date,
     (sub.annotation_id IS NOT NULL) AS is_submitted
   FROM anno AS a
-  LEFT JOIN `clinvar_curator.cvc_clinvar_submissions` AS sub
+  LEFT JOIN `@@DATASET@@.cvc_clinvar_submissions` AS sub
     ON sub.annotation_id = a.annotation_id
-  LEFT JOIN `clinvar_curator.cvc_clinvar_reviews` AS rev
+  LEFT JOIN `@@DATASET@@.cvc_clinvar_reviews` AS rev
     ON rev.annotation_id = a.annotation_id
-  LEFT JOIN `clinvar_curator.cvc_clinvar_batches` AS b_rev
+  LEFT JOIN `@@DATASET@@.cvc_clinvar_batches` AS b_rev
     ON b_rev.batch_id = rev.batch_id
 )
 SELECT
@@ -168,7 +168,7 @@ FROM anno_review AS ar
 --   or to access all annotation records with additional metadata and review status.
 -- ============================================================================
 
-CREATE OR REPLACE VIEW clinvar_curator.cvc_annotations_view
+CREATE OR REPLACE VIEW @@DATASET@@.cvc_annotations_view
 AS
   SELECT
     *,
@@ -180,21 +180,21 @@ AS
         ROWS BETWEEN 1 FOLLOWING AND UNBOUNDED FOLLOWING
       ) = 0
     ) AS is_latest
-  FROM `clinvar_curator.cvc_annotations_base_mv`
+  FROM `@@DATASET@@.cvc_annotations_base_mv`
 ;
 
 -- This script creates a view named `cvc_batch_scv_max_annotation_view` in the `clinvar_curator` schema.
 -- The view aggregates data from the `cvc_clinvar_reviews` with their corresponding`cvc_annotations_view` data.
 -- It selects the batch ID, SCV ID, and the maximum annotation ID for each SCV ID within each batch.
 -- The view is useful for identifying the latest annotation for each SCV ID in a given batch.
-CREATE OR REPLACE VIEW clinvar_curator.cvc_batch_scv_max_annotation_view
+CREATE OR REPLACE VIEW @@DATASET@@.cvc_batch_scv_max_annotation_view
 AS
   SELECT
     ccr.batch_id,
     av.scv_id,
     max(av.annotation_id) annotation_id
-  FROM `clinvar_curator.cvc_clinvar_reviews` ccr
-  JOIN `clinvar_curator.cvc_annotations_base_mv` av
+  FROM `@@DATASET@@.cvc_clinvar_reviews` ccr
+  JOIN `@@DATASET@@.cvc_annotations_base_mv` av
   ON
     av.annotation_id = ccr.annotation_id
   GROUP BY
@@ -202,7 +202,7 @@ AS
     ccr.batch_id
   ;
 
--- This script creates or replaces the view `clinvar_curator.cvc_submitted_annotations_view`.
+-- This script creates or replaces the view `@@DATASET@@.cvc_submitted_annotations_view`.
 -- The view provides a comprehensive overview of submitted annotations, including their validity status,
 -- reasons for invalid submissions, and various metadata related to the submission and annotation process.
 --
@@ -229,11 +229,11 @@ AS
 -- - annotated_date: The date the annotation was made from the `cvc_annotations_view` table.
 --
 -- The view joins data from the following tables:
--- - `clinvar_curator.cvc_clinvar_submissions`: Provides submission data.
--- - `clinvar_curator.cvc_annotations_view`: Provides annotation data.
+-- - `@@DATASET@@.cvc_clinvar_submissions`: Provides submission data.
+-- - `@@DATASET@@.cvc_annotations_view`: Provides annotation data.
 -- - `clinvar_ingest.clinvar_scvs`: Provides SCV data for validating submissions.
--- - `clinvar_curator.cvc_clinvar_submissions`: Provides prior submission data for comparison.
-CREATE OR REPLACE VIEW clinvar_curator.cvc_submitted_annotations_view
+-- - `@@DATASET@@.cvc_clinvar_submissions`: Provides prior submission data for comparison.
+CREATE OR REPLACE VIEW @@DATASET@@.cvc_submitted_annotations_view
 AS
 SELECT
     IF(vs.id is null OR vs.version != av.scv_ver OR ccs_prior.annotation_id is not null, FALSE, TRUE) as valid_submission,
@@ -265,11 +265,11 @@ SELECT
     av.annotated_date,
     av.annotation_release_date,
     av.review_status
-  FROM `clinvar_curator.cvc_clinvar_submissions` ccs
-  JOIN `clinvar_curator.cvc_clinvar_batches` b
+  FROM `@@DATASET@@.cvc_clinvar_submissions` ccs
+  JOIN `@@DATASET@@.cvc_clinvar_batches` b
   ON
     b.batch_id = ccs.batch_id
-  JOIN `clinvar_curator.cvc_annotations_base_mv` av
+  JOIN `@@DATASET@@.cvc_annotations_base_mv` av
   ON
     av.annotation_id = ccs.annotation_id
   LEFT JOIN `clinvar_ingest.clinvar_scvs` vs
@@ -277,7 +277,7 @@ SELECT
     vs.id = ccs.scv_id
     AND
     b.batch_release_date BETWEEN vs.start_release_date AND vs.end_release_date
-  LEFT JOIN `clinvar_curator.cvc_clinvar_submissions` ccs_prior
+  LEFT JOIN `@@DATASET@@.cvc_clinvar_submissions` ccs_prior
   ON
     ccs_prior.batch_id < ccs.batch_id
     AND
@@ -286,7 +286,7 @@ SELECT
     ccs_prior.scv_ver = ccs.scv_ver
 ;
 
--- This script creates or replaces the view `clinvar_curator.cvc_submitted_outcomes_view`.
+-- This script creates or replaces the view `@@DATASET@@.cvc_submitted_outcomes_view`.
 -- The view provides a summary of the outcomes of submitted annotations based on the latest release date.
 --
 -- The view is constructed using a Common Table Expression (CTE) `latest_release` to fetch the most recent release date.
@@ -321,7 +321,7 @@ SELECT
 --   - `annotation_id`
 --   - `annotated_date`
 --   - `review_status`
-CREATE OR REPLACE VIEW clinvar_curator.cvc_submitted_outcomes_view
+CREATE OR REPLACE VIEW @@DATASET@@.cvc_submitted_outcomes_view
 AS
   SELECT
     latest_release.release_date as report_release_date,
@@ -358,7 +358,7 @@ AS
     sa.annotated_date,
     sa.annotation_release_date,
     sa.review_status
-  FROM `clinvar_curator.cvc_submitted_annotations_view` sa
+  FROM `@@DATASET@@.cvc_submitted_annotations_view` sa
   JOIN `clinvar_ingest.release_on`(CURRENT_DATE()) latest_release ON TRUE
   LEFT JOIN `clinvar_ingest.clinvar_scvs` cur_vs
   ON

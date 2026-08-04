@@ -24,7 +24,7 @@
 -- This table shows the conflict status of each CVC-targeted variant
 -- for every month since the variant was first submitted to CVC.
 
-CREATE OR REPLACE TABLE `clinvar_curator.cvc_variant_conflict_history`
+CREATE OR REPLACE TABLE `@@DATASET@@.cvc_variant_conflict_history`
 AS
 WITH
 -- Get all CVC-targeted variants with their first submission date
@@ -35,7 +35,7 @@ cvc_variants AS (
     MIN(submission_date) AS first_cvc_submission_date,
     -- Find the first monthly snapshot after submission
     DATE_TRUNC(MIN(submission_date), MONTH) AS first_cvc_month
-  FROM `clinvar_curator.cvc_submitted_variants`
+  FROM `@@DATASET@@.cvc_submitted_variants`
   WHERE valid_submission = TRUE
   GROUP BY variation_id, vcv_id
 ),
@@ -110,7 +110,7 @@ ORDER BY variation_id, snapshot_release_date
 -- Step 2: Identify resolutions and attribute them to CVC or organic causes
 -- =============================================================================
 
-CREATE OR REPLACE TABLE `clinvar_curator.cvc_resolution_attribution`
+CREATE OR REPLACE TABLE `@@DATASET@@.cvc_resolution_attribution`
 AS
 WITH
 -- Get all CVC submissions that could contribute to resolution
@@ -126,7 +126,7 @@ cvc_resolution_candidates AS (
     outcome_category,
     is_resolution_candidate,
     reason AS curation_reason
-  FROM `clinvar_curator.cvc_submitted_variants`
+  FROM `@@DATASET@@.cvc_submitted_variants`
   WHERE valid_submission = TRUE
     AND is_resolution_candidate = TRUE
 ),
@@ -298,7 +298,7 @@ ORDER BY rc.snapshot_release_date, rc.variation_id
 -- Step 3: Create summary view for attribution rates by month
 -- =============================================================================
 
-CREATE OR REPLACE VIEW `clinvar_curator.cvc_attribution_by_month`
+CREATE OR REPLACE VIEW `@@DATASET@@.cvc_attribution_by_month`
 AS
 SELECT
   snapshot_release_date,
@@ -319,7 +319,7 @@ SELECT
   COUNTIF(variant_attribution = 'cvc_attributed' AND conflict_type = 'Non-clinsig') AS cvc_non_clinsig,
   COUNTIF(variant_attribution = 'organic' AND conflict_type = 'Clinsig') AS organic_clinsig,
   COUNTIF(variant_attribution = 'organic' AND conflict_type = 'Non-clinsig') AS organic_non_clinsig
-FROM `clinvar_curator.cvc_resolution_attribution`
+FROM `@@DATASET@@.cvc_resolution_attribution`
 GROUP BY snapshot_release_date
 ORDER BY snapshot_release_date
 ;

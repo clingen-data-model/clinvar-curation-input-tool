@@ -1,4 +1,4 @@
-CREATE OR REPLACE TABLE FUNCTION `clinvar_curator.cvc_outlier_clinsig`()
+CREATE OR REPLACE TABLE FUNCTION `@@DATASET@@.cvc_outlier_clinsig`()
 AS
 WITH
 scvs AS
@@ -123,7 +123,7 @@ scvs AS
         ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
       ) as last
     FROM vars
-    JOIN `clinvar_curator.cvc_annotations`("REVIEWED") a
+    JOIN `@@DATASET@@.cvc_annotations`("REVIEWED") a
     ON
       a.is_latest_annotation
       AND
@@ -213,7 +213,7 @@ scvs AS
     var_anno.proposition_type = vars.proposition_type
     AND
     var_anno.rank = vars.top_rank
-  LEFT JOIN `clinvar_curator.cvc_annotations_impact`() ci
+  LEFT JOIN `@@DATASET@@.cvc_annotations_impact`() ci
   ON
     ci.variation_id = vars.variation_id
     AND

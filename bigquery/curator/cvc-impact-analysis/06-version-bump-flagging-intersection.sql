@@ -23,7 +23,7 @@
 --
 -- =============================================================================
 
-CREATE OR REPLACE TABLE `clinvar_curator.cvc_flagging_version_bump_intersection`
+CREATE OR REPLACE TABLE `@@DATASET@@.cvc_flagging_version_bump_intersection`
 AS
 WITH
 -- Get all flagging candidates with their submitted version
@@ -43,7 +43,7 @@ flagging_candidates AS (
     fco.outcome,
     fco.current_version,
     fco.date_flagged
-  FROM `clinvar_curator.cvc_flagging_candidate_outcomes` fco
+  FROM `@@DATASET@@.cvc_flagging_candidate_outcomes` fco
 ),
 
 -- Find version bumps that occurred on flagging candidate SCVs
@@ -66,7 +66,7 @@ relevant_version_bumps AS (
     -- Did the bump affect the submitted version specifically?
     (vb.previous_version = fc.submitted_scv_ver) AS bump_from_submitted_version
   FROM flagging_candidates fc
-  JOIN `clinvar_curator.cvc_version_bumps` vb
+  JOIN `@@DATASET@@.cvc_version_bumps` vb
     ON fc.scv_id = vb.scv_id
     AND vb.current_start_date >= fc.batch_accepted_date  -- Bump happened after batch acceptance
 )
@@ -96,7 +96,7 @@ SELECT
   -- Count of version bumps for this SCV after submission
   (
     SELECT COUNT(*)
-    FROM `clinvar_curator.cvc_version_bumps` vb2
+    FROM `@@DATASET@@.cvc_version_bumps` vb2
     WHERE vb2.scv_id = fc.scv_id
       AND vb2.current_start_date >= fc.batch_accepted_date
       AND vb2.is_version_bump = TRUE
@@ -120,7 +120,7 @@ ORDER BY fc.batch_id, fc.scv_id;
 -- Summary View: Version Bump Impact on Flagging Candidates
 -- =============================================================================
 
-CREATE OR REPLACE VIEW `clinvar_curator.cvc_flagging_version_bump_summary`
+CREATE OR REPLACE VIEW `@@DATASET@@.cvc_flagging_version_bump_summary`
 AS
 SELECT
   batch_id,
@@ -141,7 +141,7 @@ SELECT
     NULLIF(COUNT(DISTINCT scv_id), 0),
     1
   ) AS pct_with_version_bump
-FROM `clinvar_curator.cvc_flagging_version_bump_intersection`
+FROM `@@DATASET@@.cvc_flagging_version_bump_intersection`
 GROUP BY batch_id, batch_accepted_date, grace_period_end_date
 ORDER BY batch_id;
 
@@ -150,7 +150,7 @@ ORDER BY batch_id;
 -- Submitter Analysis: Who is doing version bumps on flagged SCVs?
 -- =============================================================================
 
-CREATE OR REPLACE VIEW `clinvar_curator.cvc_flagging_version_bump_by_submitter`
+CREATE OR REPLACE VIEW `@@DATASET@@.cvc_flagging_version_bump_by_submitter`
 AS
 SELECT
   fvi.submitter_id,
@@ -173,7 +173,7 @@ SELECT
     NULLIF(COUNT(DISTINCT fvi.scv_id), 0),
     1
   ) AS pct_bumped_after_grace
-FROM `clinvar_curator.cvc_flagging_version_bump_intersection` fvi
+FROM `@@DATASET@@.cvc_flagging_version_bump_intersection` fvi
 LEFT JOIN `clinvar_ingest.clinvar_submitters` sub
   ON fvi.submitter_id = sub.id
   AND sub.deleted_release_date IS NULL
@@ -204,7 +204,7 @@ ORDER BY scvs_bumped_during_grace DESC;
 --
 -- =============================================================================
 
-CREATE OR REPLACE VIEW `clinvar_curator.sheets_version_bump_impact_by_submitter`
+CREATE OR REPLACE VIEW `@@DATASET@@.sheets_version_bump_impact_by_submitter`
 AS
 SELECT
   sub.current_name AS submitter_name,
@@ -233,7 +233,7 @@ SELECT
   END) AS Version_Bump_After_Grace,
   -- Total for reference
   COUNT(DISTINCT fvi.scv_id) AS total_flagging_candidates
-FROM `clinvar_curator.cvc_flagging_version_bump_intersection` fvi
+FROM `@@DATASET@@.cvc_flagging_version_bump_intersection` fvi
 LEFT JOIN `clinvar_ingest.clinvar_submitters` sub
   ON fvi.submitter_id = sub.id
   AND sub.deleted_release_date IS NULL
@@ -257,15 +257,15 @@ ORDER BY COUNT(DISTINCT CASE WHEN fvi.is_version_bump = TRUE THEN fvi.scv_id END
 --
 -- =============================================================================
 
-CREATE OR REPLACE VIEW `clinvar_curator.sheets_flagging_candidate_funnel`
+CREATE OR REPLACE VIEW `@@DATASET@@.sheets_flagging_candidate_funnel`
 AS
 WITH
 -- Identify stale submissions: submitted version was already outdated when batch was accepted
 -- Now keyed by annotation_id to handle same SCV in multiple batches
 stale_submissions AS (
   SELECT DISTINCT fco.annotation_id
-  FROM `clinvar_curator.cvc_flagging_candidate_outcomes` fco
-  JOIN `clinvar_curator.cvc_version_bumps` vb
+  FROM `@@DATASET@@.cvc_flagging_candidate_outcomes` fco
+  JOIN `@@DATASET@@.cvc_version_bumps` vb
     ON fco.scv_id = vb.scv_id
     AND vb.previous_version = fco.submitted_scv_ver
     AND vb.current_start_date < fco.batch_accepted_date  -- Version changed BEFORE batch was accepted
@@ -276,10 +276,10 @@ stale_submissions AS (
 -- to avoid stale data issues.
 remove_flagged_submissions AS (
   SELECT DISTINCT fco.annotation_id
-  FROM `clinvar_curator.cvc_flagging_candidate_outcomes` fco
+  FROM `@@DATASET@@.cvc_flagging_candidate_outcomes` fco
   WHERE EXISTS (
     SELECT 1
-    FROM `clinvar_curator.cvc_annotations_view` a
+    FROM `@@DATASET@@.cvc_annotations_view` a
     WHERE a.action = 'remove flagged submission'
       AND a.scv_id = fco.scv_id
       AND a.is_submitted = TRUE
@@ -303,12 +303,12 @@ submission_summary AS (
     -- Did this submission have any substantive change (is_version_bump = FALSE means real changes)?
     LOGICAL_OR(fvi.is_version_bump = FALSE AND fvi.bump_from_submitted_version = TRUE) AS had_substantive_change,
     -- Was this submission rejected by NCBI?
-    LOGICAL_OR(fvi.scv_id IN (SELECT scv_id FROM `clinvar_curator.cvc_rejected_scvs` WHERE batch_id = fvi.batch_id)) AS was_rejected,
+    LOGICAL_OR(fvi.scv_id IN (SELECT scv_id FROM `@@DATASET@@.cvc_rejected_scvs` WHERE batch_id = fvi.batch_id)) AS was_rejected,
     -- Was the submitted version already stale when batch was accepted?
     LOGICAL_OR(fvi.annotation_id IN (SELECT annotation_id FROM stale_submissions)) AS was_stale_at_submission,
     -- Did CVC later submit a "remove flagged submission" for this SCV?
     LOGICAL_OR(fvi.annotation_id IN (SELECT annotation_id FROM remove_flagged_submissions)) AS had_remove_flagged_submission
-  FROM `clinvar_curator.cvc_flagging_version_bump_intersection` fvi
+  FROM `@@DATASET@@.cvc_flagging_version_bump_intersection` fvi
   GROUP BY fvi.annotation_id, fvi.scv_id, fvi.batch_id, fvi.current_outcome,
            fvi.submitted_scv_ver, fvi.current_version, fvi.grace_period_end_date
 ),
@@ -425,15 +425,15 @@ ORDER BY sort_order;
 --
 -- =============================================================================
 
-CREATE OR REPLACE VIEW `clinvar_curator.sheets_flagging_candidate_funnel_pivoted`
+CREATE OR REPLACE VIEW `@@DATASET@@.sheets_flagging_candidate_funnel_pivoted`
 AS
 WITH
 -- Identify stale submissions: submitted version was already outdated when batch was accepted
 -- Now keyed by annotation_id to handle same SCV in multiple batches
 stale_submissions AS (
   SELECT DISTINCT fco.annotation_id
-  FROM `clinvar_curator.cvc_flagging_candidate_outcomes` fco
-  JOIN `clinvar_curator.cvc_version_bumps` vb
+  FROM `@@DATASET@@.cvc_flagging_candidate_outcomes` fco
+  JOIN `@@DATASET@@.cvc_version_bumps` vb
     ON fco.scv_id = vb.scv_id
     AND vb.previous_version = fco.submitted_scv_ver
     AND vb.current_start_date < fco.batch_accepted_date
@@ -444,10 +444,10 @@ stale_submissions AS (
 -- to avoid stale data issues.
 remove_flagged_submissions AS (
   SELECT DISTINCT fco.annotation_id
-  FROM `clinvar_curator.cvc_flagging_candidate_outcomes` fco
+  FROM `@@DATASET@@.cvc_flagging_candidate_outcomes` fco
   WHERE EXISTS (
     SELECT 1
-    FROM `clinvar_curator.cvc_annotations_view` a
+    FROM `@@DATASET@@.cvc_annotations_view` a
     WHERE a.action = 'remove flagged submission'
       AND a.scv_id = fco.scv_id
       AND a.is_submitted = TRUE
@@ -467,10 +467,10 @@ submission_summary AS (
     LOGICAL_OR(fvi.is_version_bump = TRUE AND fvi.bump_during_grace_period = TRUE) AS had_bump_during_grace,
     LOGICAL_OR(fvi.is_version_bump = TRUE AND fvi.bump_during_grace_period = FALSE) AS had_bump_after_grace,
     LOGICAL_OR(fvi.is_version_bump = FALSE AND fvi.bump_from_submitted_version = TRUE) AS had_substantive_change,
-    LOGICAL_OR(fvi.scv_id IN (SELECT scv_id FROM `clinvar_curator.cvc_rejected_scvs` WHERE batch_id = fvi.batch_id)) AS was_rejected,
+    LOGICAL_OR(fvi.scv_id IN (SELECT scv_id FROM `@@DATASET@@.cvc_rejected_scvs` WHERE batch_id = fvi.batch_id)) AS was_rejected,
     LOGICAL_OR(fvi.annotation_id IN (SELECT annotation_id FROM stale_submissions)) AS was_stale_at_submission,
     LOGICAL_OR(fvi.annotation_id IN (SELECT annotation_id FROM remove_flagged_submissions)) AS had_remove_flagged_submission
-  FROM `clinvar_curator.cvc_flagging_version_bump_intersection` fvi
+  FROM `@@DATASET@@.cvc_flagging_version_bump_intersection` fvi
   GROUP BY fvi.annotation_id, fvi.scv_id, fvi.batch_id, fvi.current_outcome,
            fvi.submitted_scv_ver, fvi.current_version, fvi.grace_period_end_date
 ),
@@ -576,15 +576,15 @@ ORDER BY sort_order;
 --
 -- =============================================================================
 
-CREATE OR REPLACE VIEW `clinvar_curator.sheets_flagging_candidate_pie`
+CREATE OR REPLACE VIEW `@@DATASET@@.sheets_flagging_candidate_pie`
 AS
 WITH
 -- Identify stale submissions: submitted version was already outdated when batch was accepted
 -- Now keyed by annotation_id to handle same SCV in multiple batches
 stale_submissions AS (
   SELECT DISTINCT fco.annotation_id
-  FROM `clinvar_curator.cvc_flagging_candidate_outcomes` fco
-  JOIN `clinvar_curator.cvc_version_bumps` vb
+  FROM `@@DATASET@@.cvc_flagging_candidate_outcomes` fco
+  JOIN `@@DATASET@@.cvc_version_bumps` vb
     ON fco.scv_id = vb.scv_id
     AND vb.previous_version = fco.submitted_scv_ver
     AND vb.current_start_date < fco.batch_accepted_date
@@ -595,10 +595,10 @@ stale_submissions AS (
 -- to avoid stale data issues.
 remove_flagged_submissions AS (
   SELECT DISTINCT fco.annotation_id
-  FROM `clinvar_curator.cvc_flagging_candidate_outcomes` fco
+  FROM `@@DATASET@@.cvc_flagging_candidate_outcomes` fco
   WHERE EXISTS (
     SELECT 1
-    FROM `clinvar_curator.cvc_annotations_view` a
+    FROM `@@DATASET@@.cvc_annotations_view` a
     WHERE a.action = 'remove flagged submission'
       AND a.scv_id = fco.scv_id
       AND a.is_submitted = TRUE
@@ -618,10 +618,10 @@ submission_summary AS (
     LOGICAL_OR(fvi.is_version_bump = TRUE AND fvi.bump_during_grace_period = TRUE) AS had_bump_during_grace,
     LOGICAL_OR(fvi.is_version_bump = TRUE AND fvi.bump_during_grace_period = FALSE) AS had_bump_after_grace,
     LOGICAL_OR(fvi.is_version_bump = FALSE AND fvi.bump_from_submitted_version = TRUE) AS had_substantive_change,
-    LOGICAL_OR(fvi.scv_id IN (SELECT scv_id FROM `clinvar_curator.cvc_rejected_scvs` WHERE batch_id = fvi.batch_id)) AS was_rejected,
+    LOGICAL_OR(fvi.scv_id IN (SELECT scv_id FROM `@@DATASET@@.cvc_rejected_scvs` WHERE batch_id = fvi.batch_id)) AS was_rejected,
     LOGICAL_OR(fvi.annotation_id IN (SELECT annotation_id FROM stale_submissions)) AS was_stale_at_submission,
     LOGICAL_OR(fvi.annotation_id IN (SELECT annotation_id FROM remove_flagged_submissions)) AS had_remove_flagged_submission
-  FROM `clinvar_curator.cvc_flagging_version_bump_intersection` fvi
+  FROM `@@DATASET@@.cvc_flagging_version_bump_intersection` fvi
   GROUP BY fvi.annotation_id, fvi.scv_id, fvi.batch_id, fvi.current_outcome,
            fvi.submitted_scv_ver, fvi.current_version, fvi.grace_period_end_date
 ),
@@ -704,7 +704,7 @@ ORDER BY sort_order;
 --
 -- =============================================================================
 
-CREATE OR REPLACE VIEW `clinvar_curator.sheets_version_bump_timing`
+CREATE OR REPLACE VIEW `@@DATASET@@.sheets_version_bump_timing`
 AS
 WITH timing_data AS (
   SELECT
@@ -730,7 +730,7 @@ WITH timing_data AS (
     END AS days_bucket_label,
     scv_id,
     is_version_bump
-  FROM `clinvar_curator.cvc_flagging_version_bump_intersection`
+  FROM `@@DATASET@@.cvc_flagging_version_bump_intersection`
   WHERE bump_date IS NOT NULL
 )
 SELECT
@@ -761,7 +761,7 @@ ORDER BY sort_order;
 --
 -- =============================================================================
 
-CREATE OR REPLACE VIEW `clinvar_curator.sheets_version_bump_timing_summary`
+CREATE OR REPLACE VIEW `@@DATASET@@.sheets_version_bump_timing_summary`
 AS
 WITH timing_data AS (
   SELECT
@@ -772,7 +772,7 @@ WITH timing_data AS (
     END AS grace_period_status,
     scv_id,
     is_version_bump
-  FROM `clinvar_curator.cvc_flagging_version_bump_intersection`
+  FROM `@@DATASET@@.cvc_flagging_version_bump_intersection`
   WHERE bump_date IS NOT NULL
 )
 SELECT

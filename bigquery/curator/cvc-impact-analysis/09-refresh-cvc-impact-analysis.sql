@@ -14,7 +14,7 @@
 --   cvc_clinvar_batches live, so no refresh is needed here.
 --
 -- Usage:
---   CALL `clinvar_curator.refresh_cvc_impact_analysis`();
+--   CALL `@@DATASET@@.refresh_cvc_impact_analysis`();
 --
 -- Dependency Order:
 --   Phase 1 (independent):
@@ -39,7 +39,7 @@
 --
 -- =============================================================================
 
-CREATE OR REPLACE PROCEDURE `clinvar_curator.refresh_cvc_impact_analysis`()
+CREATE OR REPLACE PROCEDURE `@@DATASET@@.refresh_cvc_impact_analysis`()
 BEGIN
 
   -- =========================================================================
@@ -47,7 +47,7 @@ BEGIN
   -- =========================================================================
 
   -- Step 01: cvc_submitted_variants
-  CREATE OR REPLACE TABLE `clinvar_curator.cvc_submitted_variants`
+  CREATE OR REPLACE TABLE `@@DATASET@@.cvc_submitted_variants`
   AS
   WITH
   submitted_outcomes AS (
@@ -87,7 +87,7 @@ BEGIN
         WHEN sov.outcome IN ('flagged', 'deleted', 'resubmitted, reclassified') THEN TRUE
         ELSE FALSE
       END AS is_resolution_candidate
-    FROM `clinvar_curator.cvc_submitted_outcomes_view` sov
+    FROM `@@DATASET@@.cvc_submitted_outcomes_view` sov
   ),
 
   first_submission AS (
@@ -111,7 +111,7 @@ BEGIN
   ;
 
   -- Step 04a: cvc_flagging_candidate_outcomes
-  CREATE OR REPLACE TABLE `clinvar_curator.cvc_flagging_candidate_outcomes`
+  CREATE OR REPLACE TABLE `@@DATASET@@.cvc_flagging_candidate_outcomes`
   AS
   WITH
   flagging_candidates AS (
@@ -128,12 +128,12 @@ BEGIN
       b.batch_accepted_date,
       b.grace_period_end_date,
       b.first_release_after_grace_period
-    FROM `clinvar_curator.cvc_clinvar_submissions` s
-    JOIN `clinvar_curator.cvc_annotations_view` a
+    FROM `@@DATASET@@.cvc_clinvar_submissions` s
+    JOIN `@@DATASET@@.cvc_annotations_view` a
       ON s.annotation_id = a.annotation_id
-    JOIN `clinvar_curator.cvc_batches_enriched` b
+    JOIN `@@DATASET@@.cvc_batches_enriched` b
       ON s.batch_id = b.batch_id
-    LEFT JOIN `clinvar_curator.cvc_rejected_scvs` r
+    LEFT JOIN `@@DATASET@@.cvc_rejected_scvs` r
       ON s.batch_id = r.batch_id
       AND s.scv_id = r.scv_id
       AND s.scv_ver = r.scv_ver
@@ -150,7 +150,7 @@ BEGIN
       scv_sub.submitted_classification AS submitted_classification_text,
       scv_sub.last_evaluated AS submitted_last_evaluated
     FROM flagging_candidates fc
-    JOIN `clinvar_curator.cvc_annotations_view` a
+    JOIN `@@DATASET@@.cvc_annotations_view` a
       ON fc.annotation_id = a.annotation_id
     LEFT JOIN `clinvar_ingest.clinvar_scvs` scv_sub
       ON fc.scv_id = scv_sub.id
@@ -265,7 +265,7 @@ BEGIN
   ORDER BY sub.batch_id, sub.scv_id;
 
   -- Step 04b: cvc_remove_flagged_outcomes
-  CREATE OR REPLACE TABLE `clinvar_curator.cvc_remove_flagged_outcomes`
+  CREATE OR REPLACE TABLE `@@DATASET@@.cvc_remove_flagged_outcomes`
   AS
   WITH
   remove_submissions AS (
@@ -282,12 +282,12 @@ BEGIN
       b.batch_accepted_date,
       b.grace_period_end_date,
       b.first_release_after_grace_period
-    FROM `clinvar_curator.cvc_clinvar_submissions` s
-    JOIN `clinvar_curator.cvc_annotations_view` a
+    FROM `@@DATASET@@.cvc_clinvar_submissions` s
+    JOIN `@@DATASET@@.cvc_annotations_view` a
       ON s.annotation_id = a.annotation_id
-    JOIN `clinvar_curator.cvc_batches_enriched` b
+    JOIN `@@DATASET@@.cvc_batches_enriched` b
       ON s.batch_id = b.batch_id
-    LEFT JOIN `clinvar_curator.cvc_rejected_scvs` r
+    LEFT JOIN `@@DATASET@@.cvc_rejected_scvs` r
       ON s.batch_id = r.batch_id
       AND s.scv_id = r.scv_id
       AND s.scv_ver = r.scv_ver
@@ -301,7 +301,7 @@ BEGIN
       scv_sub.rank AS submitted_rank,
       scv_sub.classif_type AS submitted_classif_type
     FROM remove_submissions rs
-    JOIN `clinvar_curator.cvc_annotations_view` a
+    JOIN `@@DATASET@@.cvc_annotations_view` a
       ON rs.annotation_id = a.annotation_id
     LEFT JOIN `clinvar_ingest.clinvar_scvs` scv_sub
       ON rs.scv_id = scv_sub.id
@@ -364,7 +364,7 @@ BEGIN
   ORDER BY sub.batch_id, sub.scv_id;
 
   -- Step 05: cvc_version_bumps
-  CREATE OR REPLACE TABLE `clinvar_curator.cvc_version_bumps`
+  CREATE OR REPLACE TABLE `@@DATASET@@.cvc_version_bumps`
   AS
   WITH
   scv_versions AS (
@@ -469,7 +469,7 @@ BEGIN
   ORDER BY current_start_date DESC, scv_id, current_version;
 
   -- Step 05f: cvc_full_record_version_bumps
-  CREATE OR REPLACE TABLE `clinvar_curator.cvc_full_record_version_bumps`
+  CREATE OR REPLACE TABLE `@@DATASET@@.cvc_full_record_version_bumps`
   AS
   WITH
   scv_versions AS (
@@ -621,7 +621,7 @@ BEGIN
   -- =========================================================================
 
   -- Step 02a: cvc_variant_conflict_history
-  CREATE OR REPLACE TABLE `clinvar_curator.cvc_variant_conflict_history`
+  CREATE OR REPLACE TABLE `@@DATASET@@.cvc_variant_conflict_history`
   AS
   WITH
   cvc_variants AS (
@@ -630,7 +630,7 @@ BEGIN
       vcv_id,
       MIN(submission_date) AS first_cvc_submission_date,
       DATE_TRUNC(MIN(submission_date), MONTH) AS first_cvc_month
-    FROM `clinvar_curator.cvc_submitted_variants`
+    FROM `@@DATASET@@.cvc_submitted_variants`
     WHERE valid_submission = TRUE
     GROUP BY variation_id, vcv_id
   ),
@@ -695,7 +695,7 @@ BEGIN
   ;
 
   -- Step 02b: cvc_resolution_attribution
-  CREATE OR REPLACE TABLE `clinvar_curator.cvc_resolution_attribution`
+  CREATE OR REPLACE TABLE `@@DATASET@@.cvc_resolution_attribution`
   AS
   WITH
   cvc_resolution_candidates AS (
@@ -710,7 +710,7 @@ BEGIN
       outcome_category,
       is_resolution_candidate,
       reason AS curation_reason
-    FROM `clinvar_curator.cvc_submitted_variants`
+    FROM `@@DATASET@@.cvc_submitted_variants`
     WHERE valid_submission = TRUE
       AND is_resolution_candidate = TRUE
   ),
@@ -854,7 +854,7 @@ BEGIN
   ;
 
   -- Step 06: cvc_flagging_version_bump_intersection
-  CREATE OR REPLACE TABLE `clinvar_curator.cvc_flagging_version_bump_intersection`
+  CREATE OR REPLACE TABLE `@@DATASET@@.cvc_flagging_version_bump_intersection`
   AS
   WITH
   flagging_candidates AS (
@@ -873,7 +873,7 @@ BEGIN
       fco.outcome,
       fco.current_version,
       fco.date_flagged
-    FROM `clinvar_curator.cvc_flagging_candidate_outcomes` fco
+    FROM `@@DATASET@@.cvc_flagging_candidate_outcomes` fco
   ),
 
   relevant_version_bumps AS (
@@ -892,7 +892,7 @@ BEGIN
       (vb.current_start_date BETWEEN fc.batch_accepted_date AND fc.grace_period_end_date) AS bump_during_grace_period,
       (vb.previous_version = fc.submitted_scv_ver) AS bump_from_submitted_version
     FROM flagging_candidates fc
-    JOIN `clinvar_curator.cvc_version_bumps` vb
+    JOIN `@@DATASET@@.cvc_version_bumps` vb
       ON fc.scv_id = vb.scv_id
       AND vb.current_start_date >= fc.batch_accepted_date  -- Bump happened after batch acceptance
   )
@@ -922,7 +922,7 @@ BEGIN
     -- Count of version bumps for this SCV after submission
     (
       SELECT COUNT(*)
-      FROM `clinvar_curator.cvc_version_bumps` vb2
+      FROM `@@DATASET@@.cvc_version_bumps` vb2
       WHERE vb2.scv_id = fc.scv_id
         AND vb2.current_start_date >= fc.batch_accepted_date
         AND vb2.is_version_bump = TRUE
@@ -942,7 +942,7 @@ BEGIN
   ORDER BY fc.batch_id, fc.scv_id;
 
   -- Step 07: cvc_resubmission_candidates
-  CREATE OR REPLACE TABLE `clinvar_curator.cvc_resubmission_candidates`
+  CREATE OR REPLACE TABLE `@@DATASET@@.cvc_resubmission_candidates`
   AS
   WITH
   unflagged_candidates AS (
@@ -977,7 +977,7 @@ BEGIN
       (fco.current_rank IS NOT NULL
        AND fco.submitted_rank IS NOT NULL
        AND fco.current_rank != fco.submitted_rank) AS rank_changed
-    FROM `clinvar_curator.cvc_flagging_candidate_outcomes` fco
+    FROM `@@DATASET@@.cvc_flagging_candidate_outcomes` fco
     WHERE fco.outcome != 'flagged'           -- Not currently flagged
       AND fco.outcome != 'scv_removed'       -- Not removed (can't re-submit)
       AND fco.current_rank IS NOT NULL       -- SCV still exists
@@ -990,7 +990,7 @@ BEGIN
       uc.variation_id,
       vcv.version AS submitted_vcv_ver
     FROM unflagged_candidates uc
-    JOIN `clinvar_curator.cvc_annotations_view` a
+    JOIN `@@DATASET@@.cvc_annotations_view` a
       ON uc.annotation_id = a.annotation_id
     LEFT JOIN `clinvar_ingest.clinvar_vcvs` vcv
       ON uc.variation_id = vcv.variation_id
@@ -1028,7 +1028,7 @@ BEGIN
       MIN(CASE WHEN vb.is_version_bump = TRUE THEN vb.current_start_date END) AS first_bump_date,
       MAX(CASE WHEN vb.is_version_bump = TRUE THEN vb.current_start_date END) AS latest_bump_date
     FROM unflagged_candidates uc
-    LEFT JOIN `clinvar_curator.cvc_version_bumps` vb
+    LEFT JOIN `@@DATASET@@.cvc_version_bumps` vb
       ON uc.scv_id = vb.scv_id
       AND vb.current_start_date >= uc.batch_accepted_date  -- Bump after batch acceptance
     GROUP BY uc.annotation_id, uc.scv_id
@@ -1042,7 +1042,7 @@ BEGIN
       rfo.batch_accepted_date AS remove_batch_accepted_date,
       rfo.outcome AS remove_outcome
     FROM unflagged_candidates uc
-    JOIN `clinvar_curator.cvc_remove_flagged_outcomes` rfo
+    JOIN `@@DATASET@@.cvc_remove_flagged_outcomes` rfo
       ON uc.scv_id = rfo.scv_id
     QUALIFY ROW_NUMBER() OVER (
       PARTITION BY uc.annotation_id
@@ -1150,7 +1150,7 @@ BEGIN
     c.scv_id;
 
   -- Step 08: cvc_autoreflag_candidates
-  CREATE OR REPLACE TABLE `clinvar_curator.cvc_autoreflag_candidates`
+  CREATE OR REPLACE TABLE `@@DATASET@@.cvc_autoreflag_candidates`
   AS
   WITH
   target_labs AS (
@@ -1186,7 +1186,7 @@ BEGIN
       fco.grace_period_end_date,
       fco.outcome,
       fco.date_flagged
-    FROM `clinvar_curator.cvc_flagging_candidate_outcomes` fco
+    FROM `@@DATASET@@.cvc_flagging_candidate_outcomes` fco
     WHERE fco.outcome != 'flagged'           -- Not currently flagged
       AND fco.outcome != 'scv_removed'       -- Not removed (can't re-submit)
       AND fco.current_rank IS NOT NULL       -- SCV still exists
@@ -1206,7 +1206,7 @@ BEGIN
     SELECT
       rfo.scv_id,
       MAX(rfo.batch_accepted_date) AS latest_remove_date
-    FROM `clinvar_curator.cvc_remove_flagged_outcomes` rfo
+    FROM `@@DATASET@@.cvc_remove_flagged_outcomes` rfo
     GROUP BY rfo.scv_id
   ),
 
@@ -1386,7 +1386,7 @@ BEGIN
   -- =========================================================================
 
   -- Step 03a: cvc_impact_summary
-  CREATE OR REPLACE TABLE `clinvar_curator.cvc_impact_summary`
+  CREATE OR REPLACE TABLE `@@DATASET@@.cvc_impact_summary`
   AS
   WITH
   monthly_conflicts AS (
@@ -1421,7 +1421,7 @@ BEGIN
       COUNTIF(primary_attribution = 'cvc_prompted_reclassification') AS cvc_prompted_reclassification,
       COUNTIF(variant_attribution = 'organic') AS organic_resolutions,
       COUNTIF(variant_attribution = 'cvc_submitted_organic') AS cvc_submitted_organic
-    FROM `clinvar_curator.cvc_resolution_attribution`
+    FROM `@@DATASET@@.cvc_resolution_attribution`
     GROUP BY snapshot_release_date
   ),
 
@@ -1434,7 +1434,7 @@ BEGIN
       COUNTIF(outcome = 'flagged') AS scvs_flagged,
       COUNTIF(outcome = 'deleted') AS scvs_deleted,
       COUNTIF(outcome = 'resubmitted, reclassified') AS scvs_reclassified
-    FROM `clinvar_curator.cvc_submitted_variants`
+    FROM `@@DATASET@@.cvc_submitted_variants`
     WHERE valid_submission = TRUE
     GROUP BY DATE_TRUNC(submission_date, MONTH)
   ),

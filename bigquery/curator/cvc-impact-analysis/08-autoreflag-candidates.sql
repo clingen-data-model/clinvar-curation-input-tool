@@ -79,7 +79,7 @@
 --
 -- =============================================================================
 
-CREATE OR REPLACE TABLE `clinvar_curator.cvc_autoreflag_candidates`
+CREATE OR REPLACE TABLE `@@DATASET@@.cvc_autoreflag_candidates`
 AS
 WITH
 -- Define the 7 target labs by name pattern
@@ -121,7 +121,7 @@ all_flagging_candidates AS (
     fco.grace_period_end_date,
     fco.outcome,
     fco.date_flagged
-  FROM `clinvar_curator.cvc_flagging_candidate_outcomes` fco
+  FROM `@@DATASET@@.cvc_flagging_candidate_outcomes` fco
   WHERE fco.outcome != 'flagged'           -- Not currently flagged
     AND fco.outcome != 'scv_removed'       -- Not removed (can't re-submit)
     AND fco.current_rank IS NOT NULL       -- SCV still exists
@@ -146,7 +146,7 @@ latest_remove_flagged AS (
   SELECT
     rfo.scv_id,
     MAX(rfo.batch_accepted_date) AS latest_remove_date
-  FROM `clinvar_curator.cvc_remove_flagged_outcomes` rfo
+  FROM `@@DATASET@@.cvc_remove_flagged_outcomes` rfo
   GROUP BY rfo.scv_id
 ),
 
@@ -339,7 +339,7 @@ ORDER BY
 -- Summary View: Auto-Reflag Candidates by Submitter
 -- =============================================================================
 
-CREATE OR REPLACE VIEW `clinvar_curator.cvc_autoreflag_summary`
+CREATE OR REPLACE VIEW `@@DATASET@@.cvc_autoreflag_summary`
 AS
 SELECT
   submitter_name,
@@ -361,7 +361,7 @@ SELECT
   -- Additional context
   COUNT(DISTINCT variation_id) AS unique_variants,
   COUNT(DISTINCT batch_id) AS batches_affected
-FROM `clinvar_curator.cvc_autoreflag_candidates`
+FROM `@@DATASET@@.cvc_autoreflag_candidates`
 GROUP BY submitter_name, submitter_id, target_lab_label
 ORDER BY autoreflag_candidates DESC;
 
@@ -375,7 +375,7 @@ ORDER BY autoreflag_candidates DESC;
 --
 -- =============================================================================
 
-CREATE OR REPLACE VIEW `clinvar_curator.cvc_autoreflag_export`
+CREATE OR REPLACE VIEW `@@DATASET@@.cvc_autoreflag_export`
 AS
 SELECT
   scv_id,
@@ -387,7 +387,7 @@ SELECT
   flagging_reason,
   target_lab_label,
   was_ever_flagged
-FROM `clinvar_curator.cvc_autoreflag_candidates`
+FROM `@@DATASET@@.cvc_autoreflag_candidates`
 WHERE is_autoreflag_candidate = TRUE
 ORDER BY target_lab_label, scv_id;
 
@@ -408,7 +408,7 @@ ORDER BY target_lab_label, scv_id;
 --
 -- =============================================================================
 
-CREATE OR REPLACE VIEW `clinvar_curator.sheets_autoreflag_actionable`
+CREATE OR REPLACE VIEW `@@DATASET@@.sheets_autoreflag_actionable`
 AS
 SELECT
   -- Identifiers with ClinVar links
@@ -456,7 +456,7 @@ SELECT
     ELSE 'Review Needed'
   END AS `Action`
 
-FROM `clinvar_curator.cvc_autoreflag_candidates`
+FROM `@@DATASET@@.cvc_autoreflag_candidates`
 ORDER BY
   CASE WHEN is_autoreflag_candidate THEN 0 ELSE 1 END,
   submitter_name,
@@ -477,7 +477,7 @@ ORDER BY
 --
 -- =============================================================================
 
-CREATE OR REPLACE VIEW `clinvar_curator.sheets_autoreflag_by_submitter`
+CREATE OR REPLACE VIEW `@@DATASET@@.sheets_autoreflag_by_submitter`
 AS
 SELECT
   submitter_name AS `Submitter Name`,
@@ -499,7 +499,7 @@ SELECT
     COUNTIF(is_autoreflag_candidate) * 100.0 / NULLIF(COUNT(*), 0), 1
   ) AS `% Eligible for Auto-Reflag`,
   COUNT(DISTINCT variation_id) AS `Unique Variants`
-FROM `clinvar_curator.cvc_autoreflag_candidates`
+FROM `@@DATASET@@.cvc_autoreflag_candidates`
 GROUP BY submitter_name
 ORDER BY COUNTIF(is_autoreflag_candidate) DESC;
 
@@ -508,7 +508,7 @@ ORDER BY COUNTIF(is_autoreflag_candidate) DESC;
 -- Google Sheets View: Auto-Reflag Glossary
 -- =============================================================================
 
-CREATE OR REPLACE VIEW `clinvar_curator.sheets_autoreflag_glossary`
+CREATE OR REPLACE VIEW `@@DATASET@@.sheets_autoreflag_glossary`
 AS
 SELECT * FROM UNNEST([
   STRUCT(

@@ -27,7 +27,7 @@
 --
 -- =============================================================================
 
-CREATE OR REPLACE TABLE `clinvar_curator.cvc_version_bumps`
+CREATE OR REPLACE TABLE `@@DATASET@@.cvc_version_bumps`
 AS
 WITH
 -- Get all SCV versions, deduplicated to one row per (scv_id, version)
@@ -155,7 +155,7 @@ ORDER BY current_start_date DESC, scv_id, current_version;
 --
 -- =============================================================================
 
-CREATE OR REPLACE VIEW `clinvar_curator.cvc_version_bump_summary`
+CREATE OR REPLACE VIEW `@@DATASET@@.cvc_version_bump_summary`
 AS
 WITH versioned_data AS (
   SELECT
@@ -171,7 +171,7 @@ WITH versioned_data AS (
     classification_comment_changed,
     -- Create unique key for each version transition to prevent double-counting
     CONCAT(scv_id, '-', CAST(current_version AS STRING)) AS version_transition_key
-  FROM `clinvar_curator.cvc_version_bumps`
+  FROM `@@DATASET@@.cvc_version_bumps`
 )
 SELECT
   current_start_date AS release_date,
@@ -213,7 +213,7 @@ ORDER BY current_start_date DESC;
 --
 -- =============================================================================
 
-CREATE OR REPLACE VIEW `clinvar_curator.cvc_version_bumps_by_submitter`
+CREATE OR REPLACE VIEW `@@DATASET@@.cvc_version_bumps_by_submitter`
 AS
 WITH versioned_data AS (
   SELECT
@@ -224,7 +224,7 @@ WITH versioned_data AS (
     is_version_bump,
     -- Create unique key for each version transition to prevent double-counting
     CONCAT(scv_id, '-', CAST(current_version AS STRING)) AS version_transition_key
-  FROM `clinvar_curator.cvc_version_bumps`
+  FROM `@@DATASET@@.cvc_version_bumps`
 )
 SELECT
   vd.submitter_id,

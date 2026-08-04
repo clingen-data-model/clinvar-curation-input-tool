@@ -28,7 +28,7 @@
 -- =============================================================================
 -- Comprehensive monthly summary comparing CVC impact to overall resolution trends
 
-CREATE OR REPLACE TABLE `clinvar_curator.cvc_impact_summary`
+CREATE OR REPLACE TABLE `@@DATASET@@.cvc_impact_summary`
 AS
 WITH
 -- Get overall conflict counts by month
@@ -66,7 +66,7 @@ cvc_attribution AS (
     COUNTIF(primary_attribution = 'cvc_prompted_reclassification') AS cvc_prompted_reclassification,
     COUNTIF(variant_attribution = 'organic') AS organic_resolutions,
     COUNTIF(variant_attribution = 'cvc_submitted_organic') AS cvc_submitted_organic
-  FROM `clinvar_curator.cvc_resolution_attribution`
+  FROM `@@DATASET@@.cvc_resolution_attribution`
   GROUP BY snapshot_release_date
 ),
 
@@ -80,7 +80,7 @@ cvc_submissions AS (
     COUNTIF(outcome = 'flagged') AS scvs_flagged,
     COUNTIF(outcome = 'deleted') AS scvs_deleted,
     COUNTIF(outcome = 'resubmitted, reclassified') AS scvs_reclassified
-  FROM `clinvar_curator.cvc_submitted_variants`
+  FROM `@@DATASET@@.cvc_submitted_variants`
   WHERE valid_submission = TRUE
   GROUP BY DATE_TRUNC(submission_date, MONTH)
 ),
@@ -185,9 +185,9 @@ ORDER BY mc.snapshot_release_date
 -- =============================================================================
 -- Track how effective each CVC batch has been at driving resolutions
 -- NOTE: Drop existing table first if migrating from TABLE to VIEW
-DROP TABLE IF EXISTS `clinvar_curator.cvc_batch_effectiveness`;
+DROP TABLE IF EXISTS `@@DATASET@@.cvc_batch_effectiveness`;
 
-CREATE OR REPLACE VIEW `clinvar_curator.cvc_batch_effectiveness`
+CREATE OR REPLACE VIEW `@@DATASET@@.cvc_batch_effectiveness`
 AS
 WITH
 batch_submissions AS (
@@ -201,7 +201,7 @@ batch_submissions AS (
     COUNTIF(outcome = 'deleted') AS scvs_deleted,
     COUNTIF(outcome = 'resubmitted, reclassified') AS scvs_reclassified,
     COUNTIF(is_resolution_candidate) AS resolution_candidates
-  FROM `clinvar_curator.cvc_submitted_variants`
+  FROM `@@DATASET@@.cvc_submitted_variants`
   WHERE valid_submission = TRUE
   GROUP BY batch_id, submission_date, submission_month_year
 ),
@@ -211,7 +211,7 @@ batch_resolutions AS (
   SELECT
     batch_id,
     COUNT(DISTINCT variation_id) AS variants_resolved
-  FROM `clinvar_curator.cvc_resolution_attribution`,
+  FROM `@@DATASET@@.cvc_resolution_attribution`,
   UNNEST(cvc_batch_ids) AS batch_id
   WHERE variant_attribution = 'cvc_attributed'
   GROUP BY batch_id
@@ -252,9 +252,9 @@ ORDER BY bs.batch_id
 -- =============================================================================
 -- Analyze which curation reasons are most effective at driving resolutions
 -- NOTE: Drop existing table first if migrating from TABLE to VIEW
-DROP TABLE IF EXISTS `clinvar_curator.cvc_reason_effectiveness`;
+DROP TABLE IF EXISTS `@@DATASET@@.cvc_reason_effectiveness`;
 
-CREATE OR REPLACE VIEW `clinvar_curator.cvc_reason_effectiveness`
+CREATE OR REPLACE VIEW `@@DATASET@@.cvc_reason_effectiveness`
 AS
 WITH
 -- Count submissions by reason
@@ -266,7 +266,7 @@ reason_submissions AS (
     COUNTIF(outcome = 'flagged') AS scvs_flagged,
     COUNTIF(outcome = 'deleted') AS scvs_deleted,
     COUNTIF(outcome = 'resubmitted, reclassified') AS scvs_reclassified
-  FROM `clinvar_curator.cvc_submitted_variants`
+  FROM `@@DATASET@@.cvc_submitted_variants`
   WHERE valid_submission = TRUE
     AND reason IS NOT NULL
   GROUP BY reason
@@ -277,7 +277,7 @@ reason_resolutions AS (
   SELECT
     curation_reason,
     COUNT(DISTINCT variation_id) AS variants_resolved
-  FROM `clinvar_curator.cvc_resolution_attribution`,
+  FROM `@@DATASET@@.cvc_resolution_attribution`,
   UNNEST(cvc_curation_reasons) AS curation_reason
   WHERE variant_attribution = 'cvc_attributed'
   GROUP BY curation_reason
@@ -313,7 +313,7 @@ ORDER BY rs.times_used DESC
 -- =============================================================================
 
 -- Monthly summary for dashboard
-CREATE OR REPLACE VIEW `clinvar_curator.sheets_cvc_impact_monthly`
+CREATE OR REPLACE VIEW `@@DATASET@@.sheets_cvc_impact_monthly`
 AS
 SELECT
   snapshot_release_date,
@@ -326,12 +326,12 @@ SELECT
   organic_rate_pct,
   cumulative_scvs_submitted,
   cumulative_scvs_flagged
-FROM `clinvar_curator.cvc_impact_summary`
+FROM `@@DATASET@@.cvc_impact_summary`
 ORDER BY snapshot_release_date
 ;
 
 -- Attribution breakdown for stacked charts
-CREATE OR REPLACE VIEW `clinvar_curator.sheets_cvc_attribution_breakdown`
+CREATE OR REPLACE VIEW `@@DATASET@@.sheets_cvc_attribution_breakdown`
 AS
 SELECT
   snapshot_release_date,
@@ -341,12 +341,12 @@ SELECT
   cvc_prompted_reclassification AS Submitter_Reclassified_CVC_Prompted,
   organic_resolutions AS Organic,
   cvc_submitted_organic AS CVC_Submitted_Organic_Outcome
-FROM `clinvar_curator.cvc_impact_summary`
+FROM `@@DATASET@@.cvc_impact_summary`
 ORDER BY snapshot_release_date
 ;
 
 -- Attribution breakdown pie chart (all-time totals, unfiltered)
-CREATE OR REPLACE VIEW `clinvar_curator.sheets_cvc_attribution_breakdown_pie`
+CREATE OR REPLACE VIEW `@@DATASET@@.sheets_cvc_attribution_breakdown_pie`
 AS
 SELECT
   category,
@@ -355,30 +355,30 @@ SELECT
 FROM (
   SELECT 'CVC Flagged' AS category,
          SUM(cvc_flagged_resolutions) AS total_count
-  FROM `clinvar_curator.cvc_impact_summary`
+  FROM `@@DATASET@@.cvc_impact_summary`
   UNION ALL
   SELECT 'Submitter Deleted (CVC Prompted)' AS category,
          SUM(cvc_prompted_deletion) AS total_count
-  FROM `clinvar_curator.cvc_impact_summary`
+  FROM `@@DATASET@@.cvc_impact_summary`
   UNION ALL
   SELECT 'Submitter Reclassified (CVC Prompted)' AS category,
          SUM(cvc_prompted_reclassification) AS total_count
-  FROM `clinvar_curator.cvc_impact_summary`
+  FROM `@@DATASET@@.cvc_impact_summary`
   UNION ALL
   SELECT 'Organic' AS category,
          SUM(organic_resolutions) AS total_count
-  FROM `clinvar_curator.cvc_impact_summary`
+  FROM `@@DATASET@@.cvc_impact_summary`
   UNION ALL
   SELECT 'CVC Submitted, Organic Outcome' AS category,
          SUM(cvc_submitted_organic) AS total_count
-  FROM `clinvar_curator.cvc_impact_summary`
+  FROM `@@DATASET@@.cvc_impact_summary`
 )
 WHERE total_count > 0
 ORDER BY total_count DESC
 ;
 
 -- Batch effectiveness for comparison charts
-CREATE OR REPLACE VIEW `clinvar_curator.sheets_cvc_batch_effectiveness`
+CREATE OR REPLACE VIEW `@@DATASET@@.sheets_cvc_batch_effectiveness`
 AS
 SELECT
   batch_id,
@@ -389,12 +389,12 @@ SELECT
   resolution_rate_pct,
   flag_rate_pct,
   days_since_submission
-FROM `clinvar_curator.cvc_batch_effectiveness`
+FROM `@@DATASET@@.cvc_batch_effectiveness`
 ORDER BY batch_id
 ;
 
 -- Curation reason effectiveness for comparison
-CREATE OR REPLACE VIEW `clinvar_curator.sheets_cvc_reason_effectiveness`
+CREATE OR REPLACE VIEW `@@DATASET@@.sheets_cvc_reason_effectiveness`
 AS
 SELECT
   curation_reason,
@@ -403,12 +403,12 @@ SELECT
   variants_resolved,
   resolution_rate_pct,
   flag_rate_pct
-FROM `clinvar_curator.cvc_reason_effectiveness`
+FROM `@@DATASET@@.cvc_reason_effectiveness`
 ORDER BY times_used DESC
 ;
 
 -- Cumulative impact over time
-CREATE OR REPLACE VIEW `clinvar_curator.sheets_cvc_cumulative_impact`
+CREATE OR REPLACE VIEW `@@DATASET@@.sheets_cvc_cumulative_impact`
 AS
 SELECT
   snapshot_release_date,
@@ -419,7 +419,7 @@ SELECT
   SUM(cvc_attributed_resolutions) OVER (ORDER BY snapshot_release_date) AS cumulative_cvc_resolutions,
   SUM(organic_resolutions) OVER (ORDER BY snapshot_release_date) AS cumulative_organic_resolutions,
   SUM(total_resolutions) OVER (ORDER BY snapshot_release_date) AS cumulative_total_resolutions
-FROM `clinvar_curator.cvc_impact_summary`
+FROM `@@DATASET@@.cvc_impact_summary`
 ORDER BY snapshot_release_date
 ;
 
@@ -454,7 +454,7 @@ ORDER BY snapshot_release_date
 
 -- Table to identify bulk downgrade resolutions
 -- This is a lookup table of (snapshot_date, variation_id) pairs to exclude
-CREATE OR REPLACE TABLE `clinvar_curator.cvc_bulk_downgrade_exclusions`
+CREATE OR REPLACE TABLE `@@DATASET@@.cvc_bulk_downgrade_exclusions`
 AS
 WITH
 -- Known bulk downgrade events
@@ -501,7 +501,7 @@ ORDER BY snapshot_release_date, variation_id
 --
 -- =============================================================================
 
-CREATE OR REPLACE VIEW `clinvar_curator.sheets_cvc_impact_monthly_filtered`
+CREATE OR REPLACE VIEW `@@DATASET@@.sheets_cvc_impact_monthly_filtered`
 AS
 WITH
 -- Get filtered resolution counts (excluding bulk downgrades)
@@ -513,7 +513,7 @@ filtered_resolutions AS (
     COUNTIF(cd.conflict_type = 'Non-clinsig') AS nonclinsig_resolutions,
     COUNTIF(cd.outlier_status = 'With Outlier') AS outlier_resolutions
   FROM `clinvar_ingest.conflict_vcv_change_detail` cd
-  LEFT JOIN `clinvar_curator.cvc_bulk_downgrade_exclusions` excl
+  LEFT JOIN `@@DATASET@@.cvc_bulk_downgrade_exclusions` excl
     ON cd.variation_id = excl.variation_id
     AND cd.snapshot_release_date = excl.snapshot_release_date
   WHERE cd.vcv_change_status = 'resolved'
@@ -531,8 +531,8 @@ filtered_attribution AS (
     COUNTIF(ra.primary_attribution = 'cvc_prompted_reclassification') AS cvc_prompted_reclassification,
     COUNTIF(ra.variant_attribution = 'organic') AS organic_resolutions,
     COUNTIF(ra.variant_attribution = 'cvc_submitted_organic') AS cvc_submitted_organic
-  FROM `clinvar_curator.cvc_resolution_attribution` ra
-  LEFT JOIN `clinvar_curator.cvc_bulk_downgrade_exclusions` excl
+  FROM `@@DATASET@@.cvc_resolution_attribution` ra
+  LEFT JOIN `@@DATASET@@.cvc_bulk_downgrade_exclusions` excl
     ON ra.variation_id = excl.variation_id
     AND ra.snapshot_release_date = excl.snapshot_release_date
   WHERE excl.variation_id IS NULL  -- Exclude bulk downgrades
@@ -561,11 +561,11 @@ SELECT
   ims.cumulative_scvs_flagged,
   -- Include exclusion count for transparency
   COALESCE(
-    (SELECT COUNT(*) FROM `clinvar_curator.cvc_bulk_downgrade_exclusions` e
+    (SELECT COUNT(*) FROM `@@DATASET@@.cvc_bulk_downgrade_exclusions` e
      WHERE e.snapshot_release_date = ims.snapshot_release_date),
     0
   ) AS excluded_bulk_downgrades
-FROM `clinvar_curator.cvc_impact_summary` ims
+FROM `@@DATASET@@.cvc_impact_summary` ims
 LEFT JOIN filtered_resolutions fr
   ON fr.snapshot_release_date = ims.snapshot_release_date
 LEFT JOIN filtered_attribution fa
@@ -583,7 +583,7 @@ ORDER BY ims.snapshot_release_date
 --
 -- =============================================================================
 
-CREATE OR REPLACE VIEW `clinvar_curator.sheets_cvc_attribution_breakdown_filtered`
+CREATE OR REPLACE VIEW `@@DATASET@@.sheets_cvc_attribution_breakdown_filtered`
 AS
 WITH
 filtered_attribution AS (
@@ -594,8 +594,8 @@ filtered_attribution AS (
     COUNTIF(ra.primary_attribution = 'cvc_prompted_reclassification') AS cvc_prompted_reclassification,
     COUNTIF(ra.variant_attribution = 'organic') AS organic_resolutions,
     COUNTIF(ra.variant_attribution = 'cvc_submitted_organic') AS cvc_submitted_organic
-  FROM `clinvar_curator.cvc_resolution_attribution` ra
-  LEFT JOIN `clinvar_curator.cvc_bulk_downgrade_exclusions` excl
+  FROM `@@DATASET@@.cvc_resolution_attribution` ra
+  LEFT JOIN `@@DATASET@@.cvc_bulk_downgrade_exclusions` excl
     ON ra.variation_id = excl.variation_id
     AND ra.snapshot_release_date = excl.snapshot_release_date
   WHERE excl.variation_id IS NULL  -- Exclude bulk downgrades
@@ -612,7 +612,7 @@ SELECT
   fa.cvc_submitted_organic AS CVC_Submitted_Organic_Outcome,
   -- Include exclusion count for transparency
   COALESCE(
-    (SELECT COUNT(*) FROM `clinvar_curator.cvc_bulk_downgrade_exclusions` e
+    (SELECT COUNT(*) FROM `@@DATASET@@.cvc_bulk_downgrade_exclusions` e
      WHERE e.snapshot_release_date = fa.snapshot_release_date),
     0
   ) AS excluded_bulk_downgrades

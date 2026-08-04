@@ -1,4 +1,4 @@
-CREATE OR REPLACE TABLE FUNCTION `clinvar_curator.cvc_annotations_impact`()
+CREATE OR REPLACE TABLE FUNCTION `@@DATASET@@.cvc_annotations_impact`()
 AS (
   WITH
   last_submitted_annos AS (
@@ -22,7 +22,7 @@ AS (
         ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
       ) last
     FROM `clinvar_ingest.release_on`(CURRENT_DATE()) rel
-    JOIN `clinvar_curator.cvc_annotations`("SUBMITTED") a
+    JOIN `@@DATASET@@.cvc_annotations`("SUBMITTED") a
     ON
       a.batch_release_date <= rel.release_date
   ),

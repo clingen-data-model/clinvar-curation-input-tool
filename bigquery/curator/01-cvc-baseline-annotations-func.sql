@@ -2,7 +2,7 @@
 -- to know whether a given annotation is unreviewed would mean that we need to compare it to all presisted reviewed annotations
 -- We want to be able to bring back any unreviewed annotations or annotations in the process of being reviewed.
 -- to know whether a given annotation is unreviewed would mean that we need to compare it to all presisted reviewed annotations
-CREATE OR REPLACE TABLE FUNCTION `clinvar_curator.cvc_baseline_annotations`(
+CREATE OR REPLACE TABLE FUNCTION `@@DATASET@@.cvc_baseline_annotations`(
   scope STRING
 )
 AS
@@ -38,7 +38,7 @@ AS
       av.is_latest,
       av.review_label,
       UPPER(scope) as result_set_scope
-    FROM `clinvar_curator.cvc_annotations_view` av
+    FROM `@@DATASET@@.cvc_annotations_view` av
     WHERE
       CASE UPPER(scope)
       WHEN "ALL" THEN
@@ -74,7 +74,7 @@ AS
         ) as prior_scv_annotations
 
       FROM anno as a
-      JOIN `clinvar_curator.cvc_annotations_view` as prior_a
+      JOIN `@@DATASET@@.cvc_annotations_view` as prior_a
       ON
         prior_a.scv_id = a.scv_id
         AND

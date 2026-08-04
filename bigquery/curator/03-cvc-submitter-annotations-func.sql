@@ -1,4 +1,4 @@
-CREATE OR REPLACE TABLE FUNCTION `clinvar_curator.cvc_submitter_annotations`() AS
+CREATE OR REPLACE TABLE FUNCTION `@@DATASET@@.cvc_submitter_annotations`() AS
 (
   WITH reviewed_annos AS (
     SELECT
@@ -12,7 +12,7 @@ CREATE OR REPLACE TABLE FUNCTION `clinvar_curator.cvc_submitter_annotations`() A
       a.action,
       a.is_outdated_scv,
       a.as_of_date
-    FROM `clinvar_curator.cvc_annotations`("REVIEWED") a
+    FROM `@@DATASET@@.cvc_annotations`("REVIEWED") a
     WHERE
       a.is_latest_annotation
       AND

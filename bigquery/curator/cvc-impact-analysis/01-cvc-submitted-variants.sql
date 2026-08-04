@@ -17,7 +17,7 @@
 --
 -- =============================================================================
 
-CREATE OR REPLACE TABLE `clinvar_curator.cvc_submitted_variants`
+CREATE OR REPLACE TABLE `@@DATASET@@.cvc_submitted_variants`
 AS
 WITH
 -- Get the submitted outcomes with all relevant metadata
@@ -62,7 +62,7 @@ submitted_outcomes AS (
       WHEN sov.outcome IN ('flagged', 'deleted', 'resubmitted, reclassified') THEN TRUE
       ELSE FALSE
     END AS is_resolution_candidate
-  FROM `clinvar_curator.cvc_submitted_outcomes_view` sov
+  FROM `@@DATASET@@.cvc_submitted_outcomes_view` sov
 ),
 
 -- Get the first submission date for each SCV (to handle resubmissions)
@@ -91,7 +91,7 @@ ORDER BY so.batch_id, so.scv_id
 -- =============================================================================
 -- Provides aggregate statistics for CVC submissions by batch and outcome
 
-CREATE OR REPLACE VIEW `clinvar_curator.cvc_submission_summary`
+CREATE OR REPLACE VIEW `@@DATASET@@.cvc_submission_summary`
 AS
 SELECT
   batch_id,
@@ -108,7 +108,7 @@ SELECT
   COUNTIF(is_resolution_candidate) AS resolution_candidates,
   COUNT(DISTINCT variation_id) AS unique_variants,
   COUNT(DISTINCT CASE WHEN is_resolution_candidate THEN variation_id END) AS resolution_candidate_variants
-FROM `clinvar_curator.cvc_submitted_variants`
+FROM `@@DATASET@@.cvc_submitted_variants`
 GROUP BY batch_id, submission_date, submission_month_year
 ORDER BY batch_id
 ;
@@ -118,7 +118,7 @@ ORDER BY batch_id
 -- =============================================================================
 -- Shows all unique variants that CVC has targeted, with their cumulative outcomes
 
-CREATE OR REPLACE VIEW `clinvar_curator.cvc_targeted_variants`
+CREATE OR REPLACE VIEW `@@DATASET@@.cvc_targeted_variants`
 AS
 SELECT
   variation_id,
@@ -135,7 +135,7 @@ SELECT
   ARRAY_AGG(DISTINCT reason IGNORE NULLS ORDER BY reason) AS curation_reasons,
   -- Summarize curators involved
   ARRAY_AGG(DISTINCT curator IGNORE NULLS ORDER BY curator) AS curators
-FROM `clinvar_curator.cvc_submitted_variants`
+FROM `@@DATASET@@.cvc_submitted_variants`
 WHERE valid_submission = TRUE
 GROUP BY variation_id, vcv_id
 ORDER BY first_cvc_submission_date, variation_id

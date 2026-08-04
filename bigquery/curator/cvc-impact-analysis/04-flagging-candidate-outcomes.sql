@@ -23,7 +23,7 @@
 --
 -- =============================================================================
 
-CREATE OR REPLACE TABLE `clinvar_curator.cvc_flagging_candidate_outcomes`
+CREATE OR REPLACE TABLE `@@DATASET@@.cvc_flagging_candidate_outcomes`
 AS
 WITH
 -- Get all flagging candidate submissions (not rejected)
@@ -41,12 +41,12 @@ flagging_candidates AS (
     b.batch_accepted_date,
     b.grace_period_end_date,
     b.first_release_after_grace_period
-  FROM `clinvar_curator.cvc_clinvar_submissions` s
-  JOIN `clinvar_curator.cvc_annotations_view` a
+  FROM `@@DATASET@@.cvc_clinvar_submissions` s
+  JOIN `@@DATASET@@.cvc_annotations_view` a
     ON s.annotation_id = a.annotation_id
-  JOIN `clinvar_curator.cvc_batches_enriched` b
+  JOIN `@@DATASET@@.cvc_batches_enriched` b
     ON s.batch_id = b.batch_id
-  LEFT JOIN `clinvar_curator.cvc_rejected_scvs` r
+  LEFT JOIN `@@DATASET@@.cvc_rejected_scvs` r
     ON s.batch_id = r.batch_id
     AND s.scv_id = r.scv_id
     AND s.scv_ver = r.scv_ver
@@ -64,7 +64,7 @@ scv_at_submission AS (
     scv_sub.submitted_classification AS submitted_classification_text,
     scv_sub.last_evaluated AS submitted_last_evaluated
   FROM flagging_candidates fc
-  JOIN `clinvar_curator.cvc_annotations_view` a
+  JOIN `@@DATASET@@.cvc_annotations_view` a
     ON fc.annotation_id = a.annotation_id
   LEFT JOIN `clinvar_ingest.clinvar_scvs` scv_sub
     ON fc.scv_id = scv_sub.id
@@ -193,7 +193,7 @@ ORDER BY sub.batch_id, sub.scv_id;
 --
 -- =============================================================================
 
-CREATE OR REPLACE TABLE `clinvar_curator.cvc_remove_flagged_outcomes`
+CREATE OR REPLACE TABLE `@@DATASET@@.cvc_remove_flagged_outcomes`
 AS
 WITH
 -- Get all "remove flagged submission" submissions (not rejected)
@@ -211,12 +211,12 @@ remove_submissions AS (
     b.batch_accepted_date,
     b.grace_period_end_date,
     b.first_release_after_grace_period
-  FROM `clinvar_curator.cvc_clinvar_submissions` s
-  JOIN `clinvar_curator.cvc_annotations_view` a
+  FROM `@@DATASET@@.cvc_clinvar_submissions` s
+  JOIN `@@DATASET@@.cvc_annotations_view` a
     ON s.annotation_id = a.annotation_id
-  JOIN `clinvar_curator.cvc_batches_enriched` b
+  JOIN `@@DATASET@@.cvc_batches_enriched` b
     ON s.batch_id = b.batch_id
-  LEFT JOIN `clinvar_curator.cvc_rejected_scvs` r
+  LEFT JOIN `@@DATASET@@.cvc_rejected_scvs` r
     ON s.batch_id = r.batch_id
     AND s.scv_id = r.scv_id
     AND s.scv_ver = r.scv_ver
@@ -231,7 +231,7 @@ scv_at_submission AS (
     scv_sub.rank AS submitted_rank,
     scv_sub.classif_type AS submitted_classif_type
   FROM remove_submissions rs
-  JOIN `clinvar_curator.cvc_annotations_view` a
+  JOIN `@@DATASET@@.cvc_annotations_view` a
     ON rs.annotation_id = a.annotation_id
   LEFT JOIN `clinvar_ingest.clinvar_scvs` scv_sub
     ON rs.scv_id = scv_sub.id
@@ -299,7 +299,7 @@ ORDER BY sub.batch_id, sub.scv_id;
 -- Summary View: Remove Flagged Submission Outcomes by Batch
 -- =============================================================================
 
-CREATE OR REPLACE VIEW `clinvar_curator.cvc_remove_flagged_by_batch`
+CREATE OR REPLACE VIEW `@@DATASET@@.cvc_remove_flagged_by_batch`
 AS
 SELECT
   batch_id,
@@ -312,7 +312,7 @@ SELECT
   COUNTIF(outcome = 'unknown') AS unknown,
   -- Success rate
   ROUND(COUNTIF(outcome = 'unflagged_success') * 100.0 / NULLIF(COUNT(*), 0), 1) AS success_rate_pct
-FROM `clinvar_curator.cvc_remove_flagged_outcomes`
+FROM `@@DATASET@@.cvc_remove_flagged_outcomes`
 GROUP BY batch_id, batch_accepted_date
 ORDER BY batch_id;
 
@@ -321,7 +321,7 @@ ORDER BY batch_id;
 -- Summary View: Flagging Candidate Outcomes by Batch
 -- =============================================================================
 
-CREATE OR REPLACE VIEW `clinvar_curator.cvc_flagging_outcomes_by_batch`
+CREATE OR REPLACE VIEW `@@DATASET@@.cvc_flagging_outcomes_by_batch`
 AS
 SELECT
   batch_id,
@@ -338,6 +338,6 @@ SELECT
   ROUND(COUNTIF(outcome IN ('flagged', 'scv_removed', 'scv_reclassified')) * 100.0 / COUNT(*), 1) AS success_rate_pct,
   -- Action during grace period
   COUNTIF(action_during_grace_period) AS actions_during_grace
-FROM `clinvar_curator.cvc_flagging_candidate_outcomes`
+FROM `@@DATASET@@.cvc_flagging_candidate_outcomes`
 GROUP BY batch_id, batch_accepted_date, grace_period_end_date
 ORDER BY batch_id;

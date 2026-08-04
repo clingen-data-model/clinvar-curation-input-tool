@@ -39,7 +39,7 @@
 --
 -- =============================================================================
 
-CREATE OR REPLACE TABLE `clinvar_curator.cvc_resubmission_candidates`
+CREATE OR REPLACE TABLE `@@DATASET@@.cvc_resubmission_candidates`
 AS
 WITH
 -- Get all flagging candidates that are NOT currently flagged and NOT removed
@@ -75,7 +75,7 @@ unflagged_candidates AS (
     (fco.current_rank IS NOT NULL
      AND fco.submitted_rank IS NOT NULL
      AND fco.current_rank != fco.submitted_rank) AS rank_changed
-  FROM `clinvar_curator.cvc_flagging_candidate_outcomes` fco
+  FROM `@@DATASET@@.cvc_flagging_candidate_outcomes` fco
   WHERE fco.outcome != 'flagged'           -- Not currently flagged
     AND fco.outcome != 'scv_removed'       -- Not removed (can't re-submit)
     AND fco.current_rank IS NOT NULL       -- SCV still exists
@@ -89,7 +89,7 @@ vcv_at_submission AS (
     uc.variation_id,
     vcv.version AS submitted_vcv_ver
   FROM unflagged_candidates uc
-  JOIN `clinvar_curator.cvc_annotations_view` a
+  JOIN `@@DATASET@@.cvc_annotations_view` a
     ON uc.annotation_id = a.annotation_id
   LEFT JOIN `clinvar_ingest.clinvar_vcvs` vcv
     ON uc.variation_id = vcv.variation_id
@@ -134,7 +134,7 @@ version_bump_summary AS (
     MIN(CASE WHEN vb.is_version_bump = TRUE THEN vb.current_start_date END) AS first_bump_date,
     MAX(CASE WHEN vb.is_version_bump = TRUE THEN vb.current_start_date END) AS latest_bump_date
   FROM unflagged_candidates uc
-  LEFT JOIN `clinvar_curator.cvc_version_bumps` vb
+  LEFT JOIN `@@DATASET@@.cvc_version_bumps` vb
     ON uc.scv_id = vb.scv_id
     AND vb.current_start_date >= uc.batch_accepted_date  -- Bump after batch acceptance
   GROUP BY uc.annotation_id, uc.scv_id
@@ -149,7 +149,7 @@ remove_flagged_details AS (
     rfo.batch_accepted_date AS remove_batch_accepted_date,
     rfo.outcome AS remove_outcome
   FROM unflagged_candidates uc
-  JOIN `clinvar_curator.cvc_remove_flagged_outcomes` rfo
+  JOIN `@@DATASET@@.cvc_remove_flagged_outcomes` rfo
     ON uc.scv_id = rfo.scv_id
   -- Take the most recent remove flagged submission if multiple exist
   QUALIFY ROW_NUMBER() OVER (
@@ -265,7 +265,7 @@ ORDER BY
 -- Summary View: Resubmission Candidates by Reason
 -- =============================================================================
 
-CREATE OR REPLACE VIEW `clinvar_curator.cvc_resubmission_summary`
+CREATE OR REPLACE VIEW `@@DATASET@@.cvc_resubmission_summary`
 AS
 SELECT
   resubmission_reason,
@@ -275,7 +275,7 @@ SELECT
   COUNT(DISTINCT scv_id) AS unique_scvs,
   COUNT(DISTINCT variation_id) AS unique_variants,
   COUNT(DISTINCT submitter_id) AS unique_submitters
-FROM `clinvar_curator.cvc_resubmission_candidates`
+FROM `@@DATASET@@.cvc_resubmission_candidates`
 GROUP BY resubmission_reason
 ORDER BY
   CASE resubmission_reason
@@ -290,7 +290,7 @@ ORDER BY
 -- Summary View: Resubmission Candidates by Batch
 -- =============================================================================
 
-CREATE OR REPLACE VIEW `clinvar_curator.cvc_resubmission_by_batch`
+CREATE OR REPLACE VIEW `@@DATASET@@.cvc_resubmission_by_batch`
 AS
 SELECT
   batch_id,
@@ -303,7 +303,7 @@ SELECT
   COUNTIF(was_reclassified) AS reclassified_count,
   COUNTIF(has_remove_flagged_submission) AS with_remove_request,
   COUNT(DISTINCT scv_id) AS unique_scvs
-FROM `clinvar_curator.cvc_resubmission_candidates`
+FROM `@@DATASET@@.cvc_resubmission_candidates`
 GROUP BY batch_id, batch_accepted_date, grace_period_end_date
 ORDER BY batch_id;
 
@@ -312,7 +312,7 @@ ORDER BY batch_id;
 -- Summary View: Resubmission Candidates by Submitter
 -- =============================================================================
 
-CREATE OR REPLACE VIEW `clinvar_curator.cvc_resubmission_by_submitter`
+CREATE OR REPLACE VIEW `@@DATASET@@.cvc_resubmission_by_submitter`
 AS
 SELECT
   submitter_id,
@@ -325,7 +325,7 @@ SELECT
   COUNTIF(has_remove_flagged_submission) AS with_remove_request,
   COUNT(DISTINCT scv_id) AS unique_scvs,
   COUNT(DISTINCT variation_id) AS unique_variants
-FROM `clinvar_curator.cvc_resubmission_candidates`
+FROM `@@DATASET@@.cvc_resubmission_candidates`
 GROUP BY submitter_id, submitter_name
 ORDER BY total_candidates DESC;
 
@@ -338,7 +338,7 @@ ORDER BY total_candidates DESC;
 -- Excludes reclassified SCVs by default (may need manual review).
 --
 
-CREATE OR REPLACE VIEW `clinvar_curator.cvc_resubmission_export`
+CREATE OR REPLACE VIEW `@@DATASET@@.cvc_resubmission_export`
 AS
 SELECT
   scv_id,
@@ -351,7 +351,7 @@ SELECT
   resubmission_reason,
   has_remove_flagged_submission,
   was_reclassified
-FROM `clinvar_curator.cvc_resubmission_candidates`
+FROM `@@DATASET@@.cvc_resubmission_candidates`
 WHERE was_reclassified = FALSE  -- Exclude reclassified for direct resubmission
 ORDER BY resubmission_reason, scv_id;
 
@@ -364,7 +364,7 @@ ORDER BY resubmission_reason, scv_id;
 -- These require manual review before resubmission.
 --
 
-CREATE OR REPLACE VIEW `clinvar_curator.cvc_resubmission_review_reclassified`
+CREATE OR REPLACE VIEW `@@DATASET@@.cvc_resubmission_review_reclassified`
 AS
 SELECT
   scv_id,
@@ -385,7 +385,7 @@ SELECT
   has_remove_flagged_submission,
   remove_batch_id,
   remove_outcome
-FROM `clinvar_curator.cvc_resubmission_candidates`
+FROM `@@DATASET@@.cvc_resubmission_candidates`
 WHERE was_reclassified = TRUE
 ORDER BY submitter_name, scv_id;
 
@@ -416,7 +416,7 @@ ORDER BY submitter_name, scv_id;
 --
 -- =============================================================================
 
-CREATE OR REPLACE VIEW `clinvar_curator.sheets_resubmission_actionable`
+CREATE OR REPLACE VIEW `@@DATASET@@.sheets_resubmission_actionable`
 AS
 SELECT
   -- Identifiers with ClinVar links
@@ -481,7 +481,7 @@ SELECT
   -- For sorting/filtering
   batch_id AS `Batch ID`
 
-FROM `clinvar_curator.cvc_resubmission_candidates`
+FROM `@@DATASET@@.cvc_resubmission_candidates`
 WHERE was_reclassified = FALSE
 ORDER BY
   CASE resubmission_reason
@@ -510,7 +510,7 @@ ORDER BY
 --
 -- =============================================================================
 
-CREATE OR REPLACE VIEW `clinvar_curator.sheets_resubmission_needs_review`
+CREATE OR REPLACE VIEW `@@DATASET@@.sheets_resubmission_needs_review`
 AS
 SELECT
   -- Identifiers
@@ -561,7 +561,7 @@ SELECT
   -- Action needed
   'Review if new classification still warrants flagging' AS `Action Needed`
 
-FROM `clinvar_curator.cvc_resubmission_candidates`
+FROM `@@DATASET@@.cvc_resubmission_candidates`
 WHERE was_reclassified = TRUE
 ORDER BY submitter_name, scv_id;
 
@@ -578,7 +578,7 @@ ORDER BY submitter_name, scv_id;
 --
 -- =============================================================================
 
-CREATE OR REPLACE VIEW `clinvar_curator.sheets_resubmission_summary`
+CREATE OR REPLACE VIEW `@@DATASET@@.sheets_resubmission_summary`
 AS
 SELECT
   CASE resubmission_reason
@@ -597,7 +597,7 @@ SELECT
   COUNT(DISTINCT submitter_id) AS `Unique Submitters`,
   COUNT(DISTINCT variation_id) AS `Unique Variants`
 
-FROM `clinvar_curator.cvc_resubmission_candidates`
+FROM `@@DATASET@@.cvc_resubmission_candidates`
 GROUP BY resubmission_reason
 ORDER BY
   CASE resubmission_reason
@@ -621,7 +621,7 @@ ORDER BY
 --
 -- =============================================================================
 
-CREATE OR REPLACE VIEW `clinvar_curator.sheets_resubmission_by_submitter`
+CREATE OR REPLACE VIEW `@@DATASET@@.sheets_resubmission_by_submitter`
 AS
 SELECT
   submitter_name AS `Submitter Name`,
@@ -636,7 +636,7 @@ SELECT
   COUNTIF(has_remove_flagged_submission) AS `Had Remove Flag Request`,
   COUNT(DISTINCT variation_id) AS `Unique Variants Affected`
 
-FROM `clinvar_curator.cvc_resubmission_candidates`
+FROM `@@DATASET@@.cvc_resubmission_candidates`
 GROUP BY submitter_name
 HAVING COUNT(*) > 0
 ORDER BY COUNT(*) DESC;
@@ -651,7 +651,7 @@ ORDER BY COUNT(*) DESC;
 --
 -- =============================================================================
 
-CREATE OR REPLACE VIEW `clinvar_curator.sheets_resubmission_glossary`
+CREATE OR REPLACE VIEW `@@DATASET@@.sheets_resubmission_glossary`
 AS
 SELECT * FROM UNNEST([
   STRUCT(

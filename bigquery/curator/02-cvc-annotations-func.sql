@@ -1,4 +1,4 @@
-CREATE OR REPLACE TABLE FUNCTION `clinvar_curator.cvc_annotations`(
+CREATE OR REPLACE TABLE FUNCTION `@@DATASET@@.cvc_annotations`(
   scope STRING
 )
 AS
@@ -16,7 +16,7 @@ AS
       -- submitter from original annotation (should never change)
       cs.submitter_name,
       cs.submitter_abbrev
-    FROM `clinvar_curator.cvc_baseline_annotations`(scope) a
+    FROM `@@DATASET@@.cvc_baseline_annotations`(scope) a
     LEFT JOIN `clinvar_ingest.clinvar_scvs` cs
     ON
       cs.id = a.scv_id
