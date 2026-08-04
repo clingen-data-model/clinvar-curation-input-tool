@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, test, expect } from 'vitest';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const { nativeRowToV4Doc, toFirestoreFields, chunk } = require('../migration/native-to-v4.js');
@@ -104,6 +104,15 @@ describe('toFirestoreFields', () => {
     const fields = toFirestoreFields({ reason: '' });
     expect(fields.reason).toEqual({ stringValue: '' });
   });
+});
+
+test('nativeRowToV4Doc carries annotation_id through', () => {
+  const row = { variation_id: '1', vcv_id: 'VCV1', variation_name: 'X', scv_id: 'SCV1',
+    submitter_name: 'S', submitter_id: '9', interpretation: 'Pathogenic', review_status: 'criteria',
+    action: 'Flagging Candidate', reason: 'r', notes: 'n', curator_email: 'a@b.org',
+    annotation_date: '2020-01-01T00:00:05Z', annotation_id: '1577836805000' };
+  const doc = nativeRowToV4Doc(row);
+  expect(doc.annotation_id).toBe('1577836805000');
 });
 
 describe('chunk', () => {

@@ -14,6 +14,7 @@ SELECT
   reason,
   notes,
   curator_email,
+  CAST(UNIX_MILLIS(TIMESTAMP(annotation_date)) AS STRING) AS annotation_id,
   FORMAT_TIMESTAMP('%Y-%m-%dT%H:%M:%SZ', TIMESTAMP(annotation_date), 'UTC') AS annotation_date
 FROM `clingen-dev.clinvar_curator.clinvar_annotations_native`
 WHERE `ignore` IS NOT TRUE

@@ -21,7 +21,8 @@ function nativeRowToV4Doc(row) {
     reason: row.reason,
     notes: row.notes,
     user_email: row.curator_email,
-    created_at: row.annotation_date
+    created_at: row.annotation_date,
+    annotation_id: row.annotation_id
   };
 }
 
