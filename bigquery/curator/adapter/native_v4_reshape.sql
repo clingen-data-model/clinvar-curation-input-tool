@@ -8,8 +8,11 @@ SELECT
   CAST(created_at AS TIMESTAMP) AS annotation_date,
   vcv           AS vcv_id,
   scv           AS scv_id,
-  variation_id  AS variation_id,
-  submitter_id  AS submitter_id,
+  -- CAST to STRING to match the legacy clinvar_annotations_native contract types
+  -- (bq load --autodetect infers these all-numeric columns as INT64). base_mv
+  -- casts them anyway, but this keeps native_v4 an exact-type drop-in.
+  CAST(variation_id AS STRING) AS variation_id,
+  CAST(submitter_id AS STRING) AS submitter_id,
   action        AS action,
   user_email    AS curator_email,
   interp        AS interpretation,
