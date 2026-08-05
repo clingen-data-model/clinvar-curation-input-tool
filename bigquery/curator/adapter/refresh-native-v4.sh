@@ -6,6 +6,10 @@ SNAP="${CVC_PROD}:clinvar_cvc_ext._native_v4_snapshot"
 RAW="${CURATOR_PROJECT}:clinvar_curator._annotations_v4_raw"
 bq --project_id="$CVC_PROD" --location=us-central1 query --use_legacy_sql=false --destination_table="$SNAP" --replace \
   'SELECT * FROM `clingen-cvc.clinvar_cvc_ext.annotations`'
+# Clear any stale shards from a prior run first: `bq extract` overwrites
+# same-named shards but does NOT delete leftover ones, and `load --replace`
+# below would sweep an orphan shard back in. Harmless if the prefix is empty.
+gcloud storage rm "${GCS_BUCKET}/native_v4/**" 2>/dev/null || true
 bq --project_id="$CVC_PROD" --location=us-central1 extract --destination_format=NEWLINE_DELIMITED_JSON \
   "$SNAP" "${GCS_BUCKET}/native_v4/*.json"
 bq --project_id="$CURATOR_PROJECT" --location=US load --replace --source_format=NEWLINE_DELIMITED_JSON \
