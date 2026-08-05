@@ -15,10 +15,12 @@ function summarizeHistoryByScv(rows) {
     if (!row || !row.scv) return;
     const scv = scvBase(row.scv);
     if (!summary[scv]) {
-      summary[scv] = { count: 0, flagged: false, lastAction: undefined, lastWho: undefined, lastWhen: undefined, _lastCreatedAt: undefined };
+      summary[scv] = { count: 0, flagged: false, hasNoChange: false, hasOther: false, lastAction: undefined, lastWho: undefined, lastWhen: undefined, _lastCreatedAt: undefined };
     }
     const entry = summary[scv];
     entry.count += 1;
+    if (row.action === 'No Change') entry.hasNoChange = true;
+    else entry.hasOther = true; // any non-"No Change" action (Flagging Candidate / Remove Flagged Submission)
     if (row.action === 'Flagging Candidate' || row.action === 'Remove Flagged Submission') {
       entry.flagged = true;
     }
@@ -39,11 +41,17 @@ function decorateForScv(summary) {
   if (!summary) return null;
   const cssClass = 'cvc-hl ' + (summary.flagged ? 'cvc-hl-flagged' : 'cvc-hl-noted');
   const badge = 'CvC ' + summary.count;
+  // Badge tone by action composition: yellow = only "No Change"; red = zero
+  // "No Change" (all flag/remove); orange = a mix of both.
+  let tone = 'orange';
+  if (summary.hasNoChange && !summary.hasOther) tone = 'yellow';
+  else if (!summary.hasNoChange && summary.hasOther) tone = 'red';
+  const badgeClass = 'cvc-hl-badge-' + tone;
   let tooltip = `${summary.lastAction} — ${summary.lastWho} (${summary.lastWhen})`;
   if (summary.count > 1) {
     tooltip += ` · ${summary.count} annotations`;
   }
-  return { cssClass, badge, tooltip };
+  return { cssClass, badge, badgeClass, tooltip };
 }
 
 // Display-ready history entries for a single SCV, newest-first — feeds the

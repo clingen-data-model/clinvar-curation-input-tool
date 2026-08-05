@@ -100,3 +100,27 @@ describe('cross-version history (matched by base SCV accession)', () => {
     expect(entriesForScv(rows, 'SCV999').length).toBe(2);   // and when given a bare base
   });
 });
+
+describe('decorateForScv badge tone by action composition', () => {
+  it('yellow when the SCV history is ONLY "No Change"', () => {
+    const m = summarizeHistoryByScv([
+      { scv: 'S.1', action: 'No Change', created_at: '2024-01-01T00:00:00Z' },
+      { scv: 'S.2', action: 'No Change', created_at: '2024-02-01T00:00:00Z' }
+    ]);
+    expect(decorateForScv(m.S).badgeClass).toBe('cvc-hl-badge-yellow');
+  });
+  it('red when there are ZERO "No Change" (all flag/remove)', () => {
+    const m = summarizeHistoryByScv([
+      { scv: 'S.1', action: 'Flagging Candidate', created_at: '2024-01-01T00:00:00Z' },
+      { scv: 'S.2', action: 'Remove Flagged Submission', created_at: '2024-02-01T00:00:00Z' }
+    ]);
+    expect(decorateForScv(m.S).badgeClass).toBe('cvc-hl-badge-red');
+  });
+  it('orange when a MIX of "No Change" and other actions', () => {
+    const m = summarizeHistoryByScv([
+      { scv: 'S.1', action: 'No Change', created_at: '2024-01-01T00:00:00Z' },
+      { scv: 'S.2', action: 'Flagging Candidate', created_at: '2024-02-01T00:00:00Z' }
+    ]);
+    expect(decorateForScv(m.S).badgeClass).toBe('cvc-hl-badge-orange');
+  });
+});

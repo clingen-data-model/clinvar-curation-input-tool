@@ -354,7 +354,7 @@ function applyHighlights(doc, summaryByScv) {
     // ...then the CvC history badge after it, when the SCV has prior history.
     if (dec) {
       const badge = doc.createElement('span');
-      badge.className = 'cvc-hl-badge';
+      badge.className = 'cvc-hl-badge ' + (dec.badgeClass || '');
       badge.textContent = dec.badge;
       // Tooltip on the badge itself (not the <tr>): ClinVar's own cell/link
       // `title`s win over an ancestor row's title, so the badge is the only
