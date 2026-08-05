@@ -1,34 +1,9 @@
--- TABLES to support the clinvar curation dashboard, reporting and downstream processing
-
-CREATE TABLE `@@DATASET@@.cvc_clinvar_reviews`
-(
-  annotation_id STRING,
-  date_added TIMESTAMP,
-  status STRING,
-  reviewer STRING,
-  notes STRING,
-  date_last_updated TIMESTAMP,
-  batch_id STRING
-)
-;
-
-CREATE TABLE `@@DATASET@@.cvc_clinvar_submissions`
-(
-  annotation_id STRING,
-  scv_id STRING,
-  scv_ver STRING,
-  batch_id STRING
-)
-;
-
-CREATE TABLE `@@DATASET@@.cvc_clinvar_batches`
-(
-  batch_id STRING,
-  finalized_datetime TIMESTAMP
-)
-;
-
 -- VIEWS to support the clinvar curation dashboard, reporting and downstream processing
+--
+-- The staging tables these views join against (cvc_clinvar_reviews/submissions/batches)
+-- are bootstrapped separately by bigquery/curator/staging-tables.sql (legacy-only;
+-- a shadow lineage deploys passthrough VIEWS of the same names instead — see
+-- bigquery/curator/adapter/staging_passthrough_views.sql).
 
 -- before running the materialized view the clinvar_annotations_native table must be
 -- created using the setup-external-tables.sh script and the scheduling job should be
@@ -71,7 +46,7 @@ CREATE OR REPLACE @@MV@@VIEW @@DATASET@@.cvc_annotations_base_mv
 AS
 WITH anno AS (
   SELECT
-    CAST(UNIX_MILLIS(a.annotation_date) AS STRING) AS annotation_id,
+    @@ANNO_ID@@ AS annotation_id,
     rel.release_date AS annotation_release_date,
     a.vcv_id AS vcv_axn,
     -- Using REGEXP_EXTRACT is a supported alternative to SPLIT + OFFSET

@@ -12,8 +12,14 @@ Numbered apply order is preserved from the source tree.
 
 ## Layout
 
-- `00-initialize-cvc-tables.sql` — the `cvc_clinvar_reviews` /
-  `cvc_clinvar_submissions` / `cvc_clinvar_batches` tables, the
+- `staging-tables.sql` — legacy-only bootstrap for the
+  `cvc_clinvar_reviews` / `cvc_clinvar_submissions` / `cvc_clinvar_batches`
+  tables. Not part of `deploy.sh`'s numbered apply order (this file isn't
+  matched by the `0*-*.sql` glob) since these are create-once tables, not
+  idempotent view/function definitions. A shadow lineage deploys plain
+  passthrough VIEWS of the same names instead (see
+  `adapter/staging_passthrough_views.sql`).
+- `00-initialize-cvc-tables.sql` — the
   `cvc_annotations_base_mv` materialized view (the **choke point** — see
   below), and the views built directly on it (`cvc_annotations_view`,
   `cvc_batch_scv_max_annotation_view`, `cvc_submitted_annotations_view`,
@@ -81,10 +87,10 @@ legacy deploy's #4/#5 byte-for-byte, something is wrong with the deploy
 itself (not with annotation data), since neither input depends on the
 annotation source.
 
-## Parameterization: `@@DATASET@@`, `@@ANNO_SOURCE@@`, `@@MV@@`
+## Parameterization: `@@DATASET@@`, `@@ANNO_SOURCE@@`, `@@MV@@`, `@@ANNO_ID@@`
 
 The deployed core files (`0*-*.sql` in `bigquery/curator/` and
-`bigquery/curator/cvc-impact-analysis/`) are templated with three tokens so
+`bigquery/curator/cvc-impact-analysis/`) are templated with four tokens so
 the same SQL tree can deploy either the legacy `clinvar_curator` lineage or a
 parallel shadow lineage over a different annotation source, without forking
 the SQL:
@@ -101,6 +107,13 @@ the SQL:
   table) must substitute an empty string, because BigQuery materialized
   views cannot read over a view/external source — the shadow's `base_mv`
   becomes a plain `VIEW` instead.
+- `@@ANNO_ID@@` — the expression `cvc_annotations_base_mv` uses to derive
+  `annotation_id` from the annotation source row `a`. Legacy substitutes
+  `CAST(UNIX_MILLIS(a.annotation_date) AS STRING)` (recomputed from the
+  annotation timestamp, since the legacy source has no stored id). A shadow
+  deploy over a `_v4` native table that already stores `annotation_id`
+  substitutes `a.annotation_id` instead, reading the stored id directly
+  rather than recomputing it.
 
 The ad-hoc report files (`cvc-submitted-outcomes-stats.sql`,
 `cvc-annotation-history-report.sql`, `manuscript-figures/*`) are **not**
@@ -144,11 +157,12 @@ DATASET=clinvar_curator ANNO_SOURCE=clinvar_curator.clinvar_annotations_native \
 ./bigquery/curator/deploy.sh --dry-run
 ```
 
-Note: a `--dry-run` of the **legacy** binding against a project where
-`clinvar_curator.cvc_clinvar_reviews` / `cvc_clinvar_submissions` /
-`cvc_clinvar_batches` already exist will fail on `00-initialize-cvc-tables.sql`
-with `Already Exists` — those three `CREATE TABLE` statements (not
-`CREATE OR REPLACE TABLE`) are validated by BigQuery for name collision even
-under `--dry_run`. This is expected against an already-provisioned legacy
-dataset and is not a sign of a broken deploy; a dry-run against a
-not-yet-created dataset (e.g. a fresh `clinvar_curator_v4`) will pass cleanly.
+Note: `deploy.sh` only applies `0*-*.sql` files, so it never re-runs
+`staging-tables.sql`'s `CREATE TABLE` statements (not
+`CREATE OR REPLACE TABLE`) for `cvc_clinvar_reviews` / `cvc_clinvar_submissions`
+/ `cvc_clinvar_batches` — those are bootstrapped once, separately, for the
+legacy dataset only. A shadow deploy (e.g. a fresh `clinvar_curator_v4`)
+instead deploys passthrough VIEWS of the same names
+(`adapter/staging_passthrough_views.sql`) before running `deploy.sh`, so
+`--dry-run` and a real deploy of `0*-*.sql` both pass cleanly regardless of
+whether the dataset is fresh or already provisioned.
