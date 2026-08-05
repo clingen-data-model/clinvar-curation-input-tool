@@ -6,7 +6,8 @@ cd "$(git rev-parse --show-toplevel)"    # run from repo root regardless of invo
 : "${CURATOR_PROJECT:=clingen-dev}"
 : "${DATASET:?set DATASET (e.g. clinvar_curator or clinvar_curator_v4)}"
 : "${ANNO_SOURCE:?set ANNO_SOURCE (fully-qualified source table)}"
-: "${MV:=MATERIALIZED }"   # legacy default; pass MV="" for the shadow so base_mv is a plain VIEW
+: "${MV=MATERIALIZED }"   # legacy default; pass MV="" for the shadow so base_mv is a plain VIEW
+                          # (unset-only default: ":=" would also fire on an explicitly-empty MV="", clobbering the shadow's plain-VIEW override)
 : "${ANNO_ID:=CAST(UNIX_MILLIS(a.annotation_date) AS STRING)}"   # legacy default (recomputed); shadow passes ANNO_ID="a.annotation_id" to read the stored id
 DRY=""; [ "${1:-}" = "--dry-run" ] && DRY="--dry_run"
 # Numbered apply order: base tables/views/funcs first, then impact-analysis.
