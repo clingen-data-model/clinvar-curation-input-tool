@@ -51,7 +51,9 @@ function showScvPopover(doc, anchorEl, scv) {
       entry.className = 'cvc-hl-popover-entry';
       const meta = doc.createElement('div');
       meta.className = 'cvc-hl-popover-meta';
-      meta.textContent = `${e.when} · ${e.who}`;
+      // Lead with the SCV version the annotation was made on (e.g. "SCV v4"),
+      // so cross-version history is legible (the SCV may now be a later version).
+      meta.textContent = `${e.version ? 'SCV v' + e.version + ' · ' : ''}${e.when} · ${e.who}`;
       const summary = doc.createElement('div');
       summary.className = 'cvc-hl-popover-summary';
       summary.textContent = e.summary;
@@ -311,6 +313,8 @@ function applyHighlights(doc, summaryByScv) {
 
   const decorateForScvFn = (typeof self !== 'undefined' && self.decorateForScv) ||
     require('./highlight.js').decorateForScv;
+  const scvBaseFn = (typeof self !== 'undefined' && self.scvBase) ||
+    require('./highlight.js').scvBase;
 
   // Idempotency first: remove any decoration/buttons left over from a prior run.
   doc.querySelectorAll('.cvc-hl-badge').forEach((badge) => badge.remove());
@@ -325,7 +329,9 @@ function applyHighlights(doc, summaryByScv) {
   for (let i = 0; i < count; i++) {
     const scvRow = data.row[i];
     const scv = scvRow.scv;
-    const dec = decorateForScvFn(summaryByScv[scv]);
+    // Match history by version-stripped base accession so annotations made on
+    // any prior version of this SCV surface on the current row.
+    const dec = decorateForScvFn(summaryByScv[scvBaseFn(scv)]);
     if (dec) {
       rowEls[i].classList.add(...dec.cssClass.split(' '));
     }
