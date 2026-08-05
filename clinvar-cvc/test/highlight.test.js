@@ -74,3 +74,53 @@ describe('entriesForScv', () => {
     expect(entriesForScv([], 'SCV1')).toEqual([]);
   });
 });
+
+describe('cross-version history (matched by base SCV accession)', () => {
+  const rows = [
+    { scv: 'SCV999.4', action: 'Flagging Candidate', reason: 'r', notes: '', user_email: 'a@x.org', created_at: '2023-01-01T00:00:00Z' },
+    { scv: 'SCV999.6', action: 'No Change',          reason: '',  notes: '', user_email: 'b@x.org', created_at: '2024-01-01T00:00:00Z' }
+  ];
+
+  it('summarizeHistoryByScv aggregates all versions under the base accession', () => {
+    const m = summarizeHistoryByScv(rows);
+    expect(m.SCV999.count).toBe(2);          // both versions counted under the base
+    expect(m['SCV999.4']).toBeUndefined();   // NOT keyed by the full (versioned) accession
+    expect(m['SCV999.6']).toBeUndefined();
+  });
+
+  it('entriesForScv returns all versions for the base and labels each with its version (newest-first)', () => {
+    const e = entriesForScv(rows, 'SCV999.6');   // current row is v6
+    expect(e.length).toBe(2);                    // includes the v4 annotation made on an older version
+    expect(e[0].version).toBe('6');              // 2024 (newest) first
+    expect(e[1].version).toBe('4');              // 2023 older version still surfaces
+  });
+
+  it('entriesForScv matches regardless of which version the current row is', () => {
+    expect(entriesForScv(rows, 'SCV999.4').length).toBe(2); // same 2 entries when viewing v4
+    expect(entriesForScv(rows, 'SCV999').length).toBe(2);   // and when given a bare base
+  });
+});
+
+describe('decorateForScv badge tone by action composition', () => {
+  it('yellow when the SCV history is ONLY "No Change"', () => {
+    const m = summarizeHistoryByScv([
+      { scv: 'S.1', action: 'No Change', created_at: '2024-01-01T00:00:00Z' },
+      { scv: 'S.2', action: 'No Change', created_at: '2024-02-01T00:00:00Z' }
+    ]);
+    expect(decorateForScv(m.S).badgeClass).toBe('cvc-hl-badge-yellow');
+  });
+  it('red when there are ZERO "No Change" (all flag/remove)', () => {
+    const m = summarizeHistoryByScv([
+      { scv: 'S.1', action: 'Flagging Candidate', created_at: '2024-01-01T00:00:00Z' },
+      { scv: 'S.2', action: 'Remove Flagged Submission', created_at: '2024-02-01T00:00:00Z' }
+    ]);
+    expect(decorateForScv(m.S).badgeClass).toBe('cvc-hl-badge-red');
+  });
+  it('orange when a MIX of "No Change" and other actions', () => {
+    const m = summarizeHistoryByScv([
+      { scv: 'S.1', action: 'No Change', created_at: '2024-01-01T00:00:00Z' },
+      { scv: 'S.2', action: 'Flagging Candidate', created_at: '2024-02-01T00:00:00Z' }
+    ]);
+    expect(decorateForScv(m.S).badgeClass).toBe('cvc-hl-badge-orange');
+  });
+});

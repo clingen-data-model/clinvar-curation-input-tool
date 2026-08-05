@@ -51,7 +51,9 @@ function showScvPopover(doc, anchorEl, scv) {
       entry.className = 'cvc-hl-popover-entry';
       const meta = doc.createElement('div');
       meta.className = 'cvc-hl-popover-meta';
-      meta.textContent = `${e.when} · ${e.who}`;
+      // Lead with the SCV version the annotation was made on (e.g. "SCV v4"),
+      // so cross-version history is legible (the SCV may now be a later version).
+      meta.textContent = `${e.version ? 'SCV v' + e.version + ' · ' : ''}${e.when} · ${e.who}`;
       const summary = doc.createElement('div');
       summary.className = 'cvc-hl-popover-summary';
       summary.textContent = e.summary;
@@ -311,6 +313,8 @@ function applyHighlights(doc, summaryByScv) {
 
   const decorateForScvFn = (typeof self !== 'undefined' && self.decorateForScv) ||
     require('./highlight.js').decorateForScv;
+  const scvBaseFn = (typeof self !== 'undefined' && self.scvBase) ||
+    require('./highlight.js').scvBase;
 
   // Idempotency first: remove any decoration/buttons left over from a prior run.
   doc.querySelectorAll('.cvc-hl-badge').forEach((badge) => badge.remove());
@@ -325,7 +329,9 @@ function applyHighlights(doc, summaryByScv) {
   for (let i = 0; i < count; i++) {
     const scvRow = data.row[i];
     const scv = scvRow.scv;
-    const dec = decorateForScvFn(summaryByScv[scv]);
+    // Match history by version-stripped base accession so annotations made on
+    // any prior version of this SCV surface on the current row.
+    const dec = decorateForScvFn(summaryByScv[scvBaseFn(scv)]);
     if (dec) {
       rowEls[i].classList.add(...dec.cssClass.split(' '));
     }
@@ -348,7 +354,7 @@ function applyHighlights(doc, summaryByScv) {
     // ...then the CvC history badge after it, when the SCV has prior history.
     if (dec) {
       const badge = doc.createElement('span');
-      badge.className = 'cvc-hl-badge';
+      badge.className = 'cvc-hl-badge ' + (dec.badgeClass || '');
       badge.textContent = dec.badge;
       // Tooltip on the badge itself (not the <tr>): ClinVar's own cell/link
       // `title`s win over an ancestor row's title, so the badge is the only
@@ -374,10 +380,18 @@ function initHighlights() {
     const data = window.extractClinVarData(document);
     if (!data || !data.variation_id) return;
     chrome.runtime.sendMessage({ subject: 'getScvHistory', variationId: data.variation_id }, (resp) => {
-      if (chrome.runtime.lastError || !resp || !resp.ok || !resp.rows || !resp.rows.length) return;
+      // Only a genuine failure leaves the page untouched — a messaging error, no
+      // response, or a not-ok result (e.g. not signed in / not allow-listed).
+      // A SUCCESSFUL fetch with ZERO history rows must still decorate: the
+      // "+ Annotate" button belongs on EVERY row regardless of prior history
+      // (only the "CvC N" history badge is history-dependent). Previously the
+      // extra `!resp.rows.length` guard here suppressed ALL decoration on any
+      // variation with no prior CvC annotations — so single/unannotated variants
+      // never got a "+ Annotate" button.
+      if (chrome.runtime.lastError || !resp || !resp.ok) return;
       try {
-        lastHistoryRows = resp.rows;
-        applyHighlights(document, summarizeHistoryByScv(resp.rows));
+        lastHistoryRows = resp.rows || [];
+        applyHighlights(document, summarizeHistoryByScv(lastHistoryRows));
       } catch (e) {
         console.info('CvC highlight failed —', e && e.message);
       }

@@ -27,6 +27,11 @@
   color: #fff;
   vertical-align: middle;
 }
+/* Dynamic badge tone by action composition (set in highlight.js decorateForScv):
+   yellow = only "No Change"; red = zero "No Change" (all flag/remove); orange = mix. */
+.cvc-hl-badge-yellow { background: #facc15; color: #422006; }
+.cvc-hl-badge-red    { background: #b91c1c; color: #fff; }
+.cvc-hl-badge-orange { background: #ea580c; color: #fff; }
 
 /* Click-to-expand history popover (anchored under a clicked badge). */
 .cvc-hl-popover {
