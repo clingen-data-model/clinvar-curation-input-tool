@@ -374,10 +374,18 @@ function initHighlights() {
     const data = window.extractClinVarData(document);
     if (!data || !data.variation_id) return;
     chrome.runtime.sendMessage({ subject: 'getScvHistory', variationId: data.variation_id }, (resp) => {
-      if (chrome.runtime.lastError || !resp || !resp.ok || !resp.rows || !resp.rows.length) return;
+      // Only a genuine failure leaves the page untouched — a messaging error, no
+      // response, or a not-ok result (e.g. not signed in / not allow-listed).
+      // A SUCCESSFUL fetch with ZERO history rows must still decorate: the
+      // "+ Annotate" button belongs on EVERY row regardless of prior history
+      // (only the "CvC N" history badge is history-dependent). Previously the
+      // extra `!resp.rows.length` guard here suppressed ALL decoration on any
+      // variation with no prior CvC annotations — so single/unannotated variants
+      // never got a "+ Annotate" button.
+      if (chrome.runtime.lastError || !resp || !resp.ok) return;
       try {
-        lastHistoryRows = resp.rows;
-        applyHighlights(document, summarizeHistoryByScv(resp.rows));
+        lastHistoryRows = resp.rows || [];
+        applyHighlights(document, summarizeHistoryByScv(lastHistoryRows));
       } catch (e) {
         console.info('CvC highlight failed —', e && e.message);
       }
