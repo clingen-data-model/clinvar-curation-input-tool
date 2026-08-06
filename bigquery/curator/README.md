@@ -222,3 +222,28 @@ fail on the first hex value. (Prod hits this too once it takes real curator capt
   2026-08-06: 31,383 ids matched, all 10 core fields byte-identical; set-diffs were
   only 14 `ignore=TRUE` rows (correctly excluded), 7 post-snapshot appends, 1 dev-test
   capture.
+
+## Parallel-run monitoring
+
+While the `scvc/` Google Sheet stays the system of record and the v4 extension
+runs in parallel for confidence (go-live is deferred), `audit/parallel-run-reconciliation.sh`
+answers on demand: **are the sheet and the extension capture converging, and is
+anything missing from capture that shouldn't be?**
+
+It is cross-region (sheet = `clingen-dev`/`US`, capture = `<project>`/`us-central1`),
+so a single BQ join is impossible; it pulls each side's `annotation_id` set **live**
+(no adapter-refresh dependency) and diffs locally. `annotation_id` is `UNIX_MILLIS`
+of the annotation timestamp on both sides — the join key and, being numeric-millis,
+the chronological ordering for the boundary split.
+
+```bash
+./bigquery/curator/audit/parallel-run-reconciliation.sh              # prod capture (clingen-cvc)
+CAPTURE_PROJECT=clingen-cvc-dev ./…/parallel-run-reconciliation.sh   # dev twin
+```
+
+Buckets: **matched** (in both); **capture_only** (extension writes not in the sheet
+— the adoption signal); **sheet_only_new** (sheet appends newer than the newest
+matched row — ordinary parallel-run sheet usage); **sheet_only_gap** (an eligible
+sheet row *older* than the newest capture yet absent from capture — a real gap,
+should be **0**). Prod 2026-08-06: 31,383 matched / 0 adoption / 32 sheet appends /
+**0 gap**.
