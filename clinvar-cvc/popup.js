@@ -329,9 +329,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   variantNameEl.textContent = clinvarData.name || '';
   populateVcvDisplay(clinvarData);
 
+  // Only offer SCVs from configured (annotatable) sections. Rows from a
+  // de-configured section are still scraped (present in clinvarData.row) but
+  // are not pickable. Option values remain the ORIGINAL clinvarData.row index
+  // so every downstream lookup (currentScv, applyHistoryCounts, change/save
+  // handlers) keeps indexing clinvarData.row directly.
+  const annotatableSectionsFn = (typeof window !== 'undefined' && window.annotatableSections) ||
+    require('./scv-sections.js').annotatableSections;
+  const annotatableKeys = new Set(annotatableSectionsFn().map((s) => s.key));
   clearOptions(scvSelect);
   addChooseOption(scvSelect);
   (clinvarData.row || []).forEach((row, index) => {
+    // Untagged rows (no section) are always offered for backward safety.
+    if (row.section && !annotatableKeys.has(row.section)) return;
     const opt = document.createElement('option');
     opt.value = String(index);
     opt.textContent = scvOptionLabel(row);
