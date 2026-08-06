@@ -1,10 +1,10 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
-const { handleInitializePopup, applyHighlights } = require('../content.js');
+const { handleInitializePopup, applyHighlights, reportSeamDrift } = require('../content.js');
 const { extractClinVarData } = require('../scrape.js');
 const { SCV_SECTIONS, ANNOTATABLE_SCV_SECTIONS } = require('../scv-sections.js');
 const here = dirname(fileURLToPath(import.meta.url));
@@ -21,6 +21,29 @@ describe('content.handleInitializePopup', () => {
   });
   it('returns null for unrelated messages', () => {
     expect(handleInitializePopup({ from: 'popup', subject: 'other' }, document)).toBeNull();
+  });
+});
+
+describe('content.reportSeamDrift', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('logs a per-seam report that names the drifted seam(s)', () => {
+    // Simulate ClinVar drift: the #new-variant-details container is renamed, so
+    // vcv/variation_id can't be parsed (the empty-scrape trigger in initHighlights).
+    document.documentElement.innerHTML =
+      html.replace(/id="new-variant-details"/g, 'id="new-variant-details-RENAMED"');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    reportSeamDrift(document);
+    expect(warn).toHaveBeenCalledTimes(1);
+    const msg = warn.mock.calls[0][0];
+    expect(msg).toMatch(/drifted/i);
+    expect(msg).toContain('DRIFT');
+    expect(msg).toContain('variant-details-box'); // the seam that broke is named
+    expect(msg).toContain('vcv-accession');
+  });
+
+  it('never throws even if inspection blows up', () => {
+    expect(() => reportSeamDrift(null)).not.toThrow();
   });
 });
 
