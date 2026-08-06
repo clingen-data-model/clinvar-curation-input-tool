@@ -34,10 +34,16 @@ stored procedure. Repointing that one choke point at v4 repoints all 88 objects.
 
 ## 1. Decisions (locked with the user, 2026-08-03)
 
-1. **`clinvar_curator` stays single** (one dataset in `clingen-dev`, `US`), matching its
-   upstream `clinvar_ingest`. No dev/prod split in Phase 0.
-2. **v4 source = prod-staging `clingen-cvc.clinvar_cvc_ext.annotations`** (the full ~30,784
-   historical seed). `clingen-cvc-dev` is *not* used (it carries extra dev-test annotations).
+1. **(REVISED 2026-08-06) The v4 shadow lineage is split dev/prod.** The legacy live
+   `clinvar_curator` dataset (sheet-sourced) is untouched and stays single. The *v4 shadow* now
+   has two parallel datasets in `clingen-dev` (`US`): **`clinvar_curator_v4`** sourced from prod
+   capture `clingen-cvc`, and **`clinvar_curator_v4_dev`** sourced from dev capture
+   `clingen-cvc-dev`. (Originally decision 1 kept a single source-agnostic `clinvar_curator`; the
+   user opted to give the v4 shadow a dev twin so `clingen-cvc-dev` capture has its own downstream.)
+2. **v4 shadow sources are split by environment.** The **prod** shadow (`clinvar_curator_v4`) =
+   `clingen-cvc.clinvar_cvc_ext.annotations` (the full historical seed, migrated-only, no test
+   captures). The **dev** shadow (`clinvar_curator_v4_dev`) = `clingen-cvc-dev.…annotations` (same
+   historical seed **plus** dev-test captures — that extra content is the point of the dev twin).
 3. **Shadow, don't flip.** Build a parallel v4-sourced lineage beside the legacy one and
    diff them; the live choke point is untouched. Flipping is a Phase-1 decision.
 4. **Consolidate in one change.** Move `clinvar-ingest-bq-tools/scripts/clinvar-curation/`
@@ -210,27 +216,35 @@ names, types, and `annotation_id` semantics. A consumer needs to know only that 
 the §3.2 contract for the shared-seed population plus any post-seed v4 captures; it does not
 need to know how the copy or reshape work.
 
-### 5.4 Source-environment separation (dev vs prod capture)
-The single `clinvar_curator` project (decision 1) is **source-agnostic**: it holds *named*
-native tables, each deterministically bound to exactly one capture project by its transfer
-job. Capture environments stay separated **structurally — by named table + lineage, never by
-row-mixing**:
-- `clinvar_annotations_native` — legacy sheet source → live legacy lineage.
-- `cvc_annotations_native_v4` — v4 **prod-staging** (`clingen-cvc`) → shadow `clinvar_curator_v4`.
-  **This is the only v4 source Phase 0 wires.**
-- `clingen-cvc-dev` is **not** a downstream source in Phase 0; it exists to exercise the capture
-  extension, not the analytics pipeline.
+### 5.4 Source-environment separation (dev vs prod capture) — REVISED 2026-08-06
 
-There is no code path that reads two capture sources into one table: each native table has a
-unique name, a single-valued source binding, its own transfer watermark, and its own suffixed
-shadow lineage. If a dev-sourced downstream is ever needed, it is a **parallel `_dev`-suffixed
-lineage** (`cvc_annotations_native_v4_dev` fed from `clingen-cvc-dev` → `clinvar_curator_v4_dev`),
-same templated DDL, different binding — coexisting with zero contamination. Because
-`clinvar_curator`'s staging tables are single and sheet-derived, such a run validates
-adapter/capture plumbing, not a fully isolated ops environment (a true ops dev/prod split is
-the deferred discovery open-question, not this). **Durable rule:** the single downstream tracks
-the **prod** capture (the eventual system of record); dev capture feeds it only via a transient
-`_dev` lineage for testing.
+Capture environments stay separated **structurally — by named table + suffixed lineage, never
+by row-mixing**. The v4 shadow now has BOTH lineages built (the `_dev` twin was promoted from
+"if ever needed" to a standing dataset):
+
+- `clinvar_annotations_native` — legacy sheet source → live legacy lineage (`clinvar_curator`).
+- `clinvar_curator_v4.cvc_annotations_native_v4` — v4 **prod** capture (`clingen-cvc`) → shadow
+  `clinvar_curator_v4` (migrated-only, no test captures).
+- `clinvar_curator_v4_dev.cvc_annotations_native_v4` — v4 **dev** capture (`clingen-cvc-dev`) →
+  shadow `clinvar_curator_v4_dev` (historical seed **plus** dev-test captures).
+
+There is no code path that reads two capture sources into one table: each native table lives in
+its own dataset with a single-valued source binding (the adapter's `CVC_PROD` + `CURATOR_DATASET`
+env), and each has its own suffixed shadow lineage — same templated DDL, different binding,
+coexisting with zero contamination. Both shadows share the **legacy `clinvar_curator` staging**
+(reviews/submissions/batches) via read-only passthrough views, because that review/submission/
+batch state is single and sheet-derived — so the dev twin validates adapter/capture plumbing +
+per-source annotation fidelity, not a fully isolated ops environment (a true ops dev/prod split
+is the deferred discovery open-question, not this). **Durable rule:** the **prod** shadow tracks
+the prod capture (the eventual system of record); the **dev** shadow tracks dev capture for
+trialing. Neither is the live pipeline — that stays the sheet-sourced `clinvar_curator` until a
+Phase-1 flip.
+
+Fidelity of each shadow against the legacy sheet source is asserted by
+`bigquery/curator/tests/06-annotation-id-roundtrip.sql` (0 rows on success). Verified on the dev
+shadow 2026-08-06: **31,383 `annotation_id`s matched with all 10 core fields byte-identical**;
+the only set-diffs were 14 `ignore=TRUE` sheet rows (correctly excluded by the migration), 7
+post-snapshot legacy appends, and 1 dev-test capture — i.e. zero lost annotations.
 
 ## 6. Storing `annotation_id` + the no-dedup re-migration
 

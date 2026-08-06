@@ -149,8 +149,31 @@ MV="" \
 ./bigquery/curator/deploy.sh
 ```
 
+**Dev twin** (`clinvar_curator_v4_dev`, sourced from the **dev** capture
+`clingen-cvc-dev`; see spec §5.4). Same templated DDL, different source binding;
+the native table + raw load live in the dev dataset, and the staging passthrough
+views point at the shared legacy `clinvar_curator` staging. Full build:
+
+```bash
+# 1. native landing table from the DEV capture (distinct GCS prefix)
+CVC_PROD=clingen-cvc-dev CURATOR_DATASET=clinvar_curator_v4_dev \
+GCS_PREFIX=native_v4_dev GCS_BUCKET=gs://clingen-dev-cvc-native-v4-staging \
+./bigquery/curator/adapter/refresh-native-v4.sh
+# 2. passthrough staging views (source = shared legacy clinvar_curator)
+sed 's/@@STAGING_DATASET@@/clinvar_curator_v4_dev/g' \
+  bigquery/curator/adapter/staging_passthrough_views.sql \
+  | bq --project_id=clingen-dev --location=US query --use_legacy_sql=false
+# 3. deploy the shadow lineage
+DATASET=clinvar_curator_v4_dev \
+ANNO_SOURCE=clinvar_curator_v4_dev.cvc_annotations_native_v4 \
+MV="" ANNO_ID="a.annotation_id" \
+./bigquery/curator/deploy.sh
+```
+
 Pass `--dry-run` as the first argument to validate without applying (no
-data changes, no cost):
+data changes, no cost — but note a **fresh** dataset can't `--dry-run` cleanly:
+`--dry_run` doesn't create file 00's `base_mv`, so file 01 can't resolve it;
+the real deploy creates each object before the next file references it):
 
 ```bash
 DATASET=clinvar_curator ANNO_SOURCE=clinvar_curator.clinvar_annotations_native \
@@ -166,3 +189,36 @@ instead deploys passthrough VIEWS of the same names
 (`adapter/staging_passthrough_views.sql`) before running `deploy.sh`, so
 `--dry-run` and a real deploy of `0*-*.sql` both pass cleanly regardless of
 whether the dataset is fresh or already provisioned.
+
+## Adapter: cross-region v4 capture → native table
+
+`adapter/refresh-native-v4.sh` does a **full-snapshot** cross-region copy (BigQuery
+can't join across locations: capture = `us-central1`, curator = `US`): materialize
+the capture's flattened `annotations` view → extract to GCS → `bq load` → reshape
+(`native_v4_reshape.sql`) into the native contract. Parameterized so ONE script
+serves both shadows:
+
+| env var | prod (default) | dev twin |
+| --- | --- | --- |
+| `CVC_PROD` (source capture project) | `clingen-cvc` | `clingen-cvc-dev` |
+| `CURATOR_DATASET` (raw + native land here) | `clinvar_curator` | `clinvar_curator_v4_dev` |
+| `GCS_PREFIX` (per-source GCS shards) | `native_v4` | `native_v4_dev` |
+| `GCS_BUCKET` (required, `us-central1`) | `gs://clingen-dev-cvc-native-v4-staging` | (same) |
+
+The snapshot drops `document_id` (`SELECT * EXCEPT(document_id)`): the reshape never
+uses it, and `bq load --autodetect` infers its type from a sample — a dataset mixing
+migrated docs (numeric `annotation_id` doc-ids) with live-capture docs (hex
+content-hash doc-ids) makes autodetect pick INTEGER off the numeric majority, then
+fail on the first hex value. (Prod hits this too once it takes real curator captures.)
+
+## Tests / validation
+
+- `tests/run-parity.sh` (glob `0[1-4]*.sql`, 0 rows = PASS): legacy-vs-shadow
+  parity anchored on a clean batch. `BATCH=<id> ./bigquery/curator/tests/run-parity.sh`.
+- `tests/05-drift-enumeration.sql` — informational (run separately).
+- `tests/06-annotation-id-roundtrip.sql` — proves the v4 shadow's `annotation_id`
+  **and full payload** round-trip the legacy sheet source with zero drift (0 rows =
+  PASS; `@@ANNO_V4@@` token, run separately with `sed`). Verified on the dev shadow
+  2026-08-06: 31,383 ids matched, all 10 core fields byte-identical; set-diffs were
+  only 14 `ignore=TRUE` rows (correctly excluded), 7 post-snapshot appends, 1 dev-test
+  capture.
