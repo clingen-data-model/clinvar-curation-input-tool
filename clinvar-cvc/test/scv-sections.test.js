@@ -37,17 +37,9 @@ describe('scv-sections registry', () => {
       .toBe('#submissions-somatic-list-oncogenicity-tbody tr.somatic-sub-col');
   });
 
-  it('defaults to all three sections annotatable', () => {
-    expect(ANNOTATABLE_SCV_SECTIONS).toEqual([
-      'germline',
-      'somatic-clinical-impact',
-      'somatic-oncogenicity'
-    ]);
-    expect(annotatableSections().map((s) => s.key)).toEqual([
-      'germline',
-      'somatic-clinical-impact',
-      'somatic-oncogenicity'
-    ]);
+  it('defaults to germline only (somatic sections supported but off by default)', () => {
+    expect(ANNOTATABLE_SCV_SECTIONS).toEqual(['germline']);
+    expect(annotatableSections().map((s) => s.key)).toEqual(['germline']);
   });
 
   it('annotatableSections() honors a trimmed config (in registry order)', () => {

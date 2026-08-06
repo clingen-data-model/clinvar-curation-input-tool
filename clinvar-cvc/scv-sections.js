@@ -30,13 +30,14 @@ var SCV_SECTIONS = [
   }
 ];
 
-// Global config: which sections a curator may annotate. Default: all three. A
-// curator/deploy can trim this to any subset (e.g. ['germline']); a de-configured
-// section is still SCRAPED (so its rows appear in data.row) but gets NO in-page
-// badge and is not offered in the popup SCV picker. Mutate in place (e.g.
-// `ANNOTATABLE_SCV_SECTIONS.length = 0; ANNOTATABLE_SCV_SECTIONS.push('germline')`)
-// so `annotatableSections()`, which closes over this array, reflects the change.
-var ANNOTATABLE_SCV_SECTIONS = ['germline', 'somatic-clinical-impact', 'somatic-oncogenicity'];
+// Global config: which sections a curator may annotate. Default: germline only
+// — the two somatic sections ('somatic-clinical-impact', 'somatic-oncogenicity')
+// are fully SUPPORTED and can be enabled by adding their keys here. A
+// de-configured section is still SCRAPED (so its rows appear in data.row) but
+// gets NO in-page badge and is not offered in the popup SCV picker. Mutate in
+// place (e.g. `ANNOTATABLE_SCV_SECTIONS.push('somatic-clinical-impact')`) so
+// `annotatableSections()`, which closes over this array, reflects the change.
+var ANNOTATABLE_SCV_SECTIONS = ['germline'];
 
 // The registry entries whose key is in the current ANNOTATABLE_SCV_SECTIONS
 // config, preserving registry order.
