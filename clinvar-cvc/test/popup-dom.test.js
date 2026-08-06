@@ -33,6 +33,7 @@ describe('popup.html markup', () => {
     expect(scripts).toEqual([
       'env.js',
       'firebase-config.js',
+      'scv-sections.js',
       'vocab.js',
       'annotation.js',
       'popup-view.js',

@@ -303,11 +303,13 @@ function showAnnotateForm(doc, anchorEl, scvRow, vcv) {
 // just ones with prior history. Best-effort and idempotent: any prior
 // decoration/buttons from an earlier run are stripped before reapplying, so
 // repeated calls (SPA re-renders, reloads) never stack badges or buttons.
-// `data.row[i]` is assumed to align by index with the i-th
-// `.submissions-germline-list tbody tr.germline-sub-col` row (see scrape.js's
-// extractScvRows, which builds `row[]` by iterating that exact selector).
+// Within each section, `data.row` (filtered to that section's key) is assumed
+// to align by index with the section's row elements (see scrape.js's
+// extractScvRows, which builds `row[]` by iterating each section's rowSelector
+// in registry order and tagging each row with its `section`). Only sections in
+// the ANNOTATABLE_SCV_SECTIONS config get ANY badge — both the `+ Annotate`
+// control and the `CvC N` history badge gate together per section.
 function applyHighlights(doc, summaryByScv) {
-  const rowEls = doc.querySelectorAll('.submissions-germline-list tbody tr.germline-sub-col');
   const data = (typeof window !== 'undefined' && window.extractClinVarData) ? window.extractClinVarData(doc) : null;
   if (!data || !data.row) return;
 
@@ -315,6 +317,8 @@ function applyHighlights(doc, summaryByScv) {
     require('./highlight.js').decorateForScv;
   const scvBaseFn = (typeof self !== 'undefined' && self.scvBase) ||
     require('./highlight.js').scvBase;
+  const annotatableSectionsFn = (typeof self !== 'undefined' && self.annotatableSections) ||
+    require('./scv-sections.js').annotatableSections;
 
   // Idempotency first: remove any decoration/buttons left over from a prior run.
   doc.querySelectorAll('.cvc-hl-badge').forEach((badge) => badge.remove());
@@ -325,49 +329,58 @@ function applyHighlights(doc, summaryByScv) {
   });
 
   const vcv = { vcv: data.vcv, variation_id: data.variation_id, name: data.name };
-  const count = Math.min(rowEls.length, data.row.length);
-  for (let i = 0; i < count; i++) {
-    const scvRow = data.row[i];
-    const scv = scvRow.scv;
-    // Match history by version-stripped base accession so annotations made on
-    // any prior version of this SCV surface on the current row.
-    const dec = decorateForScvFn(summaryByScv[scvBaseFn(scv)]);
-    if (dec) {
-      rowEls[i].classList.add(...dec.cssClass.split(' '));
-    }
-    if (!rowEls[i].cells || !rowEls[i].cells[3]) continue;
 
-    // Annotate control first on every row (regardless of prior history). It's
-    // a <span> (not a <button>) styled as a badge: a real <button> inherits
-    // ClinVar/USWDS button chrome (large rounded rectangle) that overrides our
-    // styles, whereas a span renders exactly like the .cvc-hl-badge span.
-    const annotateBtn = doc.createElement('span');
-    annotateBtn.className = 'cvc-annotate-btn';
-    annotateBtn.setAttribute('role', 'button');
-    annotateBtn.textContent = '+ Annotate';
-    annotateBtn.addEventListener('click', (ev) => {
-      ev.stopPropagation();
-      showAnnotateForm(doc, annotateBtn, scvRow, vcv);
-    });
-    rowEls[i].cells[3].appendChild(annotateBtn);
+  // One pass per CONFIGURED section: query that section's rows, take that
+  // section's scraped rows (data.row filtered by section key, in order), align
+  // within the section, and inject into the section's `injectCell`.
+  annotatableSectionsFn().forEach((section) => {
+    const rowEls = doc.querySelectorAll(section.rowSelector);
+    const sectionRows = data.row.filter((r) => r.section === section.key);
+    const injectCell = section.injectCell;
+    const count = Math.min(rowEls.length, sectionRows.length);
+    for (let i = 0; i < count; i++) {
+      const scvRow = sectionRows[i];
+      const scv = scvRow.scv;
+      // Match history by version-stripped base accession so annotations made on
+      // any prior version of this SCV surface on the current row.
+      const dec = decorateForScvFn(summaryByScv[scvBaseFn(scv)]);
+      if (dec) {
+        rowEls[i].classList.add(...dec.cssClass.split(' '));
+      }
+      if (!rowEls[i].cells || !rowEls[i].cells[injectCell]) continue;
 
-    // ...then the CvC history badge after it, when the SCV has prior history.
-    if (dec) {
-      const badge = doc.createElement('span');
-      badge.className = 'cvc-hl-badge ' + (dec.badgeClass || '');
-      badge.textContent = dec.badge;
-      // Tooltip on the badge itself (not the <tr>): ClinVar's own cell/link
-      // `title`s win over an ancestor row's title, so the badge is the only
-      // reliable hover surface. Also the click target for the history popover.
-      badge.title = dec.tooltip + ' — click for history';
-      badge.style.cursor = 'pointer';
-      badge.addEventListener('click', (ev) => {
+      // Annotate control first on every row (regardless of prior history). It's
+      // a <span> (not a <button>) styled as a badge: a real <button> inherits
+      // ClinVar/USWDS button chrome (large rounded rectangle) that overrides our
+      // styles, whereas a span renders exactly like the .cvc-hl-badge span.
+      const annotateBtn = doc.createElement('span');
+      annotateBtn.className = 'cvc-annotate-btn';
+      annotateBtn.setAttribute('role', 'button');
+      annotateBtn.textContent = '+ Annotate';
+      annotateBtn.addEventListener('click', (ev) => {
         ev.stopPropagation();
-        showScvPopover(doc, badge, scv);
+        showAnnotateForm(doc, annotateBtn, scvRow, vcv);
       });
-      rowEls[i].cells[3].appendChild(badge);
+      rowEls[i].cells[injectCell].appendChild(annotateBtn);
+
+      // ...then the CvC history badge after it, when the SCV has prior history.
+      if (dec) {
+        const badge = doc.createElement('span');
+        badge.className = 'cvc-hl-badge ' + (dec.badgeClass || '');
+        badge.textContent = dec.badge;
+        // Tooltip on the badge itself (not the <tr>): ClinVar's own cell/link
+        // `title`s win over an ancestor row's title, so the badge is the only
+        // reliable hover surface. Also the click target for the history popover.
+        badge.title = dec.tooltip + ' — click for history';
+        badge.style.cursor = 'pointer';
+        badge.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          showScvPopover(doc, badge, scv);
+        });
+        rowEls[i].cells[injectCell].appendChild(badge);
+      }
     }
-  }
+  });
 }
 
 // Best-effort: asks the background service worker (silent-auth only — never

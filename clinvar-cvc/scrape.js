@@ -34,6 +34,30 @@ var interp_re = /\W*<div.*?<div.*?(\w+([\s\/\-\,]*\w+)*).*?\(([\w\s\,\-]+)\)/is;
 var vcv_accession_re = /Accession:.*?(VCV\d+\.\d+)/is;
 var vcv_variation_id_re = /Variation ID:.*?(\d+)/is;
 
+// Relaxed review-status extractor for the somatic sections. Reuses the leading
+// standard review-status phrase alternation from review_method_re but DROPS the
+// `.*?Method:...` tail, because somatic cell[1] carries no "Method:" (e.g.
+// "criteria provided, single submitter (AMP/ASCO/CAP Guidelines, 2017)").
+var review_status_re = /(practice guideline|reviewed by expert panel|no assertion provided|no interpretation for the single variant|criteria provided, multiple submitters, no conflicts|criteria provided, single submitter|criteria provided, conflicting interpretations|no assertion criteria provided|no classification provided|Flagged submission)/is;
+
+// The trailing "(<eval date>)" in a somatic classification cell, e.g.
+// "(Jul 11, 2023)" / "(Mar 04, 2025)". Requires a month token so it never
+// mistakes a parenthetical qualifier like "(Strong)" for the date.
+var somatic_eval_date_re = /\(([A-Z][a-z]{2,}\.?\s+\d{1,2},\s*\d{4})\)/;
+
+// Resolve the shared section registry. In the browser, scv-sections.js is
+// loaded (content script) BEFORE scrape.js and exposes window/self globals;
+// under Node/tests we require it. Returns [] if unavailable so scraping never
+// throws (best-effort, like the rest of the scraper).
+function getScvSections() {
+  var root = (typeof self !== 'undefined') ? self : (typeof window !== 'undefined' ? window : null);
+  if (root && root.SCV_SECTIONS) return root.SCV_SECTIONS;
+  if (typeof require === 'function') {
+    try { return require('./scv-sections.js').SCV_SECTIONS; } catch (e) { /* fall through */ }
+  }
+  return [];
+}
+
 /**
  * Extract the VCV-level header fields: vcv, variation_id, name, vcv_interp,
  * vcv_review, vcv_most_recent, vcv_eval_date.
@@ -233,13 +257,92 @@ function parseScvRow(rowEl, index) {
 }
 
 /**
- * Extract the row[] array — one entry per SCV submission row.
+ * Extract the classification (`interp`) + `eval_date` from a somatic section's
+ * cell[0]. Unlike germline (which carries interp_re-matchable markup), somatic
+ * cells render the classification as plain visible text followed by a
+ * "(<eval date>)" — e.g. "Tier I (Strong) - Diagnostic - supports diagnosis
+ * (Jul 11, 2023)" (clinical impact) or "Oncogenic (Mar 04, 2025)"
+ * (oncogenicity). We capture the FULL classification phrase (everything before
+ * the trailing date paren, whitespace-collapsed) so the whole "Tier … - …"
+ * string is preserved; anything after the date (e.g. the "Contributing to
+ * aggregate classification" badge text) is dropped.
+ */
+function extractSomaticClassification(cellEl) {
+  var text = ((cellEl && (cellEl.textContent || '')) || '').replace(/\s+/g, ' ').trim();
+  var m = text.match(somatic_eval_date_re);
+  if (m) {
+    return { interp: text.slice(0, m.index).trim(), eval_date: m[1] };
+  }
+  return { interp: text, eval_date: '' };
+}
+
+/**
+ * Parse a single somatic (clinical-impact or oncogenicity)
+ * `tr.somatic-sub-col` row into the SAME field shape as parseScvRow:
+ * {submitter_id, submitter, scv, subm_date, review, interp, eval_date}. Somatic
+ * rows share germline's cell layout (cell[0]=classification, cell[1]=review,
+ * cell[3]=submitter/accession) but different content formats, so the submitter
+ * uses the same subm_scv_re while the classification/review use the somatic
+ * helpers above. Downstream (annotation.buildAnnotation) is therefore unchanged.
+ */
+function parseSomaticRow(rowEl, index) {
+  var extractedData = {
+    submitter_id: "", submitter: "", scv: "", subm_date: "", review: "", interp: "", eval_date: ""
+  };
+
+  if (rowEl.cells[0]) {
+    var cls = extractSomaticClassification(rowEl.cells[0]);
+    extractedData.interp = cls.interp;
+    extractedData.eval_date = cls.eval_date;
+  }
+
+  if (rowEl.cells[1]) {
+    var review_match = rowEl.cells[1].innerHTML.match(review_status_re);
+    if (review_match) { extractedData.review = review_match[1] || ""; }
+  }
+
+  if (rowEl.cells[3]) {
+    var subm_scv_match = rowEl.cells[3].innerHTML.match(subm_scv_re);
+    if (subm_scv_match) {
+      extractedData.submitter_id = subm_scv_match[1] || "";
+      extractedData.submitter = subm_scv_match[2] || "";
+      extractedData.scv = subm_scv_match[3] || "";
+      extractedData.subm_date = subm_scv_match[5] || "";
+    }
+  }
+
+  return {
+    submitter_id: extractedData.submitter_id,
+    submitter: extractedData.submitter,
+    scv: extractedData.scv,
+    subm_date: extractedData.subm_date,
+    review: extractedData.review,
+    interp: extractedData.interp,
+    eval_date: extractedData.eval_date
+  };
+}
+
+/**
+ * Extract the row[] array — one entry per SCV submission row, across ALL
+ * registered sections (germline + both somatic). Each row is tagged with its
+ * `section` key. Germline extraction is byte-identical to before (same
+ * parseScvRow, same regexes/fields); the only germline change is the added
+ * `section: 'germline'` metadata tag. Sections are scraped regardless of the
+ * ANNOTATABLE_SCV_SECTIONS config — config gating happens in the UI layers
+ * (content.js badges, popup.js picker), not here.
  */
 function extractScvRows(doc) {
-  var scvarray = doc.querySelectorAll('.submissions-germline-list tbody tr.germline-sub-col');
+  var sections = getScvSections();
   var rows = [];
-  scvarray.forEach(function (value, index) {
-    rows.push(parseScvRow(value, index));
+  sections.forEach(function (section) {
+    var els = doc.querySelectorAll(section.rowSelector);
+    els.forEach(function (value, index) {
+      var row = (section.key === 'germline')
+        ? parseScvRow(value, index)
+        : parseSomaticRow(value, index);
+      row.section = section.key;
+      rows.push(row);
+    });
   });
   return rows;
 }
@@ -267,5 +370,5 @@ function extractClinVarData(doc) {
 
 if (typeof window !== 'undefined') { window.extractClinVarData = extractClinVarData; }
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { extractClinVarData, extractVcvHeader, extractScvRows, parseScvRow, getMatch };
+  module.exports = { extractClinVarData, extractVcvHeader, extractScvRows, parseScvRow, parseSomaticRow, extractSomaticClassification, getMatch };
 }

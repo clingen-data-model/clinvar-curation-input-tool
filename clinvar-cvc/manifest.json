@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ClinVar Curator (CvC)",
-  "version": "0.1.0",
+  "version": "4.0",
   "description": "Capture ClinGen ClinVar SCV curation annotations to Firestore/BigQuery.",
 
   "icons": {
@@ -47,7 +47,7 @@
   "content_scripts": [
     {
       "matches": ["https://www.ncbi.nlm.nih.gov/clinvar/variation/*"],
-      "js": ["scrape.js", "vocab.js", "annotation.js", "popup-view.js", "highlight.js", "content.js"],
+      "js": ["scv-sections.js", "scrape.js", "vocab.js", "annotation.js", "popup-view.js", "highlight.js", "content.js"],
       "css": ["highlight.css"],
       "run_at": "document_end",
       "all_frames": false
