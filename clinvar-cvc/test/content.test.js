@@ -63,6 +63,7 @@ describe('content.applyHighlights — all three SCV sections (variation 73058)',
   afterEach(() => { setConfig(DEFAULT_CONFIG); });
 
   it('adds + Annotate to rows in ALL three sections when all are configured', () => {
+    setConfig(['germline', 'somatic-clinical-impact', 'somatic-oncogenicity']);
     applyHighlights(document, {});
     expect(btnCount('germline')).toBe(9);
     expect(btnCount('somatic-clinical-impact')).toBe(7);
@@ -82,6 +83,7 @@ describe('content.applyHighlights — all three SCV sections (variation 73058)',
   });
 
   it('is idempotent across sections — repeated calls do not stack', () => {
+    setConfig(['germline', 'somatic-clinical-impact', 'somatic-oncogenicity']);
     applyHighlights(document, {});
     applyHighlights(document, {});
     expect(document.querySelectorAll('.cvc-annotate-btn').length).toBe(17);
