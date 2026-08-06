@@ -1,4 +1,4 @@
-CREATE OR REPLACE TABLE `clingen-dev.clinvar_curator.cvc_annotations_native_v4` AS
+CREATE OR REPLACE TABLE `clingen-dev.@@CURATOR_DATASET@@.cvc_annotations_native_v4` AS
 SELECT
   -- bq load --autodetect infers annotation_id as INT64 (all-numeric JSON
   -- strings), so cast to STRING before the fallback COALESCE to keep the
@@ -20,4 +20,4 @@ SELECT
   notes         AS notes,
   review_status AS review_status,
   FALSE         AS `ignore`
-FROM `clingen-dev.clinvar_curator._annotations_v4_raw`;
+FROM `clingen-dev.@@CURATOR_DATASET@@._annotations_v4_raw`;

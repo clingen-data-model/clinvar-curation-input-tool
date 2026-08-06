@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Runs the Phase-0 parity diff suite (bigquery/curator/tests/0[1-4]*.sql),
-# each of which returns 0 rows on success. 05-drift-enumeration.sql is
-# informational (excluded from this glob) and is run separately.
+# each of which returns 0 rows on success. 05-drift-enumeration.sql
+# (informational) and 06-annotation-id-roundtrip.sql (legacy-sheet round-trip
+# fidelity; needs @@ANNO_V4@@ sed-substituted) are excluded from this glob and
+# run separately — see their file headers.
 #
 # Usage:
 #   export CURATOR_PROJECT=clingen-dev   # default
