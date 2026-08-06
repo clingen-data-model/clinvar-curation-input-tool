@@ -7,6 +7,7 @@
  */
 
 function buildAnnotation(scvRow, vcv, input, userEmail) {
+  const created_at = new Date();
   return {
     variation_id: vcv.variation_id,
     vcv: vcv.vcv,
@@ -20,7 +21,8 @@ function buildAnnotation(scvRow, vcv, input, userEmail) {
     reason: input.reason,
     notes: input.notes,
     user_email: userEmail,
-    created_at: new Date()
+    created_at,
+    annotation_id: String(created_at.getTime())
   };
 }
 

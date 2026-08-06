@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, test, expect } from 'vitest';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const { buildAnnotation, validateAnnotation, annotationDocId } = require('../annotation.js');
@@ -59,4 +59,20 @@ describe('annotationDocId', () => {
     const b = await annotationDocId({ ...dedupBase, name: 'bar' });
     expect(a).toBe(b);
   });
+});
+
+test('buildAnnotation stores annotation_id = UNIX_MILLIS(created_at) as a string', () => {
+  const scv = { scv: 'SCV1', submitter: 'S', submitter_id: '9', interp: 'Pathogenic', review: 'criteria' };
+  const vcv = { variation_id: '1', vcv: 'VCV1', name: 'X' };
+  const a = buildAnnotation(scv, vcv, { action: 'Flagging Candidate', reason: 'r', notes: 'n' }, 'a@b.org');
+  expect(a.annotation_id).toBe(String(a.created_at.getTime()));
+  expect(typeof a.annotation_id).toBe('string');
+});
+
+test('annotation_id does NOT affect the dedup doc id (excluded from DEDUP_FIELDS)', async () => {
+  const scv = { scv: 'SCV1', submitter: 'S', submitter_id: '9', interp: 'Pathogenic', review: 'criteria' };
+  const vcv = { variation_id: '1', vcv: 'VCV1', name: 'X' };
+  const a = buildAnnotation(scv, vcv, { action: 'No Change', reason: '', notes: '' }, 'a@b.org');
+  const b = { ...a, annotation_id: 'different', created_at: new Date(0) };
+  expect(await annotationDocId(a)).toBe(await annotationDocId(b));
 });

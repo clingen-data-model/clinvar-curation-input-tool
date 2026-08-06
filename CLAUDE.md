@@ -18,7 +18,7 @@ Built on the `clinvar-cvc/` foundation. **Do not modify `scvc/`.**
 - `firebase-config.js` — thin selector: `const ACTIVE_ENV = 'prod'|'dev'` → `FIREBASE_CONFIG`. **Flip `ACTIVE_ENV` here (not env.js) to trial dev**; a red DEV banner shows in the popup when not prod.
 - `scrape.js` — `extractClinVarData(doc)`; refactored ClinVar page scraper (ported from `scvc/content.js`, behavior pinned by a characterization snapshot).
 - `vocab.js` — `ACTIONS`, `reasonsForAction(action)`; the action/reason vocabulary.
-- `annotation.js` — `buildAnnotation(scvRow, vcv, input, userEmail)` → the **v4 doc**; `validateAnnotation(data)`; `annotationDocId(doc)` = SHA-256 content hash of the exact entry fields (used as the Firestore doc id for dedup).
+- `annotation.js` — `buildAnnotation(scvRow, vcv, input, userEmail)` → the **v4 doc** (stamps `created_at` + `annotation_id = String(created_at.getTime())`); `validateAnnotation(data)`; `annotationDocId(doc)` = SHA-256 content hash of the exact entry fields (used as the **live** Firestore doc id for double-save dedup; the historical migration instead keys docs by `annotation_id` and does NOT dedup).
 - `content.js` — content script; on `initializePopup` returns `scrape.extractClinVarData(document)`, AND on page load draws in-page controls on each SCV row (see in-page features below).
 - `popup.html` / `popup.js` / `popup-view.js` — rich SCV-picker + action/reason/notes form; wires scrape → picker → reasons → save; guards non-ClinVar pages, closes on success (and reloads the tab so in-page highlights refresh). The "Prior annotations" panel shows the **selected** SCV's history (from `history.js`); the SCV dropdown appends `(CvC N)` counts.
 - `history.js` — pure prior-annotation helpers: `buildHistoryQuery` (Firestore `runQuery` by `variation_id`, index-free), `parseHistoryRows`, `sortHistoryDesc`.
@@ -34,7 +34,7 @@ Built on the `clinvar-cvc/` foundation. **Do not modify `scvc/`.**
 - `setup-clingen-cvc.sh` — scripts the automatable GCP provisioning; `add-curator.sh`/`remove-curator.sh`/`list-curators.sh` manage the allowlist.
 
 ### v4 annotation doc fields
-`variation_id, vcv, name, scv, submitter, submitter_id, interp, review_status, action, reason, notes, user_email, created_at`. (`name` = variant name; it is captured/displayed but intentionally EXCLUDED from the dedup hash — see `annotationDocId`.)
+`variation_id, vcv, name, scv, submitter, submitter_id, interp, review_status, action, reason, notes, user_email, created_at, annotation_id`. (`name` = variant name. Both `name` and `annotation_id` are intentionally EXCLUDED from the dedup hash — see `annotationDocId`. **`annotation_id` = `UNIX_MILLIS(created_at)` as a STRING, computed at write time and stored on the doc** (by `buildAnnotation` and the historical migration) so the BigQuery downstream reads it directly instead of recomputing `UNIX_MILLIS`.)
 
 ### GCP / environments
 - **Prod** = project **`clingen-cvc`** (project number 493724081911). **Dev** = **`clingen-cvc-dev`** (362266755807) — a full isolated twin for trialing (writes stay in dev; verified 0 leak to prod). Both under the `broadinstitute.org` org (which — surprisingly — DID allow an External + In-production OAuth audience).
