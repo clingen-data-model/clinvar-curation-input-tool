@@ -383,6 +383,26 @@ function applyHighlights(doc, summaryByScv) {
   });
 }
 
+// Diagnostic: when a scrape comes back empty on a ClinVar variation page (the
+// content script only runs on variation pages, so an empty scrape means the DOM
+// drifted), log a per-seam health report (dom-seams.js) so the broken location
+// names itself in the console instead of leaving a silently-blank scrape.
+// Best-effort, console-only — never throws, never touches the page.
+function reportSeamDrift(doc) {
+  try {
+    const inspect = (typeof self !== 'undefined' && self.inspectSeams) ||
+      (typeof require === 'function' ? require('./dom-seams.js').inspectSeams : null);
+    const format = (typeof self !== 'undefined' && self.formatSeams) ||
+      (typeof require === 'function' ? require('./dom-seams.js').formatSeams : null);
+    if (!inspect || !format) return;
+    const report = inspect(doc);
+    const headline = report.ok
+      ? 'CvC: ClinVar scrape returned no variation_id, yet all known DOM seams look healthy — scraper/inspector may need a new seam:'
+      : 'CvC: ClinVar scrape returned no variation_id — a DOM seam has drifted:';
+    console.warn(headline + '\n' + format(report));
+  } catch (e) { /* diagnostics must never break the page */ }
+}
+
 // Best-effort: asks the background service worker (silent-auth only — never
 // prompts interactive sign-in) for this variation's prior-annotation
 // history, then decorates matching rows. Any failure — not signed in,
@@ -391,7 +411,8 @@ function applyHighlights(doc, summaryByScv) {
 function initHighlights() {
   try {
     const data = window.extractClinVarData(document);
-    if (!data || !data.variation_id) return;
+    // Empty scrape on a variation page => DOM drift: name the broken seam(s).
+    if (!data || !data.variation_id) { reportSeamDrift(document); return; }
     chrome.runtime.sendMessage({ subject: 'getScvHistory', variationId: data.variation_id }, (resp) => {
       // Only a genuine failure leaves the page untouched — a messaging error, no
       // response, or a not-ok result (e.g. not signed in / not allow-listed).
@@ -436,4 +457,4 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id && chro
   initHighlights();
 }
 
-if (typeof module !== 'undefined' && module.exports) { module.exports = { handleInitializePopup, applyHighlights }; }
+if (typeof module !== 'undefined' && module.exports) { module.exports = { handleInitializePopup, applyHighlights, reportSeamDrift }; }
