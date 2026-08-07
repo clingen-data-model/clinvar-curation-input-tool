@@ -8,8 +8,11 @@
 const { onRequest } = require('firebase-functions/v2/https');
 const admin = require('firebase-admin');
 const { BigQuery } = require('@google-cloud/bigquery');
+const { google } = require('googleapis');
 const { makeAuthGuard, makeFirestoreAllowlistLookup, authErrorStatus } = require('./auth.js');
 const { makeQueueHandler } = require('./queue.js');
+const { makeDriveWriter } = require('./drive.js');
+const { makeGenerateHandler } = require('./generate.js');
 
 admin.initializeApp();
 
@@ -30,6 +33,25 @@ const guard = makeAuthGuard({
 });
 const queueHandler = makeQueueHandler({ runQuery, dataset: REVIEW_DATASET });
 
+// Drive writer (deploy-time creds via ADC). Writes to the SEPARATE dev
+// submission folder (REVIEW_DRIVE_FOLDER); the runtime SA must be a member of
+// that Shared Drive. env = prod only when pointed at the prod shadow.
+const driveWriter = makeDriveWriter(
+  google.drive({ version: 'v3', auth: new google.auth.GoogleAuth({ scopes: ['https://www.googleapis.com/auth/drive'] }) })
+);
+const generateHandler = makeGenerateHandler({
+  runQuery,
+  writeNdjson: (a) => driveWriter.writeNdjson(a),
+  config: {
+    dataset: REVIEW_DATASET,
+    driveFolderId: process.env.REVIEW_DRIVE_FOLDER || '',
+    env: REVIEW_DATASET === 'clinvar_curator_v4' ? 'prod' : 'dev',
+    recipients: (process.env.SUBMISSION_RECIPIENTS || '').split(',').map((s) => s.trim()).filter(Boolean),
+    cc: (process.env.SUBMISSION_CC || '').split(',').map((s) => s.trim()).filter(Boolean)
+  }
+});
+const yyyymmdd = (d) => `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+
 // Single HTTP entry (Hosting rewrites /api/** here). Chunks add routes here;
 // review/assign/generate/finalize (POST) land in later chunks.
 exports.api = onRequest(async (req, res) => {
@@ -44,6 +66,12 @@ exports.api = onRequest(async (req, res) => {
     if (path === '/queue' && req.method === 'GET') {
       const { rows } = await queueHandler();
       res.json({ ok: true, rows });
+      return;
+    }
+    if (path === '/generate' && req.method === 'POST') {
+      const batchId = String((req.body && req.body.batchId) || '');
+      const out = await generateHandler({ batchId, date: yyyymmdd(new Date()) });
+      res.json({ ok: true, ...out });
       return;
     }
     res.status(404).json({ ok: false, error: 'notFound' });
