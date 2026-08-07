@@ -103,8 +103,14 @@ action. No external sheet tables, no dedup dance, no 6-minute ceiling.
   least new infra).
 - **C. Submission-file output = the shared Google Drive folder** (Drive API),
   preserving the reviewers' existing "grab the file from the folder" habit.
-- **D. Submission email = Gmail API draft** (add a compose scope), so the
-  human-in-the-loop "review the draft, then send" step is preserved.
+- **D. Submission email = file link + prefilled `mailto` (NO Gmail scope).**
+  (REVISED in Chunk 0.5, 2026-08-06.) The app writes the NDJSON to Drive and
+  opens a prefilled `mailto:` (recipients/subject/body from `cvc_review_config`;
+  the curator attaches the file + sends). This drops the `gmail.compose`
+  restricted scope entirely — no OAuth-client verification, no consent-screen
+  risk to the live extension sign-in, no domain-wide-delegation (likely
+  org-blocked). An auto-drafted-with-attachment path (client-side GIS
+  `gmail.compose` token) is a possible fast-follow, not required.
 - **E. Region = relocate the capture dataset to US, deleting the adapter.**
   The cross-region snapshot adapter + `cvc_annotations_native_v4` landing table
   exist **only** because capture is `us-central1` and curator is US. Recreating
