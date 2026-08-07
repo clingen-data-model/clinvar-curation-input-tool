@@ -1,0 +1,7 @@
+{
+  "projects": {
+    "default": "clingen-cvc-dev",
+    "dev": "clingen-cvc-dev",
+    "prod": "clingen-cvc"
+  }
+}

@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CvC Review &amp; Submit</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem; color: #111827; }
+    #dev-banner { background: #b91c1c; color: #fff; padding: 4px 10px; border-radius: 4px;
+      display: inline-block; font-weight: 700; font-size: 12px; margin-bottom: 1rem; }
+    button { font: inherit; padding: 6px 12px; border: 1px solid #374151; border-radius: 4px;
+      background: #374151; color: #fff; cursor: pointer; }
+    #status { margin-top: 1rem; font-size: 14px; }
+    code { background: #f3f4f6; padding: 1px 4px; border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <!-- Chunk 0 scaffold: Google sign-in + /api/whoami smoke. Review queue,
+       batch, generate/finalize UI arrive in Chunk 6. -->
+  <div id="dev-banner" hidden>DEV</div>
+  <h1>ClinVar Curator — Review &amp; Submit</h1>
+  <button id="signin">Sign in with Google</button>
+  <button id="signout" hidden>Sign out</button>
+  <div id="status">Not signed in.</div>
+
+  <!-- Firebase compat SDKs (no build step, matching the extension's ethos). -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script>
+    // Public web config is injected at deploy from the Firebase project
+    // (Hosting serves /__/firebase/init.js). Fall back to reserved init URL.
+  </script>
+  <script src="/__/firebase/init.js?useEmulator=false"></script>
+  <script>
+    (function () {
+      const $ = (id) => document.getElementById(id);
+      try {
+        const projectId = (firebase.app().options || {}).projectId || '';
+        if (projectId !== 'clingen-cvc') { $('dev-banner').hidden = false; }
+      } catch (e) { /* init.js not loaded in local preview */ }
+
+      const provider = new firebase.auth.GoogleAuthProvider();
+      $('signin').addEventListener('click', () => firebase.auth().signInWithPopup(provider).catch(showErr));
+      $('signout').addEventListener('click', () => firebase.auth().signOut());
+
+      firebase.auth().onAuthStateChanged(async (user) => {
+        $('signin').hidden = !!user;
+        $('signout').hidden = !user;
+        if (!user) { $('status').textContent = 'Not signed in.'; return; }
+        $('status').textContent = `Signed in as ${user.email} — checking authorization…`;
+        try {
+          const token = await user.getIdToken();
+          const res = await fetch('/api/whoami', { headers: { Authorization: 'Bearer ' + token } });
+          const body = await res.json();
+          if (res.ok && body.ok) {
+            $('status').innerHTML = `Authorized curator: <code>${body.email}</code> ✓`;
+          } else if (res.status === 403) {
+            $('status').textContent = `${user.email} is not an authorized curator — contact an admin.`;
+          } else {
+            $('status').textContent = `Auth error (${res.status}): ${body.message || body.error}`;
+          }
+        } catch (e) { showErr(e); }
+      });
+
+      function showErr(e) { $('status').textContent = 'Error: ' + (e && e.message ? e.message : e); }
+    })();
+  </script>
+</body>
+</html>
