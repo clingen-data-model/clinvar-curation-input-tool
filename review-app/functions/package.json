@@ -1,0 +1,21 @@
+{
+  "name": "cvc-review-app-functions",
+  "private": true,
+  "description": "Review & Submit web-app backend (Cloud Functions) — v4-native.",
+  "main": "index.js",
+  "engines": {
+    "node": "20"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@google-cloud/bigquery": "^7.9.0",
+    "firebase-admin": "^12.7.0",
+    "firebase-functions": "^6.1.0"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.9"
+  }
+}
