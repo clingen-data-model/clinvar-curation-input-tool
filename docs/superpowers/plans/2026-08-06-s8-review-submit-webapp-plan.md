@@ -94,15 +94,19 @@ must own+write them:
   v4/review, read-only on legacy+ingest (verify by attempting a legacy write →
   denied). Vitest green.
 
-### Chunk 0.5 — Auth resolution for Gmail + Drive (blocker, before Chunk 5)
-- Decide + prototype: Gmail draft-in-mailbox via (a) client-side GIS
-  `gmail.compose` token forwarded to the Function, (b) a shared service mailbox +
-  stored refresh token, or (c) drop the draft → just link the file. Confirm the
-  Drive target is a **Shared Drive** and add the runtime SA as Content-manager
-  (`supportsAllDrives`); else Drive writes fail. Resolve the "which mailbox" open
-  item here.
-- Done: a proof that the chosen path can create a draft in the intended mailbox
-  and write a file to the (separate, dev) Drive folder as the SA/user.
+### Chunk 0.5 — Auth resolution for Gmail + Drive (RESOLVED 2026-08-06)
+- **Gmail = option (c): no Gmail scope.** The app writes the NDJSON to Drive and
+  opens a prefilled `mailto:` (recipients/subject/body); the curator attaches the
+  file + sends. No `gmail.compose`, no OAuth-client verification, no consent-screen
+  risk. Built as pure helpers `submission.js` (`submissionFilename` with a
+  `v4-DEV-` prefix pre-cutover; `buildSubmissionEmail`; `mailtoUrl`) — unit-tested.
+- **Drive** = thin injected writer `drive.js` (`makeDriveWriter(drive).writeNdjson`),
+  always `supportsAllDrives`, writing to a **separate dev folder** (never the live
+  submission folder). The Functions runtime SA must be a **member of that Shared
+  Drive** (deploy-time step, README). Trash-same-name is scoped to that folder.
+- Done: pure builders + the Drive orchestration are unit-tested (with a fake
+  client); the live "SA writes to the dev Shared Drive folder" is a deploy-time
+  smoke.
 
 ### Chunk 1 — BQ workflow-state schema (real tables) + snapshot gate
 - Files: `review-app/sql/00-review-state-schema.sql`; `deploy-review-schema.sh`
@@ -163,7 +167,8 @@ must own+write them:
 - Files: `finalize.js`, `email.js` (from Chunk 0.5), `sql/finalize.sql`.
 - Corrected semantics (BQ has no cross-service txn; the SP is DDL + 2–5 min):
   1. generate (Chunk 3) → write file to dev Drive folder.
-  2. draft email (Chunk 0.5 path; test recipients pre-cutover).
+  2. return the file link + a prefilled `mailto:` (Chunk 0.5 — NO Gmail draft;
+     recipients from `cvc_review_config`, test-only pre-cutover).
   3. **promote** `cvc_review_state` → `cvc_clinvar_reviews` (status ∈
      {OK,Fixed,Archive}) + `cvc_clinvar_submissions` (status=OK + actionable
      action) via **MERGE / INSERT…WHERE NOT EXISTS keyed on
