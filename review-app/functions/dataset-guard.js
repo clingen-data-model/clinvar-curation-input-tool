@@ -6,6 +6,9 @@
 // `clinvar_curator_v4[_dev]`. CommonJS; unit-tested.
 
 const LEGACY_WRITE_FORBIDDEN = 'clinvar_curator';
+// The app only ever operates on a v4 shadow dataset. (The parity harness reads
+// legacy `clinvar_curator` directly — it does NOT go through this guard.)
+const ALLOWED_V4_DATASETS = ['clinvar_curator_v4', 'clinvar_curator_v4_dev'];
 
 // Throw if `dataset` is the live legacy dataset; otherwise return it. Use at
 // every write/DDL target (query builders, deploy scripts via node).
@@ -16,4 +19,13 @@ function assertWriteDataset(dataset) {
   return dataset;
 }
 
-module.exports = { assertWriteDataset, LEGACY_WRITE_FORBIDDEN };
+// The app's operating dataset must be a known v4 shadow — guards against a
+// mis-configured REVIEW_DATASET pointing the app at the wrong (or legacy) data.
+function assertReadDataset(dataset) {
+  if (!ALLOWED_V4_DATASETS.includes(String(dataset))) {
+    throw new Error(`dataset-guard: '${dataset}' is not an allowed v4 dataset (${ALLOWED_V4_DATASETS.join(', ')})`);
+  }
+  return dataset;
+}
+
+module.exports = { assertWriteDataset, assertReadDataset, LEGACY_WRITE_FORBIDDEN, ALLOWED_V4_DATASETS };
