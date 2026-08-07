@@ -59,10 +59,31 @@ Manual smoke (Chunk 0 done-criteria): sign in as an allow-listed curator →
 - Deploy scoped to `hosting,functions`; the live sheet/Apps Script/production
   Review & Submit sheet are never touched.
 
+## API endpoints (all under `/api`, auth-guarded)
+
+- `GET /whoami` — the authenticated allow-listed curator's email.
+- `GET /config` — `{ nextBatchId, reviewers, submissionRecipients, submissionCc }`.
+- `GET /queue` — unreviewed v4 annotations + in-progress review state, each row
+  enriched with an `auto_status`/`auto_note` suggestion (`autoReview`).
+- `POST /review` `{annotationId, scvId, scvVer, status, notes}` — upsert review
+  (reviewer = the verified token, never the client).
+- `POST /assign` / `POST /unassign` `{annotationId, batchId}` — batch membership
+  (assign enforces the OK + flag/remove gate).
+- `POST /generate` `{batchId}` — write the NDJSON + return `{count, filename,
+  link, mailto}`.
+- `POST /finalize` `{batchId}` — idempotent promote + async impact-SP refresh +
+  batch bump; returns warnings (unreviewed count) without blocking.
+
 ## Status
 
-- **Chunk 0 (this):** scaffolding + auth reuse + IAM script. Pure auth logic
-  unit-tested (10 tests); Hosting/Functions wiring + IAM grant are
-  deploy-time/manually verified.
-- Next: Chunk 0.5 (Gmail/Drive auth resolution), Chunk 1 (BQ workflow-state
-  schema), … see the plan.
+- **Built + unit-tested (80 Vitest green):** auth (0), file/mailto (0.5), BQ
+  workflow-state schema (1, dev shadow), read queue + auto-review (2/2.5/6),
+  generate + file-level parity (3), review/assign writes (4), finalize (5),
+  frontend + config (6).
+- **Live-verified on the dev shadow:** views→tables transparent; queue returns a
+  real unreviewed annotation; generate byte-identical to legacy (batches
+  133/135); write path + assignment gate; finalize SQL dry-run-validated.
+- **Deploy-time / manual (your smokes):** `firebase deploy` + `/whoami`/IAM;
+  dev Shared-Drive SA membership; the frontend UI (`public/`).
+- **Next:** Chunk 7 — full live finalize on a throwaway batch + the cutover
+  runbook.

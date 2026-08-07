@@ -15,6 +15,7 @@ const { makeDriveWriter } = require('./drive.js');
 const { makeGenerateHandler } = require('./generate.js');
 const { makeReviewHandler } = require('./review.js');
 const { makeFinalizeHandler } = require('./finalize.js');
+const { makeConfigHandler } = require('./config.js');
 
 admin.initializeApp();
 
@@ -40,7 +41,10 @@ const guard = makeAuthGuard({
   verifyIdToken: (tok) => admin.auth().verifyIdToken(tok),
   isAllowlisted: makeFirestoreAllowlistLookup(admin.firestore())
 });
-const queueHandler = makeQueueHandler({ runQuery, dataset: REVIEW_DATASET });
+const configHandler = makeConfigHandler({ runQuery, dataset: REVIEW_DATASET });
+const queueHandler = makeQueueHandler({
+  runQuery, dataset: REVIEW_DATASET, getReviewers: () => configHandler().then((c) => c.reviewers)
+});
 
 // Drive writer (deploy-time creds via ADC). Writes to the SEPARATE dev
 // submission folder (REVIEW_DRIVE_FOLDER); the runtime SA must be a member of
@@ -86,6 +90,10 @@ exports.api = onRequest(async (req, res) => {
     const { email } = await guard(req);
     const path = (req.path || '/').replace(/^\/api/, '') || '/';
     if (path === '/whoami' || path === '/') { res.json({ ok: true, email }); return; }
+    if (path === '/config' && req.method === 'GET') {
+      res.json({ ok: true, ...(await configHandler()) });
+      return;
+    }
     if (path === '/queue' && req.method === 'GET') {
       const { rows } = await queueHandler();
       res.json({ ok: true, rows });
