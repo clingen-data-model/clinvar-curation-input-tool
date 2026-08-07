@@ -1,0 +1,20 @@
+body { font-family: system-ui, sans-serif; margin: 1.5rem; color: #111827; }
+#dev-banner { background: #b91c1c; color: #fff; padding: 3px 10px; border-radius: 4px;
+  display: inline-block; font-weight: 700; font-size: 12px; margin-bottom: .5rem; }
+header { display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap; }
+header h1 { font-size: 1.25rem; margin: 0; }
+#whoami { color: #6b7280; font-size: 13px; }
+button { font: inherit; padding: 4px 10px; border: 1px solid #374151; border-radius: 4px;
+  background: #374151; color: #fff; cursor: pointer; }
+button:disabled { opacity: .6; cursor: default; }
+#batch-panel { margin: 1rem 0; display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; }
+#batch-panel #assigned-count { color: #6b7280; font-size: 13px; }
+#result { margin: .5rem 0; font-size: 14px; display: flex; gap: .5rem; flex-wrap: wrap; }
+#result a { color: #2563eb; }
+#status { color: #6b7280; font-size: 14px; margin: .5rem 0; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { border: 1px solid #e5e7eb; padding: 4px 6px; text-align: left; vertical-align: top; }
+th { background: #f3f4f6; position: sticky; top: 0; }
+td.auto { font-weight: 600; color: #2563eb; cursor: help; }
+td input[type=text] { width: 12rem; font: inherit; }
+td select { font: inherit; }

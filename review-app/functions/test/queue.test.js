@@ -13,6 +13,9 @@ describe('buildQueueSql', () => {
     expect(sql).toMatch(/LEFT JOIN `clingen-dev\.clinvar_curator_v4_dev\.cvc_review_state` rs USING \(annotation_id\)/);
     expect(sql).toContain('rs.review_status AS rs_review_status');
   });
+  it('selects latest_scv_classification (drives the auto-review suggestion)', () => {
+    expect(sql).toContain('a.latest_scv_classification');
+  });
   it('is dataset-tokenized — never references the legacy clinvar_curator dataset', () => {
     expect(/`clingen-dev\.clinvar_curator\./.test(sql)).toBe(false);
   });
@@ -33,6 +36,19 @@ describe('makeQueueHandler', () => {
   it('normalizes a null result to an empty array', async () => {
     const handler = makeQueueHandler({ runQuery: async () => null, dataset: 'clinvar_curator_v4' });
     expect((await handler()).rows).toEqual([]);
+  });
+  it('attaches an auto-review suggestion to each row (autoReview wired in)', async () => {
+    const rows = [
+      { annotation_id: '1', action: 'no change', is_latest_annotation: true, curator: 'x@x.org' },
+      { annotation_id: '2', action: 'flagging candidate', is_latest_annotation: true, is_deleted_scv: true, curator: 'x@x.org' }
+    ];
+    const handler = makeQueueHandler({
+      runQuery: async () => rows, dataset: 'clinvar_curator_v4_dev', getReviewers: async () => []
+    });
+    const out = await handler();
+    expect(out.rows[0].auto_status).toBe('OK');       // "no change" → auto-OK
+    expect(out.rows[1].auto_status).toBe('Archive');  // deleted SCV → Archive
+    expect(out.rows[1].auto_note).toMatch(/deleted/);
   });
 });
 
