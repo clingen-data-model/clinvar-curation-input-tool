@@ -14,6 +14,7 @@ const { makeQueueHandler } = require('./queue.js');
 const { makeDriveWriter } = require('./drive.js');
 const { makeGenerateHandler } = require('./generate.js');
 const { makeReviewHandler } = require('./review.js');
+const { makeFinalizeHandler } = require('./finalize.js');
 
 admin.initializeApp();
 
@@ -61,6 +62,19 @@ const generateHandler = makeGenerateHandler({
 const yyyymmdd = (d) => `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
 const reviewHandler = makeReviewHandler({ runDml, dataset: REVIEW_DATASET });
 
+// Kick the impact-SP refresh as an async job (a 2–5 min re-runnable rebuild);
+// do NOT block finalize on it. Returns synchronously.
+const startSpRefresh = (sql) => {
+  bq.createQueryJob({ query: sql, useLegacySql: false, location: 'US' })
+    .then(([job]) => console.log('impact SP refresh started:', job.id))
+    .catch((e) => console.error('impact SP refresh failed to start:', e && e.message));
+  return 'submitting';
+};
+const finalizeHandler = makeFinalizeHandler({
+  generate: (a) => generateHandler(a), runQuery, runDml, startSpRefresh, config: { dataset: REVIEW_DATASET }
+});
+const p2 = (n) => String(n).padStart(2, '0');
+
 // Single HTTP entry (Hosting rewrites /api/** here). Chunks add routes here;
 // review/assign/generate/finalize (POST) land in later chunks.
 exports.api = onRequest(async (req, res) => {
@@ -101,6 +115,14 @@ exports.api = onRequest(async (req, res) => {
     if (path === '/unassign' && req.method === 'POST') {
       const b = req.body || {};
       const out = await reviewHandler.unassign({ annotationId: b.annotationId, batchId: b.batchId });
+      res.json({ ok: true, ...out });
+      return;
+    }
+    if (path === '/finalize' && req.method === 'POST') {
+      const batchId = String((req.body && req.body.batchId) || '');
+      const d = new Date();
+      const fdt = `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`;
+      const out = await finalizeHandler({ batchId, date: yyyymmdd(d), finalizedDatetime: fdt });
       res.json({ ok: true, ...out });
       return;
     }
