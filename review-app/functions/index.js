@@ -13,6 +13,7 @@ const { makeAuthGuard, makeFirestoreAllowlistLookup, authErrorStatus } = require
 const { makeQueueHandler } = require('./queue.js');
 const { makeDriveWriter } = require('./drive.js');
 const { makeGenerateHandler } = require('./generate.js');
+const { makeReviewHandler } = require('./review.js');
 
 admin.initializeApp();
 
@@ -22,9 +23,16 @@ admin.initializeApp();
 const CURATOR_PROJECT = process.env.CURATOR_PROJECT || 'clingen-dev';
 const REVIEW_DATASET = process.env.REVIEW_DATASET || 'clinvar_curator_v4_dev';
 const bq = new BigQuery({ projectId: CURATOR_PROJECT, location: 'US' });
-const runQuery = async (sql) => {
-  const [rows] = await bq.query({ query: sql, useLegacySql: false, location: 'US' });
+const runQuery = async (sql, params) => {
+  const [rows] = await bq.query({ query: sql, useLegacySql: false, location: 'US', params: params || undefined });
   return rows;
+};
+// DML runner → number of affected rows (for MERGE/UPDATE gate results).
+const runDml = async (sql, params) => {
+  const [job] = await bq.createQueryJob({ query: sql, useLegacySql: false, location: 'US', params: params || undefined });
+  await job.getQueryResults();
+  const [meta] = await job.getMetadata();
+  return Number((meta.statistics && meta.statistics.query && meta.statistics.query.numDmlAffectedRows) || 0);
 };
 
 const guard = makeAuthGuard({
@@ -51,6 +59,7 @@ const generateHandler = makeGenerateHandler({
   }
 });
 const yyyymmdd = (d) => `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+const reviewHandler = makeReviewHandler({ runDml, dataset: REVIEW_DATASET });
 
 // Single HTTP entry (Hosting rewrites /api/** here). Chunks add routes here;
 // review/assign/generate/finalize (POST) land in later chunks.
@@ -71,6 +80,27 @@ exports.api = onRequest(async (req, res) => {
     if (path === '/generate' && req.method === 'POST') {
       const batchId = String((req.body && req.body.batchId) || '');
       const out = await generateHandler({ batchId, date: yyyymmdd(new Date()) });
+      res.json({ ok: true, ...out });
+      return;
+    }
+    if (path === '/review' && req.method === 'POST') {
+      const b = req.body || {};
+      const out = await reviewHandler.setReview({
+        annotationId: b.annotationId, scvId: b.scvId, scvVer: b.scvVer,
+        status: b.status, notes: b.notes, reviewer: email // server-verified, never client
+      });
+      res.json({ ok: true, ...out });
+      return;
+    }
+    if (path === '/assign' && req.method === 'POST') {
+      const b = req.body || {};
+      const out = await reviewHandler.assign({ annotationId: b.annotationId, batchId: b.batchId });
+      res.json({ ok: true, ...out });
+      return;
+    }
+    if (path === '/unassign' && req.method === 'POST') {
+      const b = req.body || {};
+      const out = await reviewHandler.unassign({ annotationId: b.annotationId, batchId: b.batchId });
       res.json({ ok: true, ...out });
       return;
     }
