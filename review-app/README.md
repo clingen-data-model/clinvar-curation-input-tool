@@ -49,9 +49,12 @@ Manual smoke (Chunk 0 done-criteria): sign in as an allow-listed curator →
 
 ## Non-impact invariants
 
-- **IAM is the primary control:** the runtime SA has `dataEditor` only on the v4
-  workflow dataset(s), `dataViewer` only on `clinvar_curator` + `clinvar_ingest`,
-  `jobUser` on the project. A code bug cannot write legacy.
+- **IAM is the primary control:** the runtime SA has dataset-ACL **WRITER** only
+  on the v4 workflow dataset, **READER** only on `clinvar_ingest`, `jobUser` on
+  the project, and **no access to legacy `clinvar_curator`** at all. A code bug
+  cannot touch legacy. (Granted via `scripts/grant-iam.sh`, which uses the
+  dataset ACL — dataset-level IAM setIamPolicy requires org allowlisting that is
+  not enabled here.)
 - **Write-path guard** (second layer, later chunks): reject `clinvar_curator` as
   a DML/DDL target; allow it as a read source (the parity harness reads it).
 - Build/test against `clinvar_curator_v4_dev`; promote to `clinvar_curator_v4`

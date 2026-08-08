@@ -1,50 +1,57 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# Least-privilege, DATASET-SCOPED BigQuery IAM for the Review & Submit web-app
-# Cloud Functions runtime SA. This is the PRIMARY non-impact control (plan
-# §Non-impact enforcement): with write scoped to the v4 workflow dataset(s) and
-# read-only on legacy, NO code path — a guard bug, a mis-tokenized query, a bad
-# SP CALL — can physically write the live `clinvar_curator` lineage.
+# Least-privilege BigQuery access for the Review & Submit web-app Cloud Functions
+# runtime SA. This is a primary non-impact control: the SA gets WRITE only on the
+# v4 workflow dataset and READ only on clinvar_ingest — it has NO access to the
+# live legacy `clinvar_curator` lineage at all (the app never reads it; the
+# parity harness runs as an operator, not this SA).
 #
-#   WRITE (roles/bigquery.dataEditor): the v4 workflow dataset(s) ONLY
-#   READ  (roles/bigquery.dataViewer): clinvar_curator (legacy) + clinvar_ingest
-#   JOBS  (roles/bigquery.jobUser)   : project-level (to run query jobs)
+#   WRITE (dataset ACL WRITER): the v4 workflow dataset ONLY
+#   READ  (dataset ACL READER): clinvar_ingest (cvc_annotations + finalize read it)
+#   JOBS  (roles/bigquery.jobUser): project-level (to run query jobs)
 #
-# Run AFTER the Functions are first deployed (the runtime SA must exist), DEV
-# first. Idempotent. Prefer a DEDICATED runtime SA (set on the function), not
-# the default compute SA.
+# NOTE: dataset-level access is granted via the dataset ACL (`bq update` access
+# entries), NOT `bq add-iam-policy-binding` — dataset-level IAM setIamPolicy
+# requires org allowlisting that is not enabled here (verified 2026-08-07).
+#
+# Run AFTER the Functions are first deployed (the runtime SA must exist). The
+# gen2 runtime SA defaults to the project compute SA
+# (<PROJECT_NUMBER>-compute@developer.gserviceaccount.com) unless overridden.
 #
 # Usage:
-#   SA=review-app@clingen-cvc-dev.iam.gserviceaccount.com \
-#   WRITE_DATASETS="clinvar_curator_v4_dev" \
+#   SA=362266755807-compute@developer.gserviceaccount.com \
+#   WRITE_DATASET=clinvar_curator_v4_dev \
 #   ./grant-iam.sh
-#
-# NOTE: dataset-level IAM here uses `bq add-iam-policy-binding` (recent bq). If
-# your bq lacks dataset support, use the dataset access-list method
-# (`bq update --dataset`) with the same members/roles. VERIFY at provision time.
 : "${SA:?set SA (Functions runtime service account email)}"
 : "${CURATOR_PROJECT:=clingen-dev}"            # project holding the BQ datasets
-: "${WRITE_DATASETS:=clinvar_curator_v4_dev}"  # space-separated; NEVER clinvar_curator
-READ_DATASETS="clinvar_curator clinvar_ingest"
+: "${WRITE_DATASET:=clinvar_curator_v4_dev}"   # the v4 workflow dataset; NEVER clinvar_curator
+READ_DATASETS="clinvar_ingest"
 
-# Hard guard: clinvar_curator must never be a WRITE target.
-for ds in $WRITE_DATASETS; do
-  if [ "$ds" = "clinvar_curator" ]; then
-    echo "REFUSING: clinvar_curator must never be granted WRITE (dataEditor)." >&2
-    exit 1
-  fi
-done
+if [ "$WRITE_DATASET" = "clinvar_curator" ]; then
+  echo "REFUSING: clinvar_curator (live legacy) must never be granted WRITE." >&2; exit 1
+fi
 
 echo "jobUser on project ${CURATOR_PROJECT} for ${SA}…"
 gcloud projects add-iam-policy-binding "$CURATOR_PROJECT" \
   --member="serviceAccount:${SA}" --role="roles/bigquery.jobUser" --condition=None >/dev/null
 
-grant() { # <dataset> <role>
-  echo "  $2 on ${CURATOR_PROJECT}:$1"
-  bq add-iam-policy-binding --member="serviceAccount:${SA}" --role="$2" "${CURATOR_PROJECT}:$1" >/dev/null
+# Grant a dataset ACL role (WRITER/READER) idempotently via bq update.
+grant_acl() { # <dataset> <WRITER|READER>
+  local ds="$1" role="$2" f; f="$(mktemp)"
+  bq show --format=prettyjson "${CURATOR_PROJECT}:${ds}" > "$f"
+  SA="$SA" ROLE="$role" python3 - "$f" <<'PY'
+import os, sys, json
+f = sys.argv[1]; sa = os.environ['SA']; role = os.environ['ROLE']
+d = json.load(open(f)); acc = d.setdefault('access', [])
+if not any(e.get('userByEmail') == sa for e in acc):
+    acc.append({'role': role, 'userByEmail': sa})
+json.dump(d, open(f, 'w'))
+PY
+  bq update --source "$f" "${CURATOR_PROJECT}:${ds}" >/dev/null
+  rm -f "$f"
+  echo "  ${role} on ${CURATOR_PROJECT}:${ds}"
 }
-echo "WRITE (dataEditor):"; for ds in $WRITE_DATASETS; do grant "$ds" roles/bigquery.dataEditor; done
-echo "READ  (dataViewer):"; for ds in $READ_DATASETS;  do grant "$ds" roles/bigquery.dataViewer; done
 
-echo "done."
-echo "VERIFY: bq get-iam-policy ${CURATOR_PROJECT}:clinvar_curator  # ${SA} must be dataViewer, NOT dataEditor"
+echo "WRITE:"; grant_acl "$WRITE_DATASET" WRITER
+echo "READ:";  for ds in $READ_DATASETS; do grant_acl "$ds" READER; done
+echo "done. The SA has NO access to the live legacy clinvar_curator dataset."
