@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
-const { buildQueueSql, makeQueueHandler } = require('../queue.js');
+const { buildQueueSql, buildInBqSql, splitScv, shapeFreshRow, mergeQueue, makeQueueHandler } = require('../queue.js');
 const { assertReadDataset } = require('../dataset-guard.js');
 
 describe('buildQueueSql', () => {
@@ -49,6 +49,68 @@ describe('makeQueueHandler', () => {
     expect(out.rows[0].auto_status).toBe('OK');       // "no change" → auto-OK
     expect(out.rows[1].auto_status).toBe('Archive');  // deleted SCV → Archive
     expect(out.rows[1].auto_note).toMatch(/deleted/);
+  });
+});
+
+describe('freshness: buildInBqSql / splitScv / shapeFreshRow / mergeQueue', () => {
+  it('buildInBqSql checks candidate ids against native_v4, parameterized + guarded', () => {
+    const { sql, params } = buildInBqSql({ dataset: 'clinvar_curator_v4_dev', ids: ['1', 2] });
+    expect(sql).toContain('`clingen-dev.clinvar_curator_v4_dev.cvc_annotations_native_v4`');
+    expect(sql).toContain('annotation_id IN UNNEST(@ids)');
+    expect(params.ids).toEqual(['1', '2']); // stringified
+    expect(() => buildInBqSql({ dataset: 'clinvar_curator', ids: [] })).toThrow(/not an allowed v4/);
+  });
+  it('splitScv splits the full accession on the last dot', () => {
+    expect(splitScv('SCV000993408.4')).toEqual({ scv_id: 'SCV000993408', scv_ver: '4' });
+    expect(splitScv('SCV1')).toEqual({ scv_id: 'SCV1', scv_ver: '' });
+  });
+  it('shapeFreshRow maps a Firestore doc to a null-flag, fresh queue row', () => {
+    const r = shapeFreshRow({ annotation_id: '9', variation_id: '9', vcv: 'VCV9', scv: 'SCV9.2',
+      submitter: 'Lab', action: 'flagging candidate', reason: 'x', notes: 'n', user_email: 'c@x.org',
+      review_status: 'criteria provided', created_at: '2026-08-08T00:00:00Z' });
+    expect(r).toMatchObject({ annotation_id: '9', vcv_id: 'VCV9', scv_id: 'SCV9', scv_ver: '2',
+      submitter_name: 'Lab', action: 'flagging candidate', curator: 'c@x.org',
+      clinvar_review_status: 'criteria provided', is_outdated_scv: null, auto_status: '', fresh: true });
+  });
+  it('mergeQueue appends only fresh candidates not in BQ and not already listed', () => {
+    const bq = [{ annotation_id: 'A' }, { annotation_id: 'B' }];
+    const candidates = [
+      { annotation_id: 'A', scv: 'SCVa.1' }, // already in BQ result → skip
+      { annotation_id: 'C', scv: 'SCVc.1' }, // in native_v4 (inBq) → skip (enrichment pending in BQ set)
+      { annotation_id: 'D', scv: 'SCVd.1' }  // truly fresh → include
+    ];
+    const merged = mergeQueue(bq, candidates, new Set(['C']));
+    expect(merged.map((r) => r.annotation_id)).toEqual(['A', 'B', 'D']);
+    expect(merged.find((r) => r.annotation_id === 'D').fresh).toBe(true);
+  });
+});
+
+describe('makeQueueHandler with Firestore freshness', () => {
+  const dataset = 'clinvar_curator_v4_dev';
+  const bqSql = buildQueueSql({ dataset });
+  it('merges a fresh Firestore capture (not yet in BQ) into the BQ queue', async () => {
+    const runQuery = async (sql) => {
+      if (sql === bqSql) return [{ annotation_id: 'A', action: 'no change', is_latest_annotation: true }];
+      return []; // buildInBqSql: none of the candidates are in native_v4 yet
+    };
+    const getRecentCaptures = async () => [{ annotation_id: 'NEW', scv: 'SCV5.1', action: 'flagging candidate' }];
+    const out = await makeQueueHandler({ runQuery, dataset, getReviewers: async () => [], getRecentCaptures })();
+    expect(out.rows.map((r) => r.annotation_id)).toEqual(['A', 'NEW']);
+    const fresh = out.rows.find((r) => r.annotation_id === 'NEW');
+    expect(fresh).toMatchObject({ fresh: true, auto_status: '' });
+  });
+  it('does NOT double-show a capture already present in BQ (native_v4)', async () => {
+    const runQuery = async (sql, params) => {
+      if (sql === bqSql) return [{ annotation_id: 'A', action: 'no change', is_latest_annotation: true }];
+      return [{ annotation_id: 'KNOWN' }]; // buildInBqSql says KNOWN is already in native_v4
+    };
+    const getRecentCaptures = async () => [{ annotation_id: 'KNOWN', scv: 'SCV1.1' }];
+    const out = await makeQueueHandler({ runQuery, dataset, getReviewers: async () => [], getRecentCaptures })();
+    expect(out.rows.map((r) => r.annotation_id)).toEqual(['A']); // KNOWN not appended as fresh
+  });
+  it('without getRecentCaptures, behaves exactly as the BQ-only queue', async () => {
+    const handler = makeQueueHandler({ runQuery: async () => [{ annotation_id: 'A' }], dataset, getReviewers: async () => [] });
+    expect((await handler()).rows.map((r) => r.annotation_id)).toEqual(['A']);
   });
 });
 
