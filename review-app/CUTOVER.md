@@ -48,7 +48,10 @@ annotation is invisible to the queue until the adapter runs. Two options:
    ./review-app/scripts/grant-iam.sh` (grants via the **dataset ACL** —
    dataset-level IAM setIamPolicy requires org allowlisting not enabled here).
    The SA gets **WRITER on `clinvar_curator_v4`**, **READER on `clinvar_ingest`**,
-   `jobUser` on the project, and **no access to legacy `clinvar_curator`**.
+   `jobUser` on the project, **`roles/datastore.viewer` on the Firebase project
+   `clingen-cvc`** (to read the `allowed_curators` allowlist — without it every
+   request 500s and the UI shows "not authorized"), and **no access to legacy
+   `clinvar_curator`**. (`FIREBASE_PROJECT=clingen-cvc` for prod.)
 4. **Drive.** Add the prod functions runtime SA as a **member of the submission
    Shared Drive** (Content-manager); confirm `REVIEW_DRIVE_FOLDER`.
 5. **Curator allowlist / reviewers.** Ensure `allowed_curators` covers all

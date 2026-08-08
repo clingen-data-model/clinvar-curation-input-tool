@@ -9,6 +9,9 @@ set -euo pipefail
 #   WRITE (dataset ACL WRITER): the v4 workflow dataset ONLY
 #   READ  (dataset ACL READER): clinvar_ingest (cvc_annotations + finalize read it)
 #   JOBS  (roles/bigquery.jobUser): project-level (to run query jobs)
+#   AUTH  (roles/datastore.viewer): the FIREBASE project — the allowlist check
+#         reads the allowed_curators Firestore collection (WITHOUT this the app
+#         500s on every request and the UI shows "not authorized").
 #
 # NOTE: dataset-level access is granted via the dataset ACL (`bq update` access
 # entries), NOT `bq add-iam-policy-binding` — dataset-level IAM setIamPolicy
@@ -24,6 +27,7 @@ set -euo pipefail
 #   ./grant-iam.sh
 : "${SA:?set SA (Functions runtime service account email)}"
 : "${CURATOR_PROJECT:=clingen-dev}"            # project holding the BQ datasets
+: "${FIREBASE_PROJECT:=clingen-cvc-dev}"       # the SA's project (Firestore allowed_curators lives here); prod = clingen-cvc
 : "${WRITE_DATASET:=clinvar_curator_v4_dev}"   # the v4 workflow dataset; NEVER clinvar_curator
 READ_DATASETS="clinvar_ingest"
 
@@ -34,6 +38,10 @@ fi
 echo "jobUser on project ${CURATOR_PROJECT} for ${SA}…"
 gcloud projects add-iam-policy-binding "$CURATOR_PROJECT" \
   --member="serviceAccount:${SA}" --role="roles/bigquery.jobUser" --condition=None >/dev/null
+
+echo "datastore.viewer on ${FIREBASE_PROJECT} (read the allowed_curators allowlist)…"
+gcloud projects add-iam-policy-binding "$FIREBASE_PROJECT" \
+  --member="serviceAccount:${SA}" --role="roles/datastore.viewer" --condition=None >/dev/null
 
 # Grant a dataset ACL role (WRITER/READER) idempotently via bq update.
 grant_acl() { # <dataset> <WRITER|READER>
