@@ -10,7 +10,7 @@ const admin = require('firebase-admin');
 const { BigQuery } = require('@google-cloud/bigquery');
 const { google } = require('googleapis');
 const { makeAuthGuard, makeFirestoreAllowlistLookup, authErrorStatus } = require('./auth.js');
-const { makeQueueHandler } = require('./queue.js');
+const { makeQueueHandler, buildRefreshQueueSql } = require('./queue.js');
 const { makeDriveWriter } = require('./drive.js');
 const { makeGenerateHandler } = require('./generate.js');
 const { makeReviewHandler } = require('./review.js');
@@ -89,6 +89,14 @@ const finalizeHandler = makeFinalizeHandler({
   generate: (a) => generateHandler(a), runQuery, runDml, startSpRefresh, config: { dataset: REVIEW_DATASET }
 });
 const p2 = (n) => String(n).padStart(2, '0');
+// Refresh the materialized queue base async (batch-side); kicked after finalize
+// so newly-reviewed rows drop from the queue. (Also run after the adapter via
+// scripts/refresh-review-queue.sh.) Fire-and-forget.
+const startQueueRefresh = () => {
+  bq.createQueryJob({ query: buildRefreshQueueSql({ dataset: REVIEW_DATASET }), useLegacySql: false, location: 'US' })
+    .then(([job]) => console.log('review-queue base refresh started:', job.id))
+    .catch((e) => console.error('review-queue refresh failed to start:', e && e.message));
+};
 
 // Single HTTP entry (Hosting rewrites /api/** here). Chunks add routes here;
 // review/assign/generate/finalize (POST) land in later chunks.
@@ -142,6 +150,7 @@ exports.api = onRequest(async (req, res) => {
       const d = new Date();
       const fdt = `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`;
       const out = await finalizeHandler({ batchId, date: yyyymmdd(d), finalizedDatetime: fdt });
+      if (out.finalized) startQueueRefresh(); // reviewed rows drop from the queue base
       res.json({ ok: true, ...out });
       return;
     }
