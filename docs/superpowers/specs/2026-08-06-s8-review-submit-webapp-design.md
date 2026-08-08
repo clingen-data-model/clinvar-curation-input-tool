@@ -94,10 +94,11 @@ action. No external sheet tables, no dedup dance, no 6-minute ceiling.
 
 ## Resolved design decisions (2026-08-06)
 
-- **A. Workflow-state store = BigQuery.** **[SUPERSEDED 2026-08-08 by
-  `2026-08-08-s8-firestore-native-respec.md` → workflow state moves to Firestore
-  for a real-time queue; it streams to BQ for free.]** Review status + batch
-  assignment persist as BQ records the impact SP already consumes
+- **A. Workflow-state store = BigQuery.** **[STANDS — a 2026-08-08 proposal to
+  move workflow state to Firestore was reviewed and rejected; see
+  `2026-08-08-s8-queue-freshness-respec.md`, which instead adds only a Firestore
+  live read for the queue *list* to fix freshness, keeping A.]** Review status +
+  batch assignment persist as BQ records the impact SP already consumes
   (`cvc_clinvar_reviews`/`submissions`/`batches` shapes) — **no Firestore→BQ
   reconciliation**. The web-app backend owns the writes. (Firestore stays
   capture-only; revisit only if live-collaborative editing is wanted later.)
