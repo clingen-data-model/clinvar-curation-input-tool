@@ -1,17 +1,18 @@
-// queue.js — the review queue: unreviewed v4 annotations plus any in-progress
-// review state the app has recorded. Pure SQL builder (unit-tested) + a thin
-// injected handler (runQuery is passed in, so the BigQuery client is deploy-time
-// only). Reads the v4 dataset; never writes.
+// queue.js — the review queue. Two sources merged so a just-captured annotation
+// appears within seconds even before the cross-region adapter copies it to BQ
+// (re-spec 2026-08-08, "Firestore LIST for freshness; BQ stays system of record"):
+//   1. BQ: cvc_annotations("unreviewed") ⋈ cvc_review_state — the enriched,
+//      auto-reviewed unreviewed rows already streamed/adapted into BQ (as built).
+//   2. Firestore: the most recent captures (clinvar_cvc_ext_annotations); any NOT
+//      yet in BQ are surfaced as "fresh" rows with null derived flags (auto-review
+//      + flags fill in on the next adapter refresh — their natural cadence).
+// Pure SQL/merge logic (unit-tested) + injected readers (BQ + Firestore). Reads
+// only; never writes.
 const { assertReadDataset } = require('./dataset-guard.js');
 const { autoReview } = require('./autoReview.js');
 
-// Build the review-queue SQL for a v4 dataset. cvc_annotations(scope) already
-// carries the FINALIZED review fields, but for the queue we want the app's
-// IN-PROGRESS state, so we LEFT JOIN cvc_review_state and alias its fields
-// `rs_*`. Scope "unreviewed" = annotations not yet in cvc_clinvar_reviews.
-// latest_scv_classification + classif_type drive the auto-review suggestion.
 function buildQueueSql({ dataset }) {
-  const ds = assertReadDataset(dataset); // read is fine on any v4 dataset; kept explicit
+  const ds = assertReadDataset(dataset);
   return [
     'SELECT',
     '  a.annotation_id, a.variation_id, a.vcv_id, a.scv_id, a.scv_ver,',
@@ -27,8 +28,17 @@ function buildQueueSql({ dataset }) {
   ].join('\n');
 }
 
-// Attach the auto-review suggestion (autoReview.js) to a queue row.
-// classification changed = outdated AND the latest SCV classification differs.
+// Which of `ids` are ALREADY in BQ (native_v4 = what the adapter has copied). A
+// Firestore candidate NOT in this set is a fresh, not-yet-adapted capture.
+function buildInBqSql({ dataset, ids }) {
+  const ds = assertReadDataset(dataset);
+  return {
+    sql: `SELECT annotation_id FROM \`clingen-dev.${ds}.cvc_annotations_native_v4\` WHERE annotation_id IN UNNEST(@ids)`,
+    params: { ids: (ids || []).map(String) }
+  };
+}
+
+// Attach the auto-review suggestion to a (BQ-enriched) queue row.
 function enrichRow(r, reviewers) {
   const suggestion = autoReview({
     action: r.action, clinvarReviewStatus: r.clinvar_review_status, curator: r.curator,
@@ -37,18 +47,61 @@ function enrichRow(r, reviewers) {
     classificationChanged: !!r.is_outdated_scv && r.latest_scv_classification != null
       && r.latest_scv_classification !== r.classif_type
   }, reviewers);
-  return { ...r, auto_status: suggestion.status, auto_note: suggestion.note };
+  return { ...r, auto_status: suggestion.status, auto_note: suggestion.note, fresh: false };
 }
 
-// Injected handler: runQuery(sql) -> rows; getReviewers() -> string[] (the
-// auto-OK allow-list from cvc_review_config). Returns { rows } with each row
-// carrying auto_status/auto_note (the suggested default review).
-function makeQueueHandler({ runQuery, dataset, getReviewers }) {
-  return async function queue() {
-    const reviewers = getReviewers ? ((await getReviewers()) || []) : [];
-    const rows = (await runQuery(buildQueueSql({ dataset }))) || [];
-    return { rows: rows.map((r) => enrichRow(r, reviewers)) };
+// Split a full SCV accession "SCV000993408.4" -> { scv_id, scv_ver }.
+function splitScv(scv) {
+  const s = String(scv || '');
+  const dot = s.lastIndexOf('.');
+  return dot > 0 ? { scv_id: s.slice(0, dot), scv_ver: s.slice(dot + 1) } : { scv_id: s, scv_ver: '' };
+}
+
+// Shape a Firestore annotation doc into a queue row. Derived flags + review
+// state are null (not in BQ yet); marked fresh so the UI can show "new".
+function shapeFreshRow(doc) {
+  const { scv_id, scv_ver } = splitScv(doc.scv);
+  return {
+    annotation_id: doc.annotation_id, variation_id: doc.variation_id, vcv_id: doc.vcv,
+    scv_id, scv_ver, submitter_id: doc.submitter_id, submitter_name: doc.submitter,
+    action: doc.action, reason: doc.reason, notes: doc.notes,
+    curator: doc.user_email, clinvar_review_status: doc.review_status,
+    classif_type: null, latest_scv_classification: null,
+    is_outdated_scv: null, is_deleted_scv: null, is_latest_annotation: null,
+    has_prior_scv_id_annotation: null, latest_scv_ver: null, annotated_on: doc.created_at || null,
+    rs_review_status: null, rs_reviewer: null, rs_notes: null, rs_batch_id: null,
+    auto_status: '', auto_note: 'new capture — flags/auto-review pending next refresh',
+    fresh: true
   };
 }
 
-module.exports = { buildQueueSql, makeQueueHandler };
+// Merge BQ-enriched rows with fresh Firestore candidates not yet in BQ.
+function mergeQueue(enrichedBqRows, candidates, inBqIds) {
+  const seen = new Set(enrichedBqRows.map((r) => r.annotation_id));
+  const inBq = inBqIds instanceof Set ? inBqIds : new Set(inBqIds || []);
+  const fresh = (candidates || [])
+    .filter((c) => c && c.annotation_id && !inBq.has(c.annotation_id) && !seen.has(c.annotation_id))
+    .map(shapeFreshRow);
+  return [...enrichedBqRows, ...fresh];
+}
+
+// Injected: runQuery(sql, params?) -> rows; getReviewers() -> string[];
+// getRecentCaptures() -> recent Firestore annotation docs. Returns { rows }.
+function makeQueueHandler({ runQuery, dataset, getReviewers, getRecentCaptures }) {
+  return async function queue() {
+    const reviewers = getReviewers ? ((await getReviewers()) || []) : [];
+    const enriched = ((await runQuery(buildQueueSql({ dataset }))) || []).map((r) => enrichRow(r, reviewers));
+    if (!getRecentCaptures) return { rows: enriched };
+
+    const candidates = (await getRecentCaptures()) || [];
+    const ids = candidates.map((c) => c && c.annotation_id).filter(Boolean);
+    let inBq = new Set();
+    if (ids.length) {
+      const { sql, params } = buildInBqSql({ dataset, ids });
+      inBq = new Set(((await runQuery(sql, params)) || []).map((r) => r.annotation_id));
+    }
+    return { rows: mergeQueue(enriched, candidates, inBq) };
+  };
+}
+
+module.exports = { buildQueueSql, buildInBqSql, enrichRow, splitScv, shapeFreshRow, mergeQueue, makeQueueHandler };

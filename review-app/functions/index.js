@@ -42,8 +42,19 @@ const guard = makeAuthGuard({
   isAllowlisted: makeFirestoreAllowlistLookup(admin.firestore())
 });
 const configHandler = makeConfigHandler({ runQuery, dataset: REVIEW_DATASET });
+// Firestore LIST read for queue freshness (re-spec 2026-08-08): the most recent
+// captures, so a just-made annotation shows before the adapter copies it to BQ.
+const REVIEW_CAPTURE_COLLECTION = process.env.REVIEW_CAPTURE_COLLECTION || 'clinvar_cvc_ext_annotations';
+const RECENT_CAPTURE_LIMIT = Number(process.env.RECENT_CAPTURE_LIMIT || 500);
+const getRecentCaptures = async () => {
+  const snap = await admin.firestore().collection(REVIEW_CAPTURE_COLLECTION)
+    .orderBy('created_at', 'desc').limit(RECENT_CAPTURE_LIMIT).get();
+  return snap.docs.map((d) => d.data());
+};
 const queueHandler = makeQueueHandler({
-  runQuery, dataset: REVIEW_DATASET, getReviewers: () => configHandler().then((c) => c.reviewers)
+  runQuery, dataset: REVIEW_DATASET,
+  getReviewers: () => configHandler().then((c) => c.reviewers),
+  getRecentCaptures
 });
 
 // Drive writer (deploy-time creds via ADC). Writes to the SEPARATE dev
