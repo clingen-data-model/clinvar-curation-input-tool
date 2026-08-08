@@ -1,26 +1,38 @@
 import { describe, it, expect } from 'vitest';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
-const { buildQueueSql, buildInBqSql, splitScv, shapeFreshRow, mergeQueue, makeQueueHandler } = require('../queue.js');
+const { buildQueueSql, buildRefreshQueueSql, buildInBqSql, splitScv, shapeFreshRow, mergeQueue, makeQueueHandler } = require('../queue.js');
 const { assertReadDataset } = require('../dataset-guard.js');
 
-describe('buildQueueSql', () => {
+describe('buildQueueSql (reads the materialized base — fast, no TVF)', () => {
   const sql = buildQueueSql({ dataset: 'clinvar_curator_v4_dev' });
-  it('queries cvc_annotations over the "unreviewed" scope', () => {
-    expect(sql).toContain('`clingen-dev.clinvar_curator_v4_dev.cvc_annotations`("unreviewed")');
+  it('reads cvc_review_queue_base (NOT the cvc_annotations TVF)', () => {
+    expect(sql).toContain('`clingen-dev.clinvar_curator_v4_dev.cvc_review_queue_base` base');
+    expect(sql).not.toContain('cvc_annotations`(');
   });
-  it('LEFT JOINs the app in-progress cvc_review_state on annotation_id', () => {
+  it('LEFT JOINs the LIVE in-progress cvc_review_state on annotation_id', () => {
     expect(sql).toMatch(/LEFT JOIN `clingen-dev\.clinvar_curator_v4_dev\.cvc_review_state` rs USING \(annotation_id\)/);
     expect(sql).toContain('rs.review_status AS rs_review_status');
   });
   it('selects latest_scv_classification (drives the auto-review suggestion)', () => {
-    expect(sql).toContain('a.latest_scv_classification');
+    expect(sql).toContain('base.latest_scv_classification');
   });
   it('is dataset-tokenized — never references the legacy clinvar_curator dataset', () => {
     expect(/`clingen-dev\.clinvar_curator\./.test(sql)).toBe(false);
   });
   it('rejects a non-v4 dataset (mis-config guard)', () => {
     expect(() => buildQueueSql({ dataset: 'clinvar_curator' })).toThrow(/not an allowed v4 dataset/);
+  });
+});
+
+describe('buildRefreshQueueSql (batch-side materialization)', () => {
+  const sql = buildRefreshQueueSql({ dataset: 'clinvar_curator_v4_dev' });
+  it('CREATE OR REPLACEs the base table from cvc_annotations("unreviewed")', () => {
+    expect(sql).toContain('CREATE OR REPLACE TABLE `clingen-dev.clinvar_curator_v4_dev.cvc_review_queue_base`');
+    expect(sql).toContain('`clingen-dev.clinvar_curator_v4_dev.cvc_annotations`("unreviewed")');
+  });
+  it('is WRITE-guarded (refuses the legacy dataset as a create target)', () => {
+    expect(() => buildRefreshQueueSql({ dataset: 'clinvar_curator' })).toThrow();
   });
 });
 

@@ -8,23 +8,43 @@
 //      + flags fill in on the next adapter refresh — their natural cadence).
 // Pure SQL/merge logic (unit-tested) + injected readers (BQ + Firestore). Reads
 // only; never writes.
-const { assertReadDataset } = require('./dataset-guard.js');
+const { assertReadDataset, assertWriteDataset } = require('./dataset-guard.js');
 const { autoReview } = require('./autoReview.js');
 
+// The enriched-unreviewed columns (all clinvar_ingest-derived → expensive to
+// compute). Materialized in cvc_review_queue_base; read fast by the queue.
+const BASE_COLS = [
+  'annotation_id', 'variation_id', 'vcv_id', 'scv_id', 'scv_ver',
+  'submitter_id', 'submitter_name', 'action', 'reason', 'notes',
+  'curator', 'clinvar_review_status', 'classif_type', 'latest_scv_classification',
+  'is_outdated_scv', 'is_deleted_scv', 'is_latest_annotation',
+  'has_prior_scv_id_annotation', 'latest_scv_ver', 'annotated_on'
+];
+
+// Refresh (materialize) the enriched-unreviewed set. This is the ONE ~2.5 GB
+// cvc_annotations(TVF) scan, run BATCH-side (after the adapter / at finalize),
+// NOT per queue load. Plain CREATE OR REPLACE TABLE (a BQ materialized view
+// can't sit over a TVF). Write target → dataset-guarded (never clinvar_curator).
+function buildRefreshQueueSql({ dataset }) {
+  const ds = assertWriteDataset(assertReadDataset(dataset));
+  return `CREATE OR REPLACE TABLE \`clingen-dev.${ds}.cvc_review_queue_base\` AS\n` +
+    `SELECT ${BASE_COLS.join(', ')}\n` +
+    `FROM \`clingen-dev.${ds}.cvc_annotations\`("unreviewed")`;
+}
+
+// The queue read: the small materialized base + a LIVE join to cvc_review_state
+// (tiny; in-progress status/batch must be real-time, not materialized). Fast —
+// no TVF, no clinvar_ingest scan.
 function buildQueueSql({ dataset }) {
   const ds = assertReadDataset(dataset);
   return [
     'SELECT',
-    '  a.annotation_id, a.variation_id, a.vcv_id, a.scv_id, a.scv_ver,',
-    '  a.submitter_id, a.submitter_name, a.action, a.reason, a.notes,',
-    '  a.curator, a.clinvar_review_status, a.classif_type, a.latest_scv_classification,',
-    '  a.is_outdated_scv, a.is_deleted_scv, a.is_latest_annotation,',
-    '  a.has_prior_scv_id_annotation, a.latest_scv_ver, a.annotated_on,',
+    '  ' + BASE_COLS.map((c) => 'base.' + c).join(', ') + ',',
     '  rs.review_status AS rs_review_status, rs.reviewer AS rs_reviewer,',
     '  rs.notes AS rs_notes, rs.batch_id AS rs_batch_id',
-    `FROM \`clingen-dev.${ds}.cvc_annotations\`("unreviewed") a`,
+    `FROM \`clingen-dev.${ds}.cvc_review_queue_base\` base`,
     `LEFT JOIN \`clingen-dev.${ds}.cvc_review_state\` rs USING (annotation_id)`,
-    'ORDER BY a.annotated_on'
+    'ORDER BY base.annotated_on'
   ].join('\n');
 }
 
@@ -104,4 +124,4 @@ function makeQueueHandler({ runQuery, dataset, getReviewers, getRecentCaptures }
   };
 }
 
-module.exports = { buildQueueSql, buildInBqSql, enrichRow, splitScv, shapeFreshRow, mergeQueue, makeQueueHandler };
+module.exports = { buildQueueSql, buildRefreshQueueSql, buildInBqSql, enrichRow, splitScv, shapeFreshRow, mergeQueue, makeQueueHandler };

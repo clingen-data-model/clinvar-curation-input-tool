@@ -67,7 +67,12 @@ Manual smoke (Chunk 0 done-criteria): sign in as an allow-listed curator →
 - `GET /whoami` — the authenticated allow-listed curator's email.
 - `GET /config` — `{ nextBatchId, reviewers, submissionRecipients, submissionCc }`.
 - `GET /queue` — unreviewed v4 annotations + in-progress review state, each row
-  enriched with an `auto_status`/`auto_note` suggestion (`autoReview`).
+  enriched with an `auto_status`/`auto_note` suggestion (`autoReview`). Reads the
+  **materialized `cvc_review_queue_base`** (fast — ~1 KB, no TVF scan) LEFT-JOINed
+  to live `cvc_review_state`, then merges recent **Firestore** captures not yet in
+  BQ (fresh rows, null flags). Refresh the base with
+  `DATASET=… scripts/refresh-review-queue.sh` **after the adapter** and it is
+  auto-refreshed **at finalize**; the base must exist before first use.
 - `POST /review` `{annotationId, scvId, scvVer, status, notes}` — upsert review
   (reviewer = the verified token, never the client).
 - `POST /assign` / `POST /unassign` `{annotationId, batchId}` — batch membership
