@@ -43,10 +43,12 @@ annotation is invisible to the queue until the adapter runs. Two options:
    Set env: `REVIEW_DATASET=clinvar_curator_v4`, `REVIEW_DRIVE_FOLDER=<prod
    submission folder>`, `SUBMISSION_RECIPIENTS`/`SUBMISSION_CC` (real ClinVar
    contacts — only at true go-live; keep test addresses until then).
-3. **Grant dataset-scoped IAM.** `SA=<prod functions runtime SA>
-   WRITE_DATASETS="clinvar_curator_v4" CURATOR_PROJECT=clingen-dev
-   ./review-app/scripts/grant-iam.sh`. Verify the SA is **dataViewer (not
-   editor)** on `clinvar_curator` + `clinvar_ingest`.
+3. **Grant dataset-scoped access.** `SA=<prod functions runtime SA>
+   WRITE_DATASET="clinvar_curator_v4" CURATOR_PROJECT=clingen-dev
+   ./review-app/scripts/grant-iam.sh` (grants via the **dataset ACL** —
+   dataset-level IAM setIamPolicy requires org allowlisting not enabled here).
+   The SA gets **WRITER on `clinvar_curator_v4`**, **READER on `clinvar_ingest`**,
+   `jobUser` on the project, and **no access to legacy `clinvar_curator`**.
 4. **Drive.** Add the prod functions runtime SA as a **member of the submission
    Shared Drive** (Content-manager); confirm `REVIEW_DRIVE_FOLDER`.
 5. **Curator allowlist / reviewers.** Ensure `allowed_curators` covers all
