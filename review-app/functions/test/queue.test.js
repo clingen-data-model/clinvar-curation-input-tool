@@ -65,11 +65,14 @@ describe('makeQueueHandler', () => {
 });
 
 describe('buildScvHistorySql', () => {
-  it('reads the SCV history from cvc_annotations("ALL"), parameterized', () => {
+  it('reads the SCV history FAST from native_v4 + review/submission joins (not the TVF)', () => {
     const { sql, params } = buildScvHistorySql({ dataset: 'clinvar_curator_v4_dev', scvId: 'SCV000993408' });
-    expect(sql).toContain('`clingen-dev.clinvar_curator_v4_dev.cvc_annotations`("ALL")');
-    expect(sql).toContain('WHERE scv_id = @scvId');
-    expect(sql).toContain('review_status, reviewer, batch_id, is_submitted_annotation');
+    expect(sql).toContain('`clingen-dev.clinvar_curator_v4_dev.cvc_annotations_native_v4` n');
+    expect(sql).not.toContain('cvc_annotations`(');           // NOT the expensive TVF
+    expect(sql).toContain('LEFT JOIN `clingen-dev.clinvar_curator_v4_dev.cvc_review_state` rs');
+    expect(sql).toContain('LEFT JOIN `clingen-dev.clinvar_curator_v4_dev.cvc_clinvar_reviews` rev');
+    expect(sql).toContain('LEFT JOIN `clingen-dev.clinvar_curator_v4_dev.cvc_clinvar_submissions` sub');
+    expect(sql).toContain('= @scvId');
     expect(params.scvId).toBe('SCV000993408');
   });
   it('rejects a bad scvId and guards the dataset', () => {
