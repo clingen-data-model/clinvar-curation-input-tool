@@ -29,9 +29,14 @@ const runQuery = async (sql, params) => {
   const [rows] = await bq.query({ query: sql, useLegacySql: false, location: 'US', params: params || undefined });
   return rows;
 };
-// DML runner → number of affected rows (for MERGE/UPDATE gate results).
-const runDml = async (sql, params) => {
-  const [job] = await bq.createQueryJob({ query: sql, useLegacySql: false, location: 'US', params: params || undefined });
+// DML runner → number of affected rows (for MERGE/UPDATE gate results). `types`
+// is passed through for array/struct params (bulk MERGE/UPDATE) so BigQuery can
+// type them even when the array is empty.
+const runDml = async (sql, params, types) => {
+  const [job] = await bq.createQueryJob({
+    query: sql, useLegacySql: false, location: 'US',
+    params: params || undefined, types: types || undefined
+  });
   await job.getQueryResults();
   const [meta] = await job.getMetadata();
   return Number((meta.statistics && meta.statistics.query && meta.statistics.query.numDmlAffectedRows) || 0);
@@ -142,6 +147,25 @@ exports.api = onRequest(async (req, res) => {
     if (path === '/unassign' && req.method === 'POST') {
       const b = req.body || {};
       const out = await reviewHandler.unassign({ annotationId: b.annotationId, batchId: b.batchId });
+      res.json({ ok: true, ...out });
+      return;
+    }
+    // --- bulk (one job for the whole selection) ------------------------------
+    if (path === '/review-bulk' && req.method === 'POST') {
+      const edits = (req.body && req.body.edits) || [];
+      const out = await reviewHandler.setReviews({ edits, reviewer: email }); // reviewer server-verified
+      res.json({ ok: true, ...out });
+      return;
+    }
+    if (path === '/assign-bulk' && req.method === 'POST') {
+      const b = req.body || {};
+      const out = await reviewHandler.assignMany({ annotationIds: b.annotationIds || [], batchId: b.batchId });
+      res.json({ ok: true, ...out });
+      return;
+    }
+    if (path === '/unassign-bulk' && req.method === 'POST') {
+      const b = req.body || {};
+      const out = await reviewHandler.unassignMany({ annotationIds: b.annotationIds || [], batchId: b.batchId });
       res.json({ ok: true, ...out });
       return;
     }
