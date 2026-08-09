@@ -10,7 +10,7 @@ const admin = require('firebase-admin');
 const { BigQuery } = require('@google-cloud/bigquery');
 const { google } = require('googleapis');
 const { makeAuthGuard, makeFirestoreAllowlistLookup, authErrorStatus } = require('./auth.js');
-const { makeQueueHandler, buildRefreshQueueSql } = require('./queue.js');
+const { makeQueueHandler, buildRefreshQueueSql, buildScvHistorySql } = require('./queue.js');
 const { makeDriveWriter } = require('./drive.js');
 const { makeGenerateHandler } = require('./generate.js');
 const { makeReviewHandler } = require('./review.js');
@@ -121,6 +121,11 @@ exports.api = onRequest(async (req, res) => {
     if (path === '/queue' && req.method === 'GET') {
       const { rows } = await queueHandler();
       res.json({ ok: true, rows });
+      return;
+    }
+    if (path === '/scv-history' && req.method === 'GET') {
+      const { sql, params } = buildScvHistorySql({ dataset: REVIEW_DATASET, scvId: (req.query && req.query.scvId) || '' });
+      res.json({ ok: true, rows: await runQuery(sql, params) });
       return;
     }
     if (path === '/generate' && req.method === 'POST') {

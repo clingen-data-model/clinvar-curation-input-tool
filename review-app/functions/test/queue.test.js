@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
-const { buildQueueSql, buildRefreshQueueSql, buildInBqSql, splitScv, shapeFreshRow, mergeQueue, makeQueueHandler } = require('../queue.js');
+const { buildQueueSql, buildRefreshQueueSql, buildInBqSql, buildScvHistorySql, splitScv, shapeFreshRow, mergeQueue, makeQueueHandler } = require('../queue.js');
 const { assertReadDataset } = require('../dataset-guard.js');
 
 describe('buildQueueSql (reads the materialized base — fast, no TVF)', () => {
@@ -61,6 +61,20 @@ describe('makeQueueHandler', () => {
     expect(out.rows[0].auto_status).toBe('OK');       // "no change" → auto-OK
     expect(out.rows[1].auto_status).toBe('Archive');  // deleted SCV → Archive
     expect(out.rows[1].auto_note).toMatch(/deleted/);
+  });
+});
+
+describe('buildScvHistorySql', () => {
+  it('reads the SCV history from cvc_annotations("ALL"), parameterized', () => {
+    const { sql, params } = buildScvHistorySql({ dataset: 'clinvar_curator_v4_dev', scvId: 'SCV000993408' });
+    expect(sql).toContain('`clingen-dev.clinvar_curator_v4_dev.cvc_annotations`("ALL")');
+    expect(sql).toContain('WHERE scv_id = @scvId');
+    expect(sql).toContain('review_status, reviewer, batch_id, is_submitted_annotation');
+    expect(params.scvId).toBe('SCV000993408');
+  });
+  it('rejects a bad scvId and guards the dataset', () => {
+    expect(() => buildScvHistorySql({ dataset: 'clinvar_curator_v4_dev', scvId: "x'; DROP" })).toThrow(/bad scvId/);
+    expect(() => buildScvHistorySql({ dataset: 'clinvar_curator', scvId: 'SCV1' })).toThrow(/not an allowed v4/);
   });
 });
 

@@ -142,6 +142,10 @@
     { title: 'latest scv classif', field: 'latest_scv_classif', width: 150, headerFilter: 'input', headerTooltip: 'Latest SCV classification now (compare to the annotated classification)' },
     boolCol('prior same ver', 'prior_ver', 'A prior CvC annotation exists for this exact SCV version'),
     boolCol('prior submitted', 'prior_submitted', 'A prior CvC annotation for this SCV was submitted in a batch'),
+    { title: 'Prior hist', field: 'prior_any', width: 92, hozAlign: 'center', headerSort: false,
+      headerTooltip: 'Show all prior CvC annotations for this SCV',
+      formatter: (cell) => (cell.getValue() ? '<a href="#" class="hist-link">history ▸</a>' : ''),
+      cellClick: (e, cell) => { const d = cell.getData(); if (d.prior_any) { e.preventDefault(); openHistory(d); } } },
     { title: 'Auto', field: 'auto', width: 90, tooltip: (e, cell) => cell.getData().auto_note || '' },
     { title: 'Status', field: 'status', width: 120, editor: 'list', editorParams: { values: STATUS_VALUES }, headerFilter: 'list', headerFilterParams: { values: STATUS_VALUES } },
     { title: 'Review notes', field: 'notes', width: 240, editor: 'input' },
@@ -152,6 +156,31 @@
     el.classList.toggle('fresh', !!d._fresh);
     el.classList.toggle('dirty', isDirty(d));
   }
+
+  // --- prior-annotations history popover -------------------------------------
+  // Format one prior annotation like the legacy sheet:
+  //   scv-ver  anno-date (curator) action reason [ rev-status (reviewer) *batch-id* ]
+  function fmtHistLine(h) {
+    const ver = h.scv_ver == null ? '' : h.scv_ver;
+    const date = bqval(h.annotated_date) || '';
+    const rev = h.review_status
+      ? ` [ ${h.review_status}${h.reviewer ? ' (' + h.reviewer + ')' : ''}${h.batch_id ? ' *' + h.batch_id + '*' : ''} ]`
+      : '';
+    return `.${ver}\t${date} (${h.curator || ''}) ${h.action || ''} ${h.reason || ''}${rev}`;
+  }
+  async function openHistory(d) {
+    const dlg = $('hist-dialog');
+    $('hist-title').textContent = `Prior annotations — ${d.scv_id}`;
+    const body = $('hist-body'); body.textContent = 'Loading…';
+    if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', '');
+    try {
+      const { rows } = await api('/scv-history?scvId=' + encodeURIComponent(d.scv_id));
+      body.textContent = (rows && rows.length)
+        ? rows.map(fmtHistLine).join('\n')
+        : 'No prior annotations found for this SCV.';
+    } catch (e) { body.textContent = 'Error: ' + (e && e.message ? e.message : e); }
+  }
+  $('hist-close').addEventListener('click', () => $('hist-dialog').close());
   // Build once, then replaceData on reload (returns a promise resolved when ready).
   function loadIntoTable(data) {
     return new Promise((resolve) => {
