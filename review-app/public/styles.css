@@ -9,6 +9,14 @@ header h1 { font-size: 1.25rem; margin: 0; }
 #whoami { color: #6b7280; font-size: 13px; }
 
 /* Toolbars: inline, auto-width buttons (Pico defaults buttons to block/full-width). */
+#views { display: flex; gap: .25rem; margin: .5rem 0; border-bottom: 2px solid #e5e7eb; }
+#views button { border-radius: 6px 6px 0 0; margin-bottom: -2px; background: #f3f4f6; color: #374151; border-color: #e5e7eb; }
+#views button.active { background: var(--pico-primary, #2563eb); color: #fff; border-color: var(--pico-primary, #2563eb); }
+#reflag-actions { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; margin: .5rem 0; }
+#reflag-status, #reflag-selected-count { color: #6b7280; font-size: 13px; }
+.reflag-intro { font-size: 13px; color: #4b5563; margin: .5rem 0; }
+.badge-auto { background: #7c3aed; color: #fff; padding: 1px 7px; border-radius: 10px; font-size: 11px; font-weight: 700; }
+.tabulator .tabulator-row.done { opacity: .55; }
 #release-banner { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap;
   background: #fef3c7; border: 1px solid #f59e0b; color: #92400e;
   padding: 8px 12px; border-radius: 6px; margin: .5rem 0; font-size: 14px; }

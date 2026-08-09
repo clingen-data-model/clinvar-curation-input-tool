@@ -22,6 +22,7 @@ const { makeReviewHandler } = require('./review.js');
 const { makeFinalizeHandler } = require('./finalize.js');
 const { makeConfigHandler } = require('./config.js');
 const { makeEnricher, debounceTaskId } = require('./enrich.js');
+const { makeReflagHandler } = require('./reflag.js');
 
 admin.initializeApp();
 
@@ -102,6 +103,16 @@ const enricher = makeEnricher({
   log: (m) => console.log('[enrich]', m)
 });
 
+// Reflagging: read candidates from the v4 shadow; write reflags to the Firestore
+// capture collection (create-only → content-hash dedup; created_at as a real
+// Firestore Timestamp), so they flow through the normal auto-enrich → review path.
+const reflagHandler = makeReflagHandler({
+  runQuery, dataset: REVIEW_DATASET,
+  createCaptureDoc: (docId, doc) => admin.firestore()
+    .collection(REVIEW_CAPTURE_COLLECTION).doc(docId)
+    .create({ ...doc, created_at: admin.firestore.Timestamp.fromDate(doc.created_at) })
+});
+
 // Generated-file management (list / delete drafts / protect the finalized file).
 const filesHandler = makeFilesHandler({
   drive: driveWriter,
@@ -154,6 +165,15 @@ exports.api = onRequest(async (req, res) => {
     if (path === '/scv-history' && req.method === 'GET') {
       const { sql, params } = buildScvHistorySql({ dataset: REVIEW_DATASET, scvId: (req.query && req.query.scvId) || '' });
       res.json({ ok: true, rows: await runQuery(sql, params) });
+      return;
+    }
+    if (path === '/reflag-candidates' && req.method === 'GET') {
+      res.json({ ok: true, ...(await reflagHandler.candidates()) });
+      return;
+    }
+    if (path === '/reflag' && req.method === 'POST') {
+      const scvIds = (req.body && req.body.scvIds) || [];
+      res.json({ ok: true, ...(await reflagHandler.reflag({ scvIds, userEmail: email })) }); // reflagger server-verified
       return;
     }
     if (path === '/files' && req.method === 'GET') {
