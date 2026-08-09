@@ -9,6 +9,10 @@ header h1 { font-size: 1.25rem; margin: 0; }
 #whoami { color: #6b7280; font-size: 13px; }
 
 /* Toolbars: inline, auto-width buttons (Pico defaults buttons to block/full-width). */
+#release-banner { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap;
+  background: #fef3c7; border: 1px solid #f59e0b; color: #92400e;
+  padding: 8px 12px; border-radius: 6px; margin: .5rem 0; font-size: 14px; }
+#release-banner button { background: #b45309; border-color: #b45309; }
 #batch-panel, #review-actions { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; margin: .5rem 0; }
 button { width: auto; margin-bottom: 0; padding: 6px 12px; }
 #assigned-count, #selected-count { color: #6b7280; font-size: 13px; }
