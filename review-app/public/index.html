@@ -22,6 +22,12 @@
       <span id="release-msg"></span>
       <button id="reprocess">Re-process now</button>
     </div>
+    <nav id="views">
+      <button id="nav-review" class="active">Review &amp; Submit</button>
+      <button id="nav-reflag" class="secondary">Reflag</button>
+    </nav>
+
+    <div id="view-review">
     <div id="batch-panel">
       <span>Next batch: <strong id="next-batch">…</strong></span>
       <button id="reload" class="secondary">Reload queue</button>
@@ -65,6 +71,23 @@
     </details>
     <div id="status">Loading…</div>
     <div id="queue" hidden></div>
+    </div><!-- /view-review -->
+
+    <div id="view-reflag" hidden>
+      <p class="reflag-intro">
+        Previously-submitted <strong>Flagging Candidates</strong> whose submitter version-bumped the SCV
+        <strong>without substantive change</strong> (the flag was lost or never applied). Select rows to
+        <strong>reflag</strong> — a new Flagging Candidate is captured at the SCV's current version and enters
+        the normal review queue. <span class="badge-auto">autoreflag</span> = high-confidence subset.
+      </p>
+      <div id="reflag-actions">
+        <button id="reflag-selected" disabled>Reflag selected</button>
+        <span id="reflag-selected-count"></span>
+        <button id="reflag-reload" class="secondary">Reload candidates</button>
+        <span id="reflag-status"></span>
+      </div>
+      <div id="reflag-queue"></div>
+    </div>
   </section>
 
   <dialog id="hist-dialog">

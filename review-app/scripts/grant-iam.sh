@@ -39,9 +39,11 @@ echo "jobUser on project ${CURATOR_PROJECT} for ${SA}…"
 gcloud projects add-iam-policy-binding "$CURATOR_PROJECT" \
   --member="serviceAccount:${SA}" --role="roles/bigquery.jobUser" --condition=None >/dev/null
 
-echo "datastore.viewer on ${FIREBASE_PROJECT} (read the allowed_curators allowlist)…"
+echo "datastore.user on ${FIREBASE_PROJECT} (read allowed_curators + WRITE reflag capture docs)…"
+# datastore.user = read (allowlist check) + write (reflagging creates new
+# Flagging Candidate docs in the clinvar_cvc_ext_annotations capture collection).
 gcloud projects add-iam-policy-binding "$FIREBASE_PROJECT" \
-  --member="serviceAccount:${SA}" --role="roles/datastore.viewer" --condition=None >/dev/null
+  --member="serviceAccount:${SA}" --role="roles/datastore.user" --condition=None >/dev/null
 
 # Grant a dataset ACL role (WRITER/READER) idempotently via bq update.
 grant_acl() { # <dataset> <WRITER|READER>

@@ -379,4 +379,91 @@
   window.addEventListener('beforeunload', (e) => {
     if (currentDirty().length) { e.preventDefault(); e.returnValue = ''; }
   });
+
+  // --- Reflag view -----------------------------------------------------------
+  let reflagTable = null;
+  const dv = (v) => (v && typeof v === 'object' && 'value' in v) ? v.value : v;
+
+  $('nav-review').addEventListener('click', () => showView('review'));
+  $('nav-reflag').addEventListener('click', () => showView('reflag'));
+  function showView(which) {
+    const reflag = which === 'reflag';
+    $('view-review').hidden = reflag;
+    $('view-reflag').hidden = !reflag;
+    $('nav-review').classList.toggle('active', !reflag);
+    $('nav-reflag').classList.toggle('active', reflag);
+    if (reflag && !reflagTable) loadReflagCandidates();
+  }
+
+  const REFLAG_COLUMNS = [
+    { formatter: 'rowSelection', titleFormatter: 'rowSelection', hozAlign: 'center', headerSort: false, width: 42 },
+    { title: '', field: 'is_autoreflag', width: 90, hozAlign: 'center', headerSort: true,
+      formatter: (cell) => cell.getValue() ? '<span class="badge-auto">autoreflag</span>' : '' },
+    { title: 'SCV', field: 'scv_disp', width: 150, headerFilter: 'input', frozen: true },
+    { title: 'Submitter (lab)', field: 'submitter_name', headerFilter: 'input' },
+    { title: 'Variant', field: 'variant', headerFilter: 'input' },
+    { title: 'Original flag reason', field: 'flagging_reason', widthGrow: 2, headerFilter: 'input' },
+    { title: 'Current classification', field: 'current_classification', width: 160, headerFilter: 'input' },
+    { title: 'Outcome', field: 'outcome', width: 150, headerFilter: 'input' },
+    { title: 'Orig batch', field: 'orig_batch_id', width: 90 },
+    { title: 'Bumps', field: 'version_bump_count', width: 74, hozAlign: 'right', headerTooltip: 'Version bumps since the flag was submitted' },
+    { title: 'reclassified', field: 'was_reclassified', width: 90, hozAlign: 'center',
+      formatter: 'tickCross', formatterParams: { crossElement: false, allowTruthy: true }, headerTooltip: 'Did any substantive field change since the flag?' },
+    { title: 'already reflagged', field: 'already_reflagged', width: 110, hozAlign: 'center',
+      formatter: 'tickCross', formatterParams: { crossElement: false, allowTruthy: true }, headerTooltip: 'A current-version Flagging Candidate is already captured' }
+  ];
+  function toReflagRow(c) {
+    return {
+      id: c.scv_id, scv_id: c.scv_id,
+      scv_disp: `${c.scv_id}.${dv(c.current_scv_ver)}`,
+      submitter_name: c.submitter_name,
+      variant: `${c.vcv_id} (var ${c.variation_id})`,
+      flagging_reason: c.flagging_reason, current_classification: c.current_classification,
+      outcome: c.outcome, orig_batch_id: c.orig_batch_id, version_bump_count: dv(c.version_bump_count),
+      is_autoreflag: !!c.is_autoreflag, was_reclassified: !!c.was_reclassified,
+      already_reflagged: !!c.already_reflagged, _already: !!c.already_reflagged
+    };
+  }
+  function refreshReflagSelection() {
+    const sel = reflagTable ? reflagTable.getSelectedData() : [];
+    $('reflag-selected').disabled = sel.length === 0;
+    $('reflag-selected-count').textContent = sel.length ? `${sel.length} selected` : '';
+  }
+  async function loadReflagCandidates() {
+    $('reflag-status').textContent = 'Loading candidates…';
+    try {
+      const { candidates } = await api('/reflag-candidates');
+      const data = (candidates || []).map(toReflagRow);
+      if (!reflagTable) {
+        reflagTable = new Tabulator('#reflag-queue', {
+          index: 'id', layout: 'fitDataFill', height: '64vh', data,
+          placeholder: 'No reflag candidates.',
+          // already-reflagged rows can't be selected (dedup would skip them anyway)
+          selectableRows: true, selectableRowsCheck: (row) => !row.getData()._already,
+          columns: REFLAG_COLUMNS,
+          rowFormatter: (row) => row.getElement().classList.toggle('done', !!row.getData()._already)
+        });
+        reflagTable.on('rowSelectionChanged', refreshReflagSelection);
+        reflagTable.on('tableBuilt', () => { refreshReflagSelection(); });
+      } else {
+        await reflagTable.replaceData(data);
+      }
+      const auto = data.filter((d) => d.is_autoreflag).length;
+      $('reflag-status').textContent = `${data.length} candidate(s) · ${auto} autoreflag · ${data.filter((d) => d._already).length} already reflagged`;
+    } catch (e) { $('reflag-status').textContent = 'Error: ' + (e && e.message ? e.message : e); }
+  }
+  $('reflag-reload').addEventListener('click', loadReflagCandidates);
+  $('reflag-selected').addEventListener('click', async () => {
+    const sel = reflagTable.getSelectedData().filter((d) => !d._already);
+    if (!sel.length) return;
+    if (!confirm(`Reflag ${sel.length} SCV(s)? Each becomes a new Flagging Candidate at its current version and enters the review queue.`)) return;
+    $('reflag-selected').disabled = true; $('reflag-status').textContent = `Reflagging ${sel.length}…`;
+    try {
+      const out = await api('/reflag', 'POST', { scvIds: sel.map((d) => d.scv_id) });
+      $('reflag-status').textContent = `Reflagged ${out.created}`
+        + (out.skipped ? ` · ${out.skipped} skipped (already reflagged)` : '')
+        + ' — they enrich into the review queue shortly.';
+      await loadReflagCandidates();
+    } catch (e) { $('reflag-status').textContent = 'Error: ' + (e && e.message ? e.message : e); refreshReflagSelection(); }
+  });
 })();
