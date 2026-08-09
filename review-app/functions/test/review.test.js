@@ -3,7 +3,7 @@ import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const {
   buildUpsertReviewSql, buildAssignSql, buildUnassignSql,
-  buildBulkUpsertReviewSql, buildBulkAssignSql, buildBulkUnassignSql,
+  buildBulkUpsertReviewSql, buildBulkClearReviewSql, buildBulkAssignSql, buildBulkUnassignSql,
   makeReviewHandler, STATUSES
 } = require('../review.js');
 
@@ -85,6 +85,19 @@ describe('buildBulkUpsertReviewSql', () => {
   });
 });
 
+describe('buildBulkClearReviewSql', () => {
+  it('DELETEs the review-state rows for the given ids', () => {
+    const { sql, params, types } = buildBulkClearReviewSql({ dataset: DS, annotationIds: ['1', '2'] });
+    expect(sql).toContain(`DELETE FROM \`clingen-dev.${DS}.cvc_review_state\``);
+    expect(sql).toContain('annotation_id IN UNNEST(@ids)');
+    expect(params.ids).toEqual(['1', '2']);
+    expect(types).toEqual({ ids: ['STRING'] });
+  });
+  it('is dataset-guarded (rejects legacy)', () => {
+    expect(() => buildBulkClearReviewSql({ dataset: 'clinvar_curator', annotationIds: ['1'] })).toThrow(/not an allowed v4/);
+  });
+});
+
 describe('buildBulkAssignSql / buildBulkUnassignSql', () => {
   it('assign uses IN UNNEST(@ids) with the per-row gate, correlated to T', () => {
     const { sql, params, types } = buildBulkAssignSql({ dataset: DS, annotationIds: ['1', '2'], batchId: '136' });
@@ -145,10 +158,30 @@ describe('makeReviewHandler', () => {
   it('setReviews / assignMany / unassignMany are a no-op on empty selection', async () => {
     const f = fake();
     const h = makeReviewHandler({ runDml: f.runDml, dataset: DS });
-    expect(await h.setReviews({ reviewer: 'r', edits: [] })).toEqual({ applied: 0 });
+    expect(await h.setReviews({ reviewer: 'r', edits: [] })).toEqual({ applied: 0, cleared: 0 });
     expect(await h.assignMany({ annotationIds: [], batchId: '136' })).toEqual({ applied: 0, requested: 0 });
     expect(await h.unassignMany({ annotationIds: [], batchId: '136' })).toEqual({ applied: 0, requested: 0 });
     expect(f.calls.length).toBe(0);                          // no job issued
+  });
+  it('setReviews routes empty-status edits to a DELETE (clear) and the rest to an upsert', async () => {
+    const f = fake(); f.setAffected(1);
+    const h = makeReviewHandler({ runDml: f.runDml, dataset: DS });
+    const out = await h.setReviews({ reviewer: 'r@x.org', edits: [
+      { annotationId: '1', scvId: 'SCV1', scvVer: 1, status: 'OK', notes: 'n' },
+      { annotationId: '2', scvId: 'SCV2', scvVer: 2, status: '', notes: '' }   // cleared to (none)
+    ] });
+    expect(out.cleared).toBe(1);
+    expect(f.calls.length).toBe(2);                          // one upsert + one delete
+    expect(f.calls.some((c) => c.sql.includes('UNNEST(@edits)'))).toBe(true);
+    expect(f.calls.some((c) => c.sql.startsWith('DELETE FROM'))).toBe(true);
+  });
+  it('setReviews with ONLY clears issues just the DELETE', async () => {
+    const f = fake(); f.setAffected(1);
+    const h = makeReviewHandler({ runDml: f.runDml, dataset: DS });
+    const out = await h.setReviews({ reviewer: 'r', edits: [{ annotationId: '9', status: '' }] });
+    expect(out.cleared).toBe(1);
+    expect(f.calls.length).toBe(1);
+    expect(f.calls[0].sql).toContain('DELETE FROM');
   });
   it('assignMany reports applied + requested (applied<requested => some failed the gate)', async () => {
     const f = fake(); f.setAffected(1);

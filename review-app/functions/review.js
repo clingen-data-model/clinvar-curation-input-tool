@@ -134,6 +134,17 @@ function buildBulkAssignSql({ dataset, annotationIds, batchId }) {
   return { sql, params, types };
 }
 
+// Clear reviews — DELETE the review-state row(s), returning them to "unreviewed"
+// (drops status, notes AND any batch assignment; a non-OK row can't be batched
+// anyway). This is how the UI saves a status back to (none).
+function buildBulkClearReviewSql({ dataset, annotationIds }) {
+  const ds = assertReadDataset(dataset);
+  const params = { ids: (annotationIds || []).map(String) };
+  const types = { ids: ['STRING'] };
+  const sql = `DELETE FROM \`clingen-dev.${ds}.cvc_review_state\` WHERE annotation_id IN UNNEST(@ids)`;
+  return { sql, params, types };
+}
+
 // Unassign many — only from the given (current) batch.
 function buildBulkUnassignSql({ dataset, annotationIds, batchId }) {
   const ds = assertReadDataset(dataset);
@@ -164,10 +175,23 @@ function makeReviewHandler({ runDml, dataset }) {
     },
     // Bulk: empty selection is a no-op (no job). Each returns the affected count;
     // for assign, `applied` may be < ids.length when some rows fail the gate.
+    // An edit with an empty/null status means "clear" — its review-state row is
+    // DELETEd (back to unreviewed) instead of upserted.
     async setReviews({ edits, reviewer }) {
-      if (!edits || !edits.length) return { applied: 0 };
-      const { sql, params, types } = buildBulkUpsertReviewSql({ dataset, edits, reviewer });
-      return { applied: await runDml(sql, params, types) };
+      const list = edits || [];
+      if (!list.length) return { applied: 0, cleared: 0 };
+      const clearIds = list.filter((e) => e.status === '' || e.status == null).map((e) => String(e.annotationId));
+      const upserts = list.filter((e) => e.status !== '' && e.status != null);
+      let applied = 0;
+      if (upserts.length) {
+        const { sql, params, types } = buildBulkUpsertReviewSql({ dataset, edits: upserts, reviewer });
+        applied += await runDml(sql, params, types);
+      }
+      if (clearIds.length) {
+        const { sql, params, types } = buildBulkClearReviewSql({ dataset, annotationIds: clearIds });
+        applied += await runDml(sql, params, types);
+      }
+      return { applied, cleared: clearIds.length };
     },
     async assignMany({ annotationIds, batchId }) {
       if (!annotationIds || !annotationIds.length) return { applied: 0, requested: 0 };
@@ -186,6 +210,6 @@ function makeReviewHandler({ runDml, dataset }) {
 module.exports = {
   STATUSES, ASSIGNABLE_ACTIONS, assertStatus,
   buildUpsertReviewSql, buildAssignSql, buildUnassignSql,
-  buildBulkUpsertReviewSql, buildBulkAssignSql, buildBulkUnassignSql,
+  buildBulkUpsertReviewSql, buildBulkClearReviewSql, buildBulkAssignSql, buildBulkUnassignSql,
   makeReviewHandler
 };

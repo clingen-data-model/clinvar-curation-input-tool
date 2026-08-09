@@ -170,20 +170,21 @@
     loadQueue();
   });
 
-  // Save every edited row in ONE request (rows without a status can't persist —
-  // cvc_review_state requires one — so they're skipped and reported).
+  // Save every edited row in ONE request. A row whose status was set back to
+  // (none) is sent with an empty status → the backend clears its review (back to
+  // unreviewed); all other edits upsert.
   $('save-all').addEventListener('click', async () => {
     const dirty = currentDirty();
-    const edits = dirty.filter((d) => d.status !== '').map((d) => ({
+    if (!dirty.length) { $('status').textContent = 'Nothing to save.'; return; }
+    const edits = dirty.map((d) => ({
       annotationId: d.annotation_id, scvId: d.scv_id, scvVer: d.scv_ver, status: d.status, notes: d.notes
     }));
-    if (!edits.length) { $('status').textContent = 'Nothing to save — set a status first.'; return; }
     $('save-all').disabled = true; $('status').textContent = `Saving ${edits.length}…`;
     try {
       const out = await api('/review-bulk', 'POST', { edits });
-      const skipped = dirty.length - edits.length;
-      $('status').textContent = `Saved ${out.applied} review${out.applied === 1 ? '' : 's'}`
-        + (skipped ? ` · ${skipped} skipped (need a status)` : '');
+      const cleared = out.cleared || 0;
+      $('status').textContent = `Saved ${edits.length} change${edits.length === 1 ? '' : 's'}`
+        + (cleared ? ` (incl. ${cleared} cleared to none)` : '');
       await loadQueue();
     } catch (e) { err(e); refreshDirty(); }
   });
