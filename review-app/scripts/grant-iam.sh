@@ -62,4 +62,39 @@ PY
 
 echo "WRITE:"; grant_acl "$WRITE_DATASET" WRITER
 echo "READ:";  for ds in $READ_DATASETS; do grant_acl "$ds" READER; done
-echo "done. The SA has NO access to the live legacy clinvar_curator dataset."
+
+# --- event-driven enrichment (onCapture → enrichQueue → enrich.js) ----------
+# The Firestore capture trigger runs the adapter (capture→native_v4 via a GCS
+# hop) + base refresh. These grants are REQUIRED for that chain and several are
+# the classic gen2 gotcha (Firebase does NOT reliably auto-grant them):
+ENRICH_BUCKET="${ENRICH_BUCKET:-gs://clingen-dev-cvc-native-v4-staging}"  # us-central1 staging bucket
+echo "enrichment IAM:"
+# 1. GCS staging bucket (extract writes / load reads / shard cleanup)
+gcloud storage buckets add-iam-policy-binding "$ENRICH_BUCKET" \
+  --member="serviceAccount:${SA}" --role="roles/storage.objectAdmin" >/dev/null && echo "  objectAdmin on ${ENRICH_BUCKET}"
+# 2. BQ in the FIREBASE project (snapshot the capture → _native_v4_snapshot)
+for role in roles/bigquery.jobUser roles/bigquery.dataEditor; do
+  gcloud projects add-iam-policy-binding "$FIREBASE_PROJECT" \
+    --member="serviceAccount:${SA}" --role="$role" --condition=None >/dev/null
+done; echo "  jobUser + dataEditor on ${FIREBASE_PROJECT}"
+# 3. read clinvar_ingest ROUTINES + project metadata (release_on(CURRENT_DATE())
+#    powers the release-staleness check in /config + the enrich release stamp).
+#    Project-level dataViewer is READ-ONLY — non-impact is preserved by the
+#    write-path guard (dataset-guard.js), which still refuses writes to legacy.
+gcloud projects add-iam-policy-binding "$CURATOR_PROJECT" \
+  --member="serviceAccount:${SA}" --role="roles/bigquery.dataViewer" --condition=None >/dev/null && echo "  dataViewer (read) on ${CURATOR_PROJECT}"
+# 4. Cloud Tasks: onCapture enqueues a (debounced) task with an OIDC token for
+#    the SA, so it must be able to enqueue AND actAs itself.
+gcloud projects add-iam-policy-binding "$FIREBASE_PROJECT" \
+  --member="serviceAccount:${SA}" --role="roles/cloudtasks.enqueuer" --condition=None >/dev/null
+gcloud iam service-accounts add-iam-policy-binding "$SA" \
+  --member="serviceAccount:${SA}" --role="roles/iam.serviceAccountUser" --project="$FIREBASE_PROJECT" >/dev/null
+echo "  cloudtasks.enqueuer + serviceAccountUser(self)"
+# 5. run.invoker on the trigger targets — Eventarc→onCapture and Tasks→enrichQueue.
+#    RE-RUN after any redeploy that recreates these Cloud Run services.
+for svc in oncapture enrichqueue; do
+  gcloud run services add-iam-policy-binding "$svc" --region=us-central1 --project="$FIREBASE_PROJECT" \
+    --member="serviceAccount:${SA}" --role="roles/run.invoker" >/dev/null 2>&1 && echo "  run.invoker on ${svc}" || echo "  (skip run.invoker on ${svc} — deploy it first)"
+done
+
+echo "done. The SA WRITES only to the v4 workflow dataset; its clingen-dev read is read-only (legacy writes still guarded)."
