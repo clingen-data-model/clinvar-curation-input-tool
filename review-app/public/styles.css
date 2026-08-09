@@ -16,5 +16,7 @@ table { border-collapse: collapse; width: 100%; font-size: 13px; }
 th, td { border: 1px solid #e5e7eb; padding: 4px 6px; text-align: left; vertical-align: top; }
 th { background: #f3f4f6; position: sticky; top: 0; }
 td.auto { font-weight: 600; color: #2563eb; cursor: help; }
+tr.fresh { background: #fffbeb; }  /* just-captured, not yet enriched in BQ */
+button:disabled { cursor: not-allowed; }
 td input[type=text] { width: 12rem; font: inherit; }
 td select { font: inherit; }

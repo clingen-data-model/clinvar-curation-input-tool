@@ -76,13 +76,20 @@ describe('freshness: buildInBqSql / splitScv / shapeFreshRow / mergeQueue', () =
     expect(splitScv('SCV000993408.4')).toEqual({ scv_id: 'SCV000993408', scv_ver: '4' });
     expect(splitScv('SCV1')).toEqual({ scv_id: 'SCV1', scv_ver: '' });
   });
-  it('shapeFreshRow maps a Firestore doc to a null-flag, fresh queue row', () => {
+  it('shapeFreshRow maps a Firestore doc to a null-flag, fresh queue row (action lowercased)', () => {
     const r = shapeFreshRow({ annotation_id: '9', variation_id: '9', vcv: 'VCV9', scv: 'SCV9.2',
-      submitter: 'Lab', action: 'flagging candidate', reason: 'x', notes: 'n', user_email: 'c@x.org',
+      submitter: 'Lab', action: 'Flagging Candidate', reason: 'x', notes: 'n', user_email: 'c@x.org',
       review_status: 'criteria provided', created_at: '2026-08-08T00:00:00Z' });
     expect(r).toMatchObject({ annotation_id: '9', vcv_id: 'VCV9', scv_id: 'SCV9', scv_ver: '2',
       submitter_name: 'Lab', action: 'flagging candidate', curator: 'c@x.org',
       clinvar_review_status: 'criteria provided', is_outdated_scv: null, auto_status: '', fresh: true });
+    expect(r.rs_review_status).toBeNull();
+  });
+  it('shapeFreshRow surfaces a SAVED review state so the overlay is not shown as unsaved', () => {
+    const r = shapeFreshRow({ annotation_id: '9', scv: 'SCV9.2', action: 'Flagging Candidate' },
+      { review_status: 'OK', reviewer: 'c@x.org', notes: 'looks good', batch_id: null });
+    expect(r.rs_review_status).toBe('OK');
+    expect(r.rs_reviewer).toBe('c@x.org');
   });
   it('mergeQueue appends only fresh candidates not in BQ and not already listed', () => {
     const bq = [{ annotation_id: 'A' }, { annotation_id: 'B' }];
@@ -119,6 +126,18 @@ describe('makeQueueHandler with Firestore freshness', () => {
     const getRecentCaptures = async () => [{ annotation_id: 'KNOWN', scv: 'SCV1.1' }];
     const out = await makeQueueHandler({ runQuery, dataset, getReviewers: async () => [], getRecentCaptures })();
     expect(out.rows.map((r) => r.annotation_id)).toEqual(['A']); // KNOWN not appended as fresh
+  });
+  it('a fresh row surfaces its SAVED review state (not shown as unsaved)', async () => {
+    const runQuery = async (sql) => {
+      if (sql === bqSql) return [];
+      if (sql.includes('cvc_annotations_native_v4')) return []; // not yet in BQ
+      if (sql.includes('cvc_review_state')) return [{ annotation_id: 'NEW', review_status: 'OK', reviewer: 'c@x.org', notes: 'ok', batch_id: null }];
+      return [];
+    };
+    const getRecentCaptures = async () => [{ annotation_id: 'NEW', scv: 'SCV9.1', action: 'Flagging Candidate' }];
+    const out = await makeQueueHandler({ runQuery, dataset, getReviewers: async () => [], getRecentCaptures })();
+    const fresh = out.rows.find((r) => r.annotation_id === 'NEW');
+    expect(fresh).toMatchObject({ fresh: true, rs_review_status: 'OK', action: 'flagging candidate' });
   });
   it('without getRecentCaptures, behaves exactly as the BQ-only queue', async () => {
     const handler = makeQueueHandler({ runQuery: async () => [{ annotation_id: 'A' }], dataset, getReviewers: async () => [] });

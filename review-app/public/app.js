@@ -82,7 +82,8 @@
     tb.textContent = '';
     rows.forEach((r) => {
       const tr = document.createElement('tr');
-      tr.appendChild(cell(`${r.scv_id}.${r.scv_ver}`));
+      if (r.fresh) tr.classList.add('fresh');
+      tr.appendChild(cell(`${r.scv_id}.${r.scv_ver}${r.fresh ? '  🆕' : ''}`));
       tr.appendChild(cell(`${r.vcv_id} (var ${r.variation_id})`));
       tr.appendChild(cell(r.submitter_name || r.submitter_id));
       tr.appendChild(cell(r.action));
@@ -112,27 +113,44 @@
         try {
           await api('/review', 'POST', { annotationId: r.annotation_id, scvId: r.scv_id, scvVer: r.scv_ver, status: sel.value, notes: note.value });
           save.textContent = 'Saved';
+          await loadQueue(); // reflect the saved status + refresh assign eligibility
         } catch (e) { save.textContent = 'Save'; err(e); } finally { save.disabled = false; }
       });
       saveTd.appendChild(save); tr.appendChild(saveTd);
 
-      // Assign / Unassign to next batch
+      // Assign / Unassign to next batch. Only OK + flag/remove + enriched rows
+      // are assignable; otherwise the button is disabled with the reason, so the
+      // rule is visible (and there's no silent backend refusal).
       const batchTd = document.createElement('td');
       const assigned = r.rs_batch_id === nextBatchId;
+      const ACTIONABLE = ['flagging candidate', 'remove flagged submission'];
+      const savedOk = r.rs_review_status === 'OK';
+      const actionable = ACTIONABLE.includes(String(r.action || '').toLowerCase());
       const btn = document.createElement('button');
-      btn.textContent = assigned ? `Unassign` : `+ Batch ${nextBatchId}`;
-      btn.addEventListener('click', async () => {
-        btn.disabled = true;
-        try {
-          if (assigned) {
-            await api('/unassign', 'POST', { annotationId: r.annotation_id, batchId: nextBatchId });
-          } else {
+      if (assigned) {
+        btn.textContent = 'Unassign';
+        btn.addEventListener('click', async () => {
+          btn.disabled = true;
+          try { await api('/unassign', 'POST', { annotationId: r.annotation_id, batchId: nextBatchId }); await loadQueue(); }
+          catch (e) { btn.disabled = false; err(e); }
+        });
+      } else {
+        btn.textContent = `+ Batch ${nextBatchId}`;
+        let reason = '';
+        if (!actionable) reason = 'only Flagging Candidate / Remove Flagged Submission can be batched';
+        else if (!savedOk) reason = 'set status OK and Save first';
+        else if (r.fresh) reason = 'awaiting enrichment — refresh from capture, then assign';
+        btn.disabled = !!reason;
+        if (reason) btn.title = reason;
+        btn.addEventListener('click', async () => {
+          btn.disabled = true;
+          try {
             const out = await api('/assign', 'POST', { annotationId: r.annotation_id, batchId: nextBatchId });
-            if (!out.eligible) { $('status').textContent = 'Not assignable (must be reviewed OK and a flag/remove action).'; }
-          }
-          await loadQueue();
-        } catch (e) { btn.disabled = false; err(e); }
-      });
+            if (!out.eligible) $('status').textContent = 'Not assignable (must be reviewed OK, a flag/remove action, and enriched).';
+            await loadQueue();
+          } catch (e) { btn.disabled = false; err(e); }
+        });
+      }
       batchTd.appendChild(btn); tr.appendChild(batchTd);
 
       tb.appendChild(tr);
