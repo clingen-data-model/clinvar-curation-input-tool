@@ -70,6 +70,26 @@ function buildReviewStateSql({ dataset, ids }) {
   };
 }
 
+// Full CvC annotation history for one SCV id (all versions), for the queue's
+// click-to-expand "prior annotations" popover. Sourced from cvc_annotations("ALL")
+// — the same TVF the queue base is built from — so review/submission outcome
+// (review_status/reviewer/batch_id/is_submitted_annotation) is included. NOTE:
+// this scans the TVF (~few GB) per call; it's click-driven (only SCVs that have
+// prior annotations, one at a time), acceptable for dev. Parameterized (no
+// injection); dataset-guarded (v4 only). Read-only.
+function buildScvHistorySql({ dataset, scvId }) {
+  const ds = assertReadDataset(dataset);
+  if (!scvId || !/^[A-Za-z0-9._:-]+$/.test(String(scvId))) throw new Error(`scv-history: bad scvId '${scvId}'`);
+  const sql = [
+    'SELECT scv_id, scv_ver, annotated_date, curator, action, reason,',
+    '  review_status, reviewer, batch_id, is_submitted_annotation',
+    `FROM \`clingen-dev.${ds}.cvc_annotations\`("ALL")`,
+    'WHERE scv_id = @scvId',
+    'ORDER BY scv_ver, annotated_date'
+  ].join('\n');
+  return { sql, params: { scvId: String(scvId) } };
+}
+
 // Attach the auto-review suggestion to a (BQ-enriched) queue row.
 function enrichRow(r, reviewers) {
   const suggestion = autoReview({
@@ -146,4 +166,4 @@ function makeQueueHandler({ runQuery, dataset, getReviewers, getRecentCaptures }
   };
 }
 
-module.exports = { buildQueueSql, buildRefreshQueueSql, buildInBqSql, buildReviewStateSql, enrichRow, splitScv, shapeFreshRow, mergeQueue, makeQueueHandler };
+module.exports = { buildQueueSql, buildRefreshQueueSql, buildInBqSql, buildReviewStateSql, buildScvHistorySql, enrichRow, splitScv, shapeFreshRow, mergeQueue, makeQueueHandler };

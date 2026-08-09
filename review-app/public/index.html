@@ -58,6 +58,14 @@
     <div id="queue" hidden></div>
   </section>
 
+  <dialog id="hist-dialog">
+    <article>
+      <header><strong id="hist-title">Prior annotations</strong></header>
+      <pre id="hist-body" class="hist-body"></pre>
+      <footer><button id="hist-close" class="secondary">Close</button></footer>
+    </article>
+  </dialog>
+
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://unpkg.com/tabulator-tables@6.3.1/dist/js/tabulator.min.js"></script>
