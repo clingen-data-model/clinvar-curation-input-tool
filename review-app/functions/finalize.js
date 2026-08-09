@@ -27,7 +27,7 @@ function buildFinalizeSql({ dataset, batchId }) {
   const ds = assertReadDataset(dataset);
   if (!/^\d+$/.test(String(batchId))) throw new Error(`finalize: batchId must be numeric, got '${batchId}'`);
   const B = `clingen-dev.${ds}`;
-  const params = { batch: String(batchId), batchInt: Number(batchId), fdt: null }; // fdt bound by caller
+  const params = { batch: String(batchId), batchInt: Number(batchId), fdt: null, finalfile: null }; // fdt + finalfile bound by caller
   const sql = [
     'BEGIN TRANSACTION;',
     // reviews: all reviewed (OK/Fixed/Archive) not yet persisted, stamped this batch
@@ -50,7 +50,7 @@ function buildFinalizeSql({ dataset, batchId }) {
     `WHERE SAFE_CAST(e.batch_id AS INT64) < @batchInt`,
     `ORDER BY SAFE_CAST(e.batch_id AS INT64) DESC LIMIT 1;`,
     // bump next_batch_id — guarded so a retry can't double-bump
-    `UPDATE \`${B}.cvc_review_config\` SET next_batch_id = CAST(@batchInt + 1 AS STRING), last_finalized_date = TIMESTAMP(@fdt) WHERE next_batch_id = @batch;`,
+    `UPDATE \`${B}.cvc_review_config\` SET next_batch_id = CAST(@batchInt + 1 AS STRING), last_finalized_date = TIMESTAMP(@fdt), last_finalized_file = @finalfile WHERE next_batch_id = @batch;`,
     'COMMIT TRANSACTION;'
   ].join('\n');
   return { sql, params };
@@ -74,7 +74,8 @@ function makeFinalizeHandler({ generate, runQuery, runDml, startSpRefresh, confi
     if (!gen.count) return { count: 0, warnings, finalized: false };
 
     const { sql, params } = buildFinalizeSql({ dataset: ds, batchId });
-    params.fdt = finalizedDatetime; // "YYYY-MM-DD HH:MM:SS"
+    params.fdt = finalizedDatetime;      // "YYYY-MM-DD HH:MM:SS"
+    params.finalfile = gen.filename || null; // the protected finalized submission file
     const promoted = await runDml(sql, params);
 
     // Async, re-runnable — do NOT await (2–5 min); return the job handle.

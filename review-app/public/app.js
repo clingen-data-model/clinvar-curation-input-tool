@@ -43,6 +43,7 @@
       await api('/whoami');            // 403 here if not allow-listed
       await loadConfig();
       await loadQueue();
+      await loadFiles();
     } catch (e) {
       $('whoami').textContent = user.email + ' — not authorized (contact an admin).';
       $('app').hidden = true;
@@ -214,6 +215,38 @@
     } catch (e) { err(e); }
   }
 
+  // --- generated files panel -------------------------------------------------
+  async function loadFiles() {
+    if (!nextBatchId) return;
+    try {
+      const { files } = await api('/files?batchId=' + encodeURIComponent(nextBatchId));
+      renderFiles(files || []);
+    } catch (e) { /* best-effort — Drive may be unconfigured in some envs */ }
+  }
+  function renderFiles(files) {
+    const ul = $('files-list'); ul.textContent = '';
+    $('files-hint').textContent = files.length ? '' : '— none generated for this batch yet';
+    files.forEach((f) => {
+      const li = document.createElement('li');
+      const a = document.createElement('a'); a.href = f.link; a.target = '_blank'; a.textContent = f.name;
+      li.appendChild(a);
+      if (f.protected) {
+        const lock = document.createElement('span'); lock.className = 'lock'; lock.textContent = '🔒 finalized';
+        li.appendChild(lock);
+      } else {
+        const del = document.createElement('button'); del.className = 'secondary del-file'; del.textContent = 'Delete';
+        del.addEventListener('click', async () => {
+          if (!confirm(`Delete generated file "${f.name}"? (moves it to Drive trash)`)) return;
+          del.disabled = true;
+          try { await api('/files/delete', 'POST', { fileId: f.id }); await loadFiles(); }
+          catch (e) { del.disabled = false; err(e); }
+        });
+        li.appendChild(del);
+      }
+      ul.appendChild(li);
+    });
+  }
+
   // --- actions ---------------------------------------------------------------
   $('reload').addEventListener('click', () => {
     if (currentDirty().length && !confirm('Discard unsaved changes and reload?')) return;
@@ -276,15 +309,20 @@
 
   $('generate').addEventListener('click', async () => {
     $('result').textContent = 'Generating…';
-    try { showResult('Generated', await api('/generate', 'POST', { batchId: nextBatchId })); }
-    catch (e) { err(e); }
+    try {
+      showResult('Generated', await api('/generate', 'POST', { batchId: nextBatchId }));
+      await loadFiles(); // the new draft appears in the persistent list
+    } catch (e) { err(e); }
   });
   $('finalize').addEventListener('click', async () => {
     if (!confirm(`Finalize batch ${nextBatchId}? This persists the batch and advances the batch id.`)) return;
+    const finalizedBatch = nextBatchId; // capture before loadConfig advances it
     $('result').textContent = 'Finalizing…';
     try {
-      showResult('Finalized', await api('/finalize', 'POST', { batchId: nextBatchId }));
-      await loadConfig(); await loadQueue();
+      const out = await api('/finalize', 'POST', { batchId: nextBatchId });
+      showResult('Finalized', out);
+      if (out.finalized) addCleanupButton(finalizedBatch, out.filename);
+      await loadConfig(); await loadQueue(); await loadFiles();
     } catch (e) { err(e); }
   });
   function showResult(label, out) {
@@ -295,6 +333,24 @@
     r.appendChild(line);
     if (out.link) { const a = document.createElement('a'); a.href = out.link; a.textContent = out.filename || 'submission file'; a.target = '_blank'; r.appendChild(a); }
     if (out.mailto) { const m = document.createElement('a'); m.href = out.mailto; m.textContent = ' — draft submission email'; r.appendChild(m); }
+  }
+  // Offered after a successful finalize: once the finalized file + email are done,
+  // remove the batch's remaining DRAFT files (the finalized file is kept).
+  function addCleanupButton(batchId, finalizedName) {
+    const wrap = document.createElement('div'); wrap.style.marginTop = '.4rem';
+    const btn = document.createElement('button'); btn.className = 'secondary';
+    btn.textContent = `Remove draft files for batch ${batchId}`;
+    btn.title = `Trashes every generated file for batch ${batchId} except the finalized ${finalizedName || 'file'}`;
+    btn.addEventListener('click', async () => {
+      if (!confirm(`Remove all DRAFT generated files for batch ${batchId}? The finalized file is kept. (Do this after the submission email is sent.)`)) return;
+      btn.disabled = true;
+      try {
+        const o = await api('/files/delete-drafts', 'POST', { batchId });
+        btn.textContent = `Removed ${o.removed} draft file(s); kept ${o.kept}.`;
+        await loadFiles();
+      } catch (e) { btn.disabled = false; err(e); }
+    });
+    wrap.appendChild(btn); $('result').appendChild(wrap);
   }
 
   // Warn before leaving with unsaved status/notes edits.

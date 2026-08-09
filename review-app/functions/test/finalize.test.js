@@ -25,6 +25,7 @@ describe('buildFinalizeSql', () => {
   });
   it('bumps next_batch_id ONLY while it still equals this batch (retry-safe)', () => {
     expect(sql).toContain('SET next_batch_id = CAST(@batchInt + 1 AS STRING)');
+    expect(sql).toContain('last_finalized_file = @finalfile'); // records the protected finalized file
     expect(sql).toContain('WHERE next_batch_id = @batch');
     expect(params).toMatchObject({ batch: '136', batchInt: 136 });
   });

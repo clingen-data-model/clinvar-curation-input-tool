@@ -22,6 +22,13 @@ button { width: auto; margin-bottom: 0; padding: 6px 12px; }
   margin: .5rem 0 0; padding: .5rem .75rem; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; }
 #col-guide dt { font-weight: 700; color: #374151; }
 #col-guide dd { margin: 0; color: #4b5563; }
+#files-panel { margin: .5rem 0; font-size: 13px; }
+#files-panel .muted { color: #9ca3af; }
+#files-list { list-style: none; margin: .35rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+#files-list li { display: flex; align-items: center; gap: .6rem; }
+#files-list a { color: var(--pico-primary); word-break: break-all; }
+#files-list .lock { color: #92400e; font-size: 12px; }
+#files-list .del-file { padding: 1px 8px; font-size: 12px; }
 #result { margin: .5rem 0; font-size: 14px; display: flex; gap: .5rem; flex-wrap: wrap; }
 #status { color: #6b7280; font-size: 14px; margin: .5rem 0; }
 

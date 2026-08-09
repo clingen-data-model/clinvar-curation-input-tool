@@ -28,6 +28,34 @@ function makeDriveWriter(drive) {
         fields: 'id, webViewLink', supportsAllDrives: true
       });
       return { id: created.data.id, link: created.data.webViewLink };
+    },
+
+    // List non-trashed files in the folder whose name matches a prefix (the
+    // per-batch submission-file stem). Newest first.
+    async listFiles({ folderId, namePrefix }) {
+      if (!folderId) throw new Error('drive.listFiles: folderId required');
+      const safe = String(namePrefix || '').replace(/'/g, "\\'");
+      const q = `'${folderId}' in parents and trashed = false`
+        + (namePrefix ? ` and name contains '${safe}'` : '');
+      const list = await drive.files.list({
+        q, orderBy: 'createdTime desc',
+        fields: 'files(id, name, webViewLink, createdTime)',
+        supportsAllDrives: true, includeItemsFromAllDrives: true
+      });
+      return (list.data.files || []).map((f) => ({ id: f.id, name: f.name, link: f.webViewLink, createdTime: f.createdTime }));
+    },
+
+    // Fetch a file's name (used to enforce the finalized-file delete guard).
+    async getName({ fileId }) {
+      const f = await drive.files.get({ fileId, fields: 'name', supportsAllDrives: true });
+      return f.data.name;
+    },
+
+    // Trash a file (reversible). Scoped by fileId; the caller enforces which
+    // files may be trashed (never the finalized submission file).
+    async trashFile({ fileId }) {
+      await drive.files.update({ fileId, requestBody: { trashed: true }, supportsAllDrives: true });
+      return { trashed: fileId };
     }
   };
 }

@@ -50,12 +50,12 @@ function makeGenerateHandler({ runQuery, writeNdjson, config }) {
     const filename = submissionFilename({ batchId, date, env: config.env });
     if (!rows.length) return { count: 0, filename, link: null, mailto: null };
     const content = buildNdjson(rows.map((r) => r.js));
-    const { link } = await writeNdjson({ folderId: config.driveFolderId, filename, content });
+    const { id, link } = await writeNdjson({ folderId: config.driveFolderId, filename, content });
     const email = buildSubmissionEmail({
       count: rows.length, batchId, generatedDatetime: date,
       recipients: config.recipients, cc: config.cc, fileName: filename
     });
-    return { count: rows.length, filename, link, mailto: mailtoUrl(email) };
+    return { count: rows.length, filename, link, fileId: id, mailto: mailtoUrl(email) };
   };
 }
 

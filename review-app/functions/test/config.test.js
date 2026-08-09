@@ -15,13 +15,13 @@ describe('buildConfigSql', () => {
 });
 
 describe('makeConfigHandler', () => {
-  it('returns nextBatchId + reviewers + recipients', async () => {
-    const runQuery = async () => [{ next_batch_id: '136', reviewers: ['a@x.org'], submission_recipients: ['to@x.org'], submission_cc: [] }];
+  it('returns nextBatchId + reviewers + recipients + lastFinalizedFile', async () => {
+    const runQuery = async () => [{ next_batch_id: '136', reviewers: ['a@x.org'], submission_recipients: ['to@x.org'], submission_cc: [], last_finalized_file: 'v4-DEV-clinvar-annotation-submission-135-20260807.json' }];
     const out = await makeConfigHandler({ runQuery, dataset: 'clinvar_curator_v4_dev' })();
-    expect(out).toEqual({ nextBatchId: '136', reviewers: ['a@x.org'], submissionRecipients: ['to@x.org'], submissionCc: [] });
+    expect(out).toEqual({ nextBatchId: '136', reviewers: ['a@x.org'], submissionRecipients: ['to@x.org'], submissionCc: [], lastFinalizedFile: 'v4-DEV-clinvar-annotation-submission-135-20260807.json' });
   });
   it('defaults gracefully when config is empty', async () => {
     const out = await makeConfigHandler({ runQuery: async () => [], dataset: 'clinvar_curator_v4_dev' })();
-    expect(out).toEqual({ nextBatchId: null, reviewers: [], submissionRecipients: [], submissionCc: [] });
+    expect(out).toEqual({ nextBatchId: null, reviewers: [], submissionRecipients: [], submissionCc: [], lastFinalizedFile: null });
   });
 });

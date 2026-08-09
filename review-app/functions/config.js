@@ -4,7 +4,7 @@ const { assertReadDataset } = require('./dataset-guard.js');
 
 function buildConfigSql({ dataset }) {
   const ds = assertReadDataset(dataset);
-  return `SELECT next_batch_id, reviewers, submission_recipients, submission_cc
+  return `SELECT next_batch_id, reviewers, submission_recipients, submission_cc, last_finalized_file
           FROM \`clingen-dev.${ds}.cvc_review_config\` LIMIT 1`;
 }
 
@@ -15,7 +15,8 @@ function makeConfigHandler({ runQuery, dataset }) {
       nextBatchId: (row && row.next_batch_id) || null,
       reviewers: (row && row.reviewers) || [],
       submissionRecipients: (row && row.submission_recipients) || [],
-      submissionCc: (row && row.submission_cc) || []
+      submissionCc: (row && row.submission_cc) || [],
+      lastFinalizedFile: (row && row.last_finalized_file) || null
     };
   };
 }

@@ -12,6 +12,7 @@ const { google } = require('googleapis');
 const { makeAuthGuard, makeFirestoreAllowlistLookup, authErrorStatus } = require('./auth.js');
 const { makeQueueHandler, buildRefreshQueueSql, buildScvHistorySql } = require('./queue.js');
 const { makeDriveWriter } = require('./drive.js');
+const { makeFilesHandler } = require('./files.js');
 const { makeGenerateHandler } = require('./generate.js');
 const { makeReviewHandler } = require('./review.js');
 const { makeFinalizeHandler } = require('./finalize.js');
@@ -81,6 +82,13 @@ const generateHandler = makeGenerateHandler({
 });
 const yyyymmdd = (d) => `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
 const reviewHandler = makeReviewHandler({ runDml, dataset: REVIEW_DATASET });
+// Generated-file management (list / delete drafts / protect the finalized file).
+const filesHandler = makeFilesHandler({
+  drive: driveWriter,
+  folderId: process.env.REVIEW_DRIVE_FOLDER || '',
+  env: REVIEW_DATASET === 'clinvar_curator_v4' ? 'prod' : 'dev',
+  getFinalizedName: () => configHandler().then((c) => c.lastFinalizedFile)
+});
 
 // Kick the impact-SP refresh as an async job (a 2–5 min re-runnable rebuild);
 // do NOT block finalize on it. Returns synchronously.
@@ -126,6 +134,22 @@ exports.api = onRequest(async (req, res) => {
     if (path === '/scv-history' && req.method === 'GET') {
       const { sql, params } = buildScvHistorySql({ dataset: REVIEW_DATASET, scvId: (req.query && req.query.scvId) || '' });
       res.json({ ok: true, rows: await runQuery(sql, params) });
+      return;
+    }
+    if (path === '/files' && req.method === 'GET') {
+      const batchId = String((req.query && req.query.batchId) || '');
+      res.json({ ok: true, files: await filesHandler.list({ batchId }) });
+      return;
+    }
+    if (path === '/files/delete' && req.method === 'POST') {
+      const fileId = String((req.body && req.body.fileId) || '');
+      if (!fileId) { res.status(400).json({ ok: false, error: 'fileId required' }); return; }
+      res.json({ ok: true, ...(await filesHandler.remove({ fileId })) });
+      return;
+    }
+    if (path === '/files/delete-drafts' && req.method === 'POST') {
+      const batchId = String((req.body && req.body.batchId) || '');
+      res.json({ ok: true, ...(await filesHandler.removeDrafts({ batchId })) });
       return;
     }
     if (path === '/generate' && req.method === 'POST') {
