@@ -83,7 +83,12 @@
       submitter: r.submitter_name || r.submitter_id,
       action: r.action, vreason: r.reason, flags: flags(r),
       auto: r.auto_status || 'manual', auto_note: r.auto_note || '',
-      status: r.rs_review_status || r.auto_status || '',   // prefill: saved else suggestion
+      // Prefill the editable Status with the SAVED status only (blank if
+      // unreviewed) so it matches `baseline` and a row is "dirty" only after a
+      // real edit. The auto-review suggestion stays visible in the Auto column;
+      // it is NOT written into the Status cell (that would make every suggested
+      // row look permanently unsaved and would block the bulk batch buttons).
+      status: r.rs_review_status || '',
       notes: r.rs_notes || '',
       batch: assigned ? `batch ${nextBatchId}` : (eligible ? 'eligible' : '—'),
       batch_reason: assigned ? '' : reason,
