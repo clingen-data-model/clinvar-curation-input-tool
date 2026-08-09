@@ -35,6 +35,25 @@
       <span id="selected-count"></span>
     </div>
     <div id="result"></div>
+    <details id="col-guide">
+      <summary>Column guide — what the flags mean</summary>
+      <dl>
+        <dt>SCV rev status</dt><dd>ClinVar's review status (star rating) for the SCV.</dd>
+        <dt>latest anno</dt><dd>This is the latest CvC annotation for the SCV; blank means a newer annotation supersedes it.</dd>
+        <dt>outdated vcv</dt><dd>A newer VCV (variant record) version exists than when the annotation was made.</dd>
+        <dt>outdated scv</dt><dd>A newer SCV (submission) version exists, or the SCV moved to a different variant.</dd>
+        <dt>moved</dt><dd>The SCV moved to a different ClinVar variation since the annotation.</dd>
+        <dt>deleted</dt><dd>The SCV was deleted from ClinVar on or before the annotation's release.</dd>
+        <dt>deleted rel date</dt><dd>The ClinVar release date on which the SCV was deleted.</dd>
+        <dt>latest scv ver</dt><dd>The current latest version number of the SCV.</dd>
+        <dt>latest scv classif</dt><dd>The SCV's current classification — compare with the classification at annotation time.</dd>
+        <dt>prior same ver</dt><dd>A prior CvC annotation exists for this exact SCV version.</dd>
+        <dt>prior submitted</dt><dd>A prior CvC annotation for this SCV was submitted in a batch.</dd>
+        <dt>Auto</dt><dd>The auto-review suggested status (hover the cell for the reasoning).</dd>
+        <dt>Status</dt><dd>Your CvC review status — OK / Fixed / Archive / Question, or (none).</dd>
+        <dt>Batch</dt><dd>Whether the row is assigned to the next batch, or why it isn't eligible (hover).</dd>
+      </dl>
+    </details>
     <div id="status">Loading…</div>
     <div id="queue" hidden></div>
   </section>
