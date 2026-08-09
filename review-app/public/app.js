@@ -1,10 +1,14 @@
-// app.js — Review & Submit web-app frontend (vanilla JS, no build). Talks to the
-// auth-guarded /api/** backend (Chunks 0–5). DOM/network wiring — verified in
-// the browser after deploy; the backend logic it calls is unit-tested.
+// app.js — Review & Submit web-app frontend (vanilla JS + Tabulator grid + Pico
+// base CSS; still NO build step — both libs load from a CDN). Talks to the
+// auth-guarded /api/** backend. DOM/network wiring is verified in the browser
+// after deploy; the backend logic it calls is unit-tested.
 (function () {
   const $ = (id) => document.getElementById(id);
-  const STATUSES = ['', 'OK', 'Fixed', 'Archive', 'Question'];
+  const STATUS_VALUES = { '': '(none)', OK: 'OK', Fixed: 'Fixed', Archive: 'Archive', Question: 'Question' };
+  const ACTIONABLE = ['flagging candidate', 'remove flagged submission'];
   let nextBatchId = null;
+  let table = null;
+  let baseline = {}; // annotation_id -> { status, notes } as last SAVED (server) values
 
   // DEV banner unless pointed at the prod Firebase project.
   try {
@@ -25,9 +29,7 @@
       body: body ? JSON.stringify(body) : undefined
     });
     const json = await res.json().catch(() => ({}));
-    if (!res.ok || json.ok === false) {
-      throw new Error(json.message || json.error || ('HTTP ' + res.status));
-    }
+    if (!res.ok || json.ok === false) throw new Error(json.message || json.error || ('HTTP ' + res.status));
     return json;
   }
   function err(e) { $('status').textContent = 'Error: ' + (e && e.message ? e.message : e); }
@@ -47,28 +49,13 @@
     }
   });
 
-  // --- data ------------------------------------------------------------------
   async function loadConfig() {
     const c = await api('/config');
     nextBatchId = c.nextBatchId;
     $('next-batch').textContent = nextBatchId || '(unset)';
   }
 
-  async function loadQueue() {
-    $('status').textContent = 'Loading queue…';
-    $('queue').hidden = true;
-    try {
-      const { rows } = await api('/queue');
-      renderQueue(rows || []);
-      const assigned = (rows || []).filter((r) => r.rs_batch_id === nextBatchId).length;
-      $('assigned-count').textContent = `${assigned} assigned to batch ${nextBatchId} · ${rows.length} in queue`;
-      $('status').textContent = rows.length ? '' : 'Queue is empty — no unreviewed annotations.';
-      $('queue').hidden = rows.length === 0;
-    } catch (e) { err(e); }
-  }
-
-  // --- render ----------------------------------------------------------------
-  function cell(text) { const td = document.createElement('td'); td.textContent = text == null ? '' : String(text); return td; }
+  // --- row shaping -----------------------------------------------------------
   function flags(r) {
     const f = [];
     if (r.is_deleted_scv) f.push('deleted');
@@ -76,124 +63,114 @@
     if (!r.is_latest_annotation) f.push('superseded');
     return f.join(', ');
   }
+  // Map a queue row to the grid's row object + derived assign/select flags.
+  // Eligibility is on the SAVED status (rs_review_status), not the editable
+  // `status` cell — the backend gate re-checks it, so a status must be Saved
+  // before a row can be added to a batch.
+  function toRowData(r) {
+    const assigned = r.rs_batch_id != null && String(r.rs_batch_id) === String(nextBatchId);
+    const savedOk = r.rs_review_status === 'OK';
+    const actionable = ACTIONABLE.includes(String(r.action || '').toLowerCase());
+    const eligible = !assigned && savedOk && actionable && !r.fresh;
+    let reason = '';
+    if (!actionable) reason = 'only Flagging Candidate / Remove Flagged Submission can be batched';
+    else if (!savedOk) reason = 'set status OK and Save first';
+    else if (r.fresh) reason = 'awaiting enrichment — refresh from capture';
+    return {
+      id: r.annotation_id, annotation_id: r.annotation_id, scv_id: r.scv_id, scv_ver: r.scv_ver,
+      scv: `${r.scv_id}.${r.scv_ver}${r.fresh ? ' 🆕' : ''}`,
+      variant: `${r.vcv_id} (var ${r.variation_id})`,
+      submitter: r.submitter_name || r.submitter_id,
+      action: r.action, vreason: r.reason, flags: flags(r),
+      auto: r.auto_status || 'manual', auto_note: r.auto_note || '',
+      status: r.rs_review_status || r.auto_status || '',   // prefill: saved else suggestion
+      notes: r.rs_notes || '',
+      batch: assigned ? `batch ${nextBatchId}` : (eligible ? 'eligible' : '—'),
+      batch_reason: assigned ? '' : reason,
+      _assigned: assigned, _eligible: eligible, _selectable: assigned || eligible, _fresh: !!r.fresh
+    };
+  }
+  function isDirty(d) { const b = baseline[d.id]; return !!b && (d.status !== b.status || d.notes !== b.notes); }
+  function currentDirty() { return table ? table.getData().filter(isDirty) : []; }
 
-  const ACTIONABLE = ['flagging candidate', 'remove flagged submission'];
-  // Per-row control handles, rebuilt on each render. `base` is the SERVER-SAVED
-  // status/notes; a row is "dirty" when its live control value differs from base
-  // (so an auto-review suggestion prefilled but not yet saved reads as unsaved).
-  let rowCtls = [];
-
-  function isDirty(c) { return c.sel.value !== c.base.status || c.note.value !== c.base.notes; }
-  function dirtyRows() { return rowCtls.filter(isDirty); }
-  // Only rows that can be added/unassigned carry a checkbox (cb); the rest have cb === null.
-  function selectableCtls() { return rowCtls.filter((c) => c.cb); }
-  function selectedCtls() { return selectableCtls().filter((c) => c.cb.checked); }
-
+  // --- toolbar state ---------------------------------------------------------
   function refreshDirty() {
-    let n = 0;
-    rowCtls.forEach((c) => { const d = isDirty(c); c.tr.classList.toggle('dirty', d); if (d) n++; });
+    const n = currentDirty().length;
     $('save-all').disabled = n === 0;
     const u = $('unsaved'); u.hidden = n === 0;
     u.textContent = n ? `${n} unsaved change${n > 1 ? 's' : ''}` : '';
   }
   function refreshSelection() {
-    const sel = selectedCtls();
-    $('assign-selected').disabled = !sel.some((c) => c.eligible);
-    $('unassign-selected').disabled = !sel.some((c) => c.assigned);
+    const sel = table ? table.getSelectedData() : [];
+    $('assign-selected').disabled = !sel.some((d) => d._eligible);
+    $('unassign-selected').disabled = !sel.some((d) => d._assigned);
     $('selected-count').textContent = sel.length ? `${sel.length} selected` : '';
-    const cbs = selectableCtls();
-    $('select-all').checked = cbs.length > 0 && cbs.every((c) => c.cb.checked);
-    $('select-all').disabled = cbs.length === 0;
   }
 
-  function renderQueue(rows) {
-    const tb = $('queue').querySelector('tbody');
-    tb.textContent = '';
-    rowCtls = [];
-    rows.forEach((r) => {
-      const tr = document.createElement('tr');
-      if (r.fresh) tr.classList.add('fresh');
-
-      const assigned = r.rs_batch_id === nextBatchId;
-      const savedOk = r.rs_review_status === 'OK';
-      const actionable = ACTIONABLE.includes(String(r.action || '').toLowerCase());
-      // Assign gate is on the SAVED status (not the unsaved select) — the backend
-      // gate re-checks it anyway, so a status must be Saved before assigning.
-      const eligible = !assigned && savedOk && actionable && !r.fresh;
-      let reason = '';
-      if (!actionable) reason = 'only Flagging Candidate / Remove Flagged Submission can be batched';
-      else if (!savedOk) reason = 'set status OK and Save first';
-      else if (r.fresh) reason = 'awaiting enrichment — refresh from capture';
-
-      // selection checkbox — present ONLY on rows that can be added or
-      // unassigned; other rows show an empty cell (the Batch column carries the
-      // reason). cb stays null for those so the bulk helpers skip them.
-      const cbTd = document.createElement('td'); cbTd.className = 'sel';
-      let cb = null;
-      if (assigned || eligible) {
-        cb = document.createElement('input'); cb.type = 'checkbox';
-        cb.title = assigned ? 'select to unassign from the batch' : 'select to add to the batch';
-        cb.addEventListener('change', refreshSelection);
-        cbTd.appendChild(cb);
-      }
-      tr.appendChild(cbTd);
-
-      tr.appendChild(cell(`${r.scv_id}.${r.scv_ver}${r.fresh ? '  🆕' : ''}`));
-      tr.appendChild(cell(`${r.vcv_id} (var ${r.variation_id})`));
-      tr.appendChild(cell(r.submitter_name || r.submitter_id));
-      tr.appendChild(cell(r.action));
-      tr.appendChild(cell(r.reason));
-      tr.appendChild(cell(flags(r)));
-      const auto = cell(r.auto_status ? `${r.auto_status}` : 'manual');
-      auto.title = r.auto_note || ''; auto.className = 'auto';
-      tr.appendChild(auto);
-
-      // status select (prefilled with the saved status, else the auto suggestion)
-      const stTd = document.createElement('td');
-      const sel = document.createElement('select');
-      STATUSES.forEach((s) => { const o = document.createElement('option'); o.value = s; o.textContent = s || '(none)'; sel.appendChild(o); });
-      sel.value = r.rs_review_status || r.auto_status || '';
-      sel.addEventListener('change', refreshDirty);
-      stTd.appendChild(sel); tr.appendChild(stTd);
-
-      // review notes
-      const noteTd = document.createElement('td');
-      const note = document.createElement('input'); note.type = 'text'; note.value = r.rs_notes || '';
-      note.addEventListener('input', refreshDirty);
-      noteTd.appendChild(note); tr.appendChild(noteTd);
-
-      // batch status (read-only; assignment is via the checkbox + bulk buttons)
-      const batchTd = document.createElement('td');
-      if (assigned) { batchTd.textContent = `batch ${nextBatchId}`; batchTd.className = 'assigned'; }
-      else if (eligible) { batchTd.textContent = 'eligible'; batchTd.className = 'eligible'; }
-      else { batchTd.textContent = '—'; batchTd.title = reason; }
-      tr.appendChild(batchTd);
-
-      tb.appendChild(tr);
-      rowCtls.push({ r, tr, sel, note, cb, assigned, eligible, base: { status: r.rs_review_status || '', notes: r.rs_notes || '' } });
+  // --- Tabulator grid --------------------------------------------------------
+  const COLUMNS = [
+    { formatter: 'rowSelection', titleFormatter: 'rowSelection', hozAlign: 'center', headerSort: false, width: 42 },
+    { title: 'SCV', field: 'scv', width: 140, headerFilter: 'input' },
+    { title: 'Variant', field: 'variant', headerFilter: 'input' },
+    { title: 'Submitter', field: 'submitter', headerFilter: 'input' },
+    { title: 'Action', field: 'action', width: 170, headerFilter: 'input' },
+    { title: 'Reason', field: 'vreason', headerFilter: 'input' },
+    { title: 'Flags', field: 'flags', width: 110, headerFilter: 'input' },
+    { title: 'Auto', field: 'auto', width: 90, tooltip: (e, cell) => cell.getData().auto_note || '' },
+    { title: 'Status', field: 'status', width: 120, editor: 'list', editorParams: { values: STATUS_VALUES }, headerFilter: 'list', headerFilterParams: { values: STATUS_VALUES } },
+    { title: 'Review notes', field: 'notes', widthGrow: 2, editor: 'input' },
+    { title: 'Batch', field: 'batch', width: 100, tooltip: (e, cell) => cell.getData().batch_reason || '' }
+  ];
+  function rowFormatter(row) {
+    const d = row.getData(); const el = row.getElement();
+    el.classList.toggle('fresh', !!d._fresh);
+    el.classList.toggle('dirty', isDirty(d));
+  }
+  // Build once, then replaceData on reload (returns a promise resolved when ready).
+  function loadIntoTable(data) {
+    return new Promise((resolve) => {
+      if (table) { table.replaceData(data).then(() => resolve()); return; }
+      table = new Tabulator('#queue', {
+        index: 'id', layout: 'fitColumns', height: '64vh', data,
+        placeholder: 'Queue is empty — no unreviewed annotations.',
+        selectableRows: true, selectableRowsCheck: (row) => row.getData()._selectable,
+        columns: COLUMNS, rowFormatter
+      });
+      // reformat re-runs rowFormatter so the dirty tint tracks the edit
+      table.on('cellEdited', (cell) => { cell.getRow().reformat(); refreshDirty(); });
+      table.on('rowSelectionChanged', () => refreshSelection());
+      table.on('tableBuilt', () => resolve());
     });
-    refreshDirty();
-    refreshSelection();
   }
 
-  // --- batch actions ---------------------------------------------------------
+  async function loadQueue() {
+    $('status').textContent = 'Loading queue…';
+    try {
+      const { rows } = await api('/queue');
+      baseline = {};
+      rows.forEach((r) => { baseline[r.annotation_id] = { status: r.rs_review_status || '', notes: r.rs_notes || '' }; });
+      const data = rows.map(toRowData);
+      $('queue').hidden = false;
+      await loadIntoTable(data);
+      refreshDirty(); refreshSelection();
+      const assigned = data.filter((d) => d._assigned).length;
+      $('assigned-count').textContent = `${assigned} assigned to batch ${nextBatchId} · ${rows.length} in queue`;
+      $('status').textContent = rows.length ? '' : 'Queue is empty — no unreviewed annotations.';
+    } catch (e) { err(e); }
+  }
+
+  // --- actions ---------------------------------------------------------------
   $('reload').addEventListener('click', () => {
-    if (dirtyRows().length && !confirm('Discard unsaved changes and reload?')) return;
+    if (currentDirty().length && !confirm('Discard unsaved changes and reload?')) return;
     loadQueue();
   });
 
-  // Select-all toggles every row that has a checkbox.
-  $('select-all').addEventListener('change', (e) => {
-    selectableCtls().forEach((c) => { c.cb.checked = e.target.checked; });
-    refreshSelection();
-  });
-
-  // Save all edited rows in ONE request (rows without a status can't persist —
+  // Save every edited row in ONE request (rows without a status can't persist —
   // cvc_review_state requires one — so they're skipped and reported).
   $('save-all').addEventListener('click', async () => {
-    const dirty = dirtyRows();
-    const edits = dirty.filter((c) => c.sel.value !== '').map((c) => ({
-      annotationId: c.r.annotation_id, scvId: c.r.scv_id, scvVer: c.r.scv_ver, status: c.sel.value, notes: c.note.value
+    const dirty = currentDirty();
+    const edits = dirty.filter((d) => d.status !== '').map((d) => ({
+      annotationId: d.annotation_id, scvId: d.scv_id, scvVer: d.scv_ver, status: d.status, notes: d.notes
     }));
     if (!edits.length) { $('status').textContent = 'Nothing to save — set a status first.'; return; }
     $('save-all').disabled = true; $('status').textContent = `Saving ${edits.length}…`;
@@ -206,12 +183,11 @@
     } catch (e) { err(e); refreshDirty(); }
   });
 
-  $('assign-selected').addEventListener('click', () => bulkBatch('/assign-bulk', (c) => c.eligible, 'assign'));
-  $('unassign-selected').addEventListener('click', () => bulkBatch('/unassign-bulk', (c) => c.assigned, 'unassign'));
-
+  $('assign-selected').addEventListener('click', () => bulkBatch('/assign-bulk', (d) => d._eligible, 'assign'));
+  $('unassign-selected').addEventListener('click', () => bulkBatch('/unassign-bulk', (d) => d._assigned, 'unassign'));
   async function bulkBatch(path, pick, verb) {
-    if (dirtyRows().length) { $('status').textContent = 'Save your changes first — unsaved edits would be lost on reload.'; return; }
-    const ids = selectedCtls().filter(pick).map((c) => c.r.annotation_id);
+    if (currentDirty().length) { $('status').textContent = 'Save your changes first — unsaved edits would be lost on reload.'; return; }
+    const ids = table.getSelectedData().filter(pick).map((d) => d.annotation_id);
     if (!ids.length) { $('status').textContent = `None of the selected rows can be ${verb === 'assign' ? 'added' : 'unassigned'}.`; return; }
     $('assign-selected').disabled = $('unassign-selected').disabled = true;
     $('status').textContent = `${verb === 'assign' ? 'Adding' : 'Unassigning'} ${ids.length}…`;
@@ -224,27 +200,19 @@
     } catch (e) { err(e); refreshSelection(); }
   }
 
-  // Warn before leaving with unsaved status/notes edits.
-  window.addEventListener('beforeunload', (e) => {
-    if (dirtyRows().length) { e.preventDefault(); e.returnValue = ''; }
-  });
   $('generate').addEventListener('click', async () => {
     $('result').textContent = 'Generating…';
-    try {
-      const out = await api('/generate', 'POST', { batchId: nextBatchId });
-      showResult('Generated', out);
-    } catch (e) { err(e); }
+    try { showResult('Generated', await api('/generate', 'POST', { batchId: nextBatchId })); }
+    catch (e) { err(e); }
   });
   $('finalize').addEventListener('click', async () => {
     if (!confirm(`Finalize batch ${nextBatchId}? This persists the batch and advances the batch id.`)) return;
     $('result').textContent = 'Finalizing…';
     try {
-      const out = await api('/finalize', 'POST', { batchId: nextBatchId });
-      showResult('Finalized', out);
+      showResult('Finalized', await api('/finalize', 'POST', { batchId: nextBatchId }));
       await loadConfig(); await loadQueue();
     } catch (e) { err(e); }
   });
-
   function showResult(label, out) {
     const r = $('result'); r.textContent = '';
     if (!out.count) { r.textContent = `${label}: nothing to submit (0 annotations).`; return; }
@@ -254,4 +222,9 @@
     if (out.link) { const a = document.createElement('a'); a.href = out.link; a.textContent = out.filename || 'submission file'; a.target = '_blank'; r.appendChild(a); }
     if (out.mailto) { const m = document.createElement('a'); m.href = out.mailto; m.textContent = ' — draft submission email'; r.appendChild(m); }
   }
+
+  // Warn before leaving with unsaved status/notes edits.
+  window.addEventListener('beforeunload', (e) => {
+    if (currentDirty().length) { e.preventDefault(); e.returnValue = ''; }
+  });
 })();

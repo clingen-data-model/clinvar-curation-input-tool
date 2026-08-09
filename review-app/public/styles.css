@@ -1,32 +1,25 @@
-body { font-family: system-ui, sans-serif; margin: 1.5rem; color: #111827; }
+/* App-specific styling on top of Pico (base) + Tabulator (the grid). */
+:root { --pico-font-size: 90%; --pico-spacing: .6rem; }
+body { margin: 1.25rem; }
+
 #dev-banner { background: #b91c1c; color: #fff; padding: 3px 10px; border-radius: 4px;
   display: inline-block; font-weight: 700; font-size: 12px; margin-bottom: .5rem; }
 header { display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap; }
 header h1 { font-size: 1.25rem; margin: 0; }
 #whoami { color: #6b7280; font-size: 13px; }
-button { font: inherit; padding: 4px 10px; border: 1px solid #374151; border-radius: 4px;
-  background: #374151; color: #fff; cursor: pointer; }
-button:disabled { opacity: .6; cursor: default; }
-#batch-panel { margin: 1rem 0 .25rem; display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; }
-#batch-panel #assigned-count { color: #6b7280; font-size: 13px; }
-#review-actions { margin: .25rem 0 1rem; display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+
+/* Toolbars: inline, auto-width buttons (Pico defaults buttons to block/full-width). */
+#batch-panel, #review-actions { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; margin: .5rem 0; }
+button { width: auto; margin-bottom: 0; padding: 6px 12px; }
+#assigned-count, #selected-count { color: #6b7280; font-size: 13px; }
 #review-actions .sep { color: #d1d5db; }
-#review-actions #selected-count { color: #6b7280; font-size: 13px; }
 .unsaved { background: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 10px;
   font-size: 12px; font-weight: 600; }
+
 #result { margin: .5rem 0; font-size: 14px; display: flex; gap: .5rem; flex-wrap: wrap; }
-#result a { color: #2563eb; }
 #status { color: #6b7280; font-size: 14px; margin: .5rem 0; }
-table { border-collapse: collapse; width: 100%; font-size: 13px; }
-th, td { border: 1px solid #e5e7eb; padding: 4px 6px; text-align: left; vertical-align: top; }
-th { background: #f3f4f6; position: sticky; top: 0; }
-td.auto { font-weight: 600; color: #2563eb; cursor: help; }
-tr.fresh { background: #fffbeb; }  /* just-captured, not yet enriched in BQ */
-tr.dirty { background: #eff6ff; }  /* unsaved status/notes edits */
-tr.dirty.fresh { background: #fefce8; }
-th.sel, td.sel { width: 1.5rem; text-align: center; }
-td.assigned { color: #065f46; font-weight: 600; }
-td.eligible { color: #6b7280; }
-button:disabled { cursor: not-allowed; }
-td input[type=text] { width: 12rem; font: inherit; }
-td select { font: inherit; }
+
+/* Tabulator row states — override the grid's own row background. */
+.tabulator .tabulator-row.fresh { background-color: #fffbeb; }  /* just-captured, not yet enriched */
+.tabulator .tabulator-row.dirty { background-color: #eff6ff; }  /* unsaved status/notes edits */
+.tabulator .tabulator-row.dirty.fresh { background-color: #fefce8; }
