@@ -71,20 +71,30 @@ function buildReviewStateSql({ dataset, ids }) {
 }
 
 // Full CvC annotation history for one SCV id (all versions), for the queue's
-// click-to-expand "prior annotations" popover. Sourced from cvc_annotations("ALL")
-// — the same TVF the queue base is built from — so review/submission outcome
-// (review_status/reviewer/batch_id/is_submitted_annotation) is included. NOTE:
-// this scans the TVF (~few GB) per call; it's click-driven (only SCVs that have
-// prior annotations, one at a time), acceptable for dev. Parameterized (no
-// injection); dataset-guarded (v4 only). Read-only.
+// click-to-expand "prior annotations" popover. Reads the SMALL native_v4 table
+// (not the ~GB cvc_annotations TVF — that made the popover take seconds) and
+// LEFT JOINs the small review/submission tables for the workflow outcome, so it
+// returns in well under a second. native_v4.scv_id carries the version
+// ("SCV….N") — split it into base id + version. Parameterized; dataset-guarded.
 function buildScvHistorySql({ dataset, scvId }) {
   const ds = assertReadDataset(dataset);
   if (!scvId || !/^[A-Za-z0-9._:-]+$/.test(String(scvId))) throw new Error(`scv-history: bad scvId '${scvId}'`);
+  const B = `clingen-dev.${ds}`;
   const sql = [
-    'SELECT scv_id, scv_ver, annotated_date, curator, action, reason,',
-    '  review_status, reviewer, batch_id, is_submitted_annotation',
-    `FROM \`clingen-dev.${ds}.cvc_annotations\`("ALL")`,
-    'WHERE scv_id = @scvId',
+    'SELECT',
+    "  REGEXP_REPLACE(n.scv_id, r'\\.\\d+$', '') AS scv_id,",
+    "  SAFE_CAST(REGEXP_EXTRACT(n.scv_id, r'\\.(\\d+)$') AS INT64) AS scv_ver,",
+    '  DATE(n.annotation_date) AS annotated_date,',
+    '  n.curator_email AS curator, n.action, n.reason,',
+    '  COALESCE(rev.status, rs.review_status) AS review_status,',
+    '  COALESCE(rev.reviewer, rs.reviewer) AS reviewer,',
+    '  COALESCE(rev.batch_id, sub.batch_id, rs.batch_id) AS batch_id,',
+    '  (sub.annotation_id IS NOT NULL) AS is_submitted_annotation',
+    `FROM \`${B}.cvc_annotations_native_v4\` n`,
+    `LEFT JOIN \`${B}.cvc_review_state\` rs ON rs.annotation_id = n.annotation_id`,
+    `LEFT JOIN \`${B}.cvc_clinvar_reviews\` rev ON rev.annotation_id = n.annotation_id`,
+    `LEFT JOIN \`${B}.cvc_clinvar_submissions\` sub ON sub.annotation_id = n.annotation_id`,
+    "WHERE REGEXP_REPLACE(n.scv_id, r'\\.\\d+$', '') = @scvId",
     'ORDER BY scv_ver, annotated_date'
   ].join('\n');
   return { sql, params: { scvId: String(scvId) } };
@@ -115,8 +125,12 @@ function splitScv(scv) {
 // the overlay doesn't show a saved row as unsaved.
 function shapeFreshRow(doc, rs) {
   const { scv_id, scv_ver } = splitScv(doc.scv);
+  // Display the VCV versionless (strip a trailing ".N") to match enriched rows,
+  // whose vcv_id from the TVF is the base accession. The version is preserved in
+  // BQ; on the queue it's the is_outdated_vcv flag that conveys version drift.
+  const vcvBase = String(doc.vcv || '').replace(/\.\d+$/, '');
   return {
-    annotation_id: doc.annotation_id, variation_id: doc.variation_id, vcv_id: doc.vcv,
+    annotation_id: doc.annotation_id, variation_id: doc.variation_id, vcv_id: vcvBase,
     scv_id, scv_ver, submitter_id: doc.submitter_id, submitter_name: doc.submitter,
     action: String(doc.action || '').toLowerCase(), reason: doc.reason, notes: doc.notes,
     curator: doc.user_email, clinvar_review_status: doc.review_status,
