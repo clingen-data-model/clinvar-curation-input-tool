@@ -6,8 +6,12 @@
 // check. Deploy ONLY with: firebase deploy --only hosting,functions
 // (never a bare `firebase deploy` — see review-app/README.md).
 const { onRequest } = require('firebase-functions/v2/https');
+const { onDocumentCreated } = require('firebase-functions/v2/firestore');
+const { onTaskDispatched } = require('firebase-functions/v2/tasks');
 const admin = require('firebase-admin');
+const { getFunctions } = require('firebase-admin/functions');
 const { BigQuery } = require('@google-cloud/bigquery');
+const { Storage } = require('@google-cloud/storage');
 const { google } = require('googleapis');
 const { makeAuthGuard, makeFirestoreAllowlistLookup, authErrorStatus } = require('./auth.js');
 const { makeQueueHandler, buildRefreshQueueSql, buildScvHistorySql } = require('./queue.js');
@@ -17,6 +21,7 @@ const { makeGenerateHandler } = require('./generate.js');
 const { makeReviewHandler } = require('./review.js');
 const { makeFinalizeHandler } = require('./finalize.js');
 const { makeConfigHandler } = require('./config.js');
+const { makeEnricher, debounceTaskId } = require('./enrich.js');
 
 admin.initializeApp();
 
@@ -82,6 +87,21 @@ const generateHandler = makeGenerateHandler({
 });
 const yyyymmdd = (d) => `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
 const reviewHandler = makeReviewHandler({ runDml, dataset: REVIEW_DATASET });
+// Event-driven enrichment: capture (clingen-cvc-dev/us-central1) → native_v4 (US)
+// via a GCS hop, then base refresh + release stamp. captureProject defaults to
+// this Firebase project; the staging bucket is us-central1 (colocated with the
+// capture for `bq extract`).
+const CAPTURE_PROJECT = process.env.CAPTURE_PROJECT || (admin.app().options.projectId) || 'clingen-cvc-dev';
+const ENRICH_BUCKET = process.env.ENRICH_BUCKET || 'clingen-dev-cvc-native-v4-staging';
+const ENRICH_GCS_PREFIX = process.env.ENRICH_GCS_PREFIX || 'native_v4_dev';
+const ENRICH_WINDOW_SEC = Number(process.env.ENRICH_WINDOW_SEC || 90); // debounce window
+const centralBq = new BigQuery({ projectId: CAPTURE_PROJECT, location: 'us-central1' });
+const enricher = makeEnricher({
+  centralBq, usBq: bq, bucket: new Storage().bucket(ENRICH_BUCKET),
+  config: { captureProject: CAPTURE_PROJECT, dataset: REVIEW_DATASET, gcsPrefix: ENRICH_GCS_PREFIX },
+  log: (m) => console.log('[enrich]', m)
+});
+
 // Generated-file management (list / delete drafts / protect the finalized file).
 const filesHandler = makeFilesHandler({
   drive: driveWriter,
@@ -198,7 +218,21 @@ exports.api = onRequest(async (req, res) => {
       res.json({ ok: true, ...out });
       return;
     }
+    if (path === '/reprocess' && req.method === 'POST') {
+      // Manual "Re-process now" — re-enrich against the current ClinVar release.
+      await enricher.run();
+      res.json({ ok: true, reprocessed: true });
+      return;
+    }
     if (path === '/finalize' && req.method === 'POST') {
+      // BLOCK finalize while the in-flight cycle is stale vs a newer ClinVar
+      // release — the curator must Re-process first (their explicit choice).
+      const cfg = await configHandler();
+      if (cfg.releaseStale) {
+        res.status(409).json({ ok: false, error: 'releaseStale',
+          message: `A newer ClinVar release (${cfg.currentRelease}) is available; the queue reflects ${cfg.baseReleaseDate || 'an older release'}. Re-process before finalizing.` });
+        return;
+      }
       const batchId = String((req.body && req.body.batchId) || '');
       const d = new Date();
       const fdt = `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`;
@@ -212,3 +246,28 @@ exports.api = onRequest(async (req, res) => {
     res.status(authErrorStatus(err)).json({ ok: false, error: err.code || 'error', message: err.message });
   }
 });
+
+// --- event-driven enrichment (capture → enrich, debounced) ------------------
+// A new capture enqueues an enrichment task keyed by a time-bucket id, so a burst
+// of captures collapses to ONE run ~ENRICH_WINDOW_SEC later (dedup on task id).
+exports.onCapture = onDocumentCreated(
+  { document: 'clinvar_cvc_ext_annotations/{docId}', region: 'us-central1', database: '(default)' },
+  async () => {
+    try {
+      const id = debounceTaskId(Date.now(), ENRICH_WINDOW_SEC);
+      await getFunctions().taskQueue('enrichQueue').enqueue({}, { id, scheduleDelaySeconds: ENRICH_WINDOW_SEC });
+      console.log('[enrich] enqueued', id);
+    } catch (e) {
+      // ALREADY_EXISTS = a capture in this window already enqueued the run (the
+      // debounce working as intended). Anything else: log, never throw.
+      if (!/ALREADY_EXISTS|already exists/i.test(e && e.message || '')) console.error('[enrich] enqueue failed:', e && e.message);
+    }
+  }
+);
+
+// Runs the enrichment (serialized: one at a time). Retries a couple times on
+// transient BQ/GCS errors; a failed run just means the next capture re-triggers.
+exports.enrichQueue = onTaskDispatched(
+  { region: 'us-central1', retryConfig: { maxAttempts: 3, minBackoffSeconds: 30 }, rateLimits: { maxConcurrentDispatches: 1 } },
+  async () => { await enricher.run(); }
+);

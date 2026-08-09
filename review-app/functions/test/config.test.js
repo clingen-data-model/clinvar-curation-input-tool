@@ -15,13 +15,22 @@ describe('buildConfigSql', () => {
 });
 
 describe('makeConfigHandler', () => {
-  it('returns nextBatchId + reviewers + recipients + lastFinalizedFile', async () => {
-    const runQuery = async () => [{ next_batch_id: '136', reviewers: ['a@x.org'], submission_recipients: ['to@x.org'], submission_cc: [], last_finalized_file: 'v4-DEV-clinvar-annotation-submission-135-20260807.json' }];
+  it('returns config + release freshness (base vs current release)', async () => {
+    const runQuery = async () => [{ next_batch_id: '136', reviewers: ['a@x.org'], submission_recipients: ['to@x.org'], submission_cc: [], last_finalized_file: 'f.json', base_release_date: { value: '2026-08-04' }, current_release: { value: '2026-08-04' } }];
     const out = await makeConfigHandler({ runQuery, dataset: 'clinvar_curator_v4_dev' })();
-    expect(out).toEqual({ nextBatchId: '136', reviewers: ['a@x.org'], submissionRecipients: ['to@x.org'], submissionCc: [], lastFinalizedFile: 'v4-DEV-clinvar-annotation-submission-135-20260807.json' });
+    expect(out).toMatchObject({ nextBatchId: '136', lastFinalizedFile: 'f.json', baseReleaseDate: '2026-08-04', currentRelease: '2026-08-04', releaseStale: false });
+  });
+  it('flags releaseStale when a newer release than the base exists', async () => {
+    const runQuery = async () => [{ next_batch_id: '136', base_release_date: { value: '2026-07-01' }, current_release: { value: '2026-08-04' } }];
+    const out = await makeConfigHandler({ runQuery, dataset: 'clinvar_curator_v4_dev' })();
+    expect(out.releaseStale).toBe(true);
+  });
+  it('is stale when base has never been stamped but a release exists', async () => {
+    const runQuery = async () => [{ next_batch_id: '136', base_release_date: null, current_release: { value: '2026-08-04' } }];
+    expect((await makeConfigHandler({ runQuery, dataset: 'clinvar_curator_v4_dev' })()).releaseStale).toBe(true);
   });
   it('defaults gracefully when config is empty', async () => {
     const out = await makeConfigHandler({ runQuery: async () => [], dataset: 'clinvar_curator_v4_dev' })();
-    expect(out).toEqual({ nextBatchId: null, reviewers: [], submissionRecipients: [], submissionCc: [], lastFinalizedFile: null });
+    expect(out).toMatchObject({ nextBatchId: null, reviewers: [], lastFinalizedFile: null, baseReleaseDate: null, currentRelease: null, releaseStale: false });
   });
 });

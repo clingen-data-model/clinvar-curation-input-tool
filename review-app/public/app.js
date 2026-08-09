@@ -50,10 +50,21 @@
     }
   });
 
+  let releaseStale = false;
   async function loadConfig() {
     const c = await api('/config');
     nextBatchId = c.nextBatchId;
     $('next-batch').textContent = nextBatchId || '(unset)';
+    // Staleness: the queue was enriched against an older ClinVar release than
+    // clinvar_ingest now has. Show a banner + block Finalize until re-processed.
+    releaseStale = !!c.releaseStale;
+    $('release-banner').hidden = !releaseStale;
+    if (releaseStale) {
+      $('release-msg').textContent =
+        `⚠ A newer ClinVar release (${c.currentRelease}) is available; the queue reflects ${c.baseReleaseDate || 'an older release'}. Re-process this review cycle before finalizing.`;
+    }
+    $('finalize').disabled = releaseStale;
+    $('finalize').title = releaseStale ? 'Re-process the queue against the current ClinVar release first' : '';
   }
 
   // --- row shaping -----------------------------------------------------------
@@ -214,6 +225,17 @@
       $('status').textContent = rows.length ? '' : 'Queue is empty — no unreviewed annotations.';
     } catch (e) { err(e); }
   }
+
+  // Re-process: re-enrich the queue against the current ClinVar release, then reload.
+  $('reprocess').addEventListener('click', async () => {
+    const btn = $('reprocess'); btn.disabled = true; btn.textContent = 'Re-processing…';
+    $('status').textContent = 'Re-processing the review cycle against the current ClinVar release…';
+    try {
+      await api('/reprocess', 'POST', {});
+      $('status').textContent = 'Re-processed — queue now reflects the current release.';
+      await loadConfig(); await loadQueue(); await loadFiles();
+    } catch (e) { err(e); } finally { btn.disabled = false; btn.textContent = 'Re-process now'; }
+  });
 
   // --- generated files panel -------------------------------------------------
   async function loadFiles() {
