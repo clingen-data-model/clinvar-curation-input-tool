@@ -51,8 +51,11 @@ CREATE TABLE IF NOT EXISTS `clingen-dev.@@DATASET@@.cvc_review_config` (
   last_finalized_date    TIMESTAMP,
   reviewers              ARRAY<STRING>,
   submission_recipients  ARRAY<STRING>,
-  submission_cc          ARRAY<STRING>
+  submission_cc          ARRAY<STRING>,
+  last_finalized_file    STRING          -- name of the last finalized submission file (protected from deletion)
 );
+-- Additive migration for pre-existing config tables.
+ALTER TABLE `clingen-dev.@@DATASET@@.cvc_review_config` ADD COLUMN IF NOT EXISTS last_finalized_file STRING;
 -- Seed the single config row only if the table is empty (idempotent).
 INSERT INTO `clingen-dev.@@DATASET@@.cvc_review_config`
   (next_batch_id, last_finalized_date, reviewers, submission_recipients, submission_cc)

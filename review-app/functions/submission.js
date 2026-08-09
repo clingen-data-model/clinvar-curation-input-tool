@@ -9,9 +9,14 @@
 // can NEVER collide with, or be mistaken for, a live-pipeline file
 // (`clinvar-annotation-submission-*`). At cutover (prod) it matches the legacy
 // name exactly, preserving the reviewers' "grab it from the folder" habit.
-function submissionFilename({ batchId, date, env }) {
+// The per-batch filename stem (everything before the date) — used both to name a
+// file and to LIST all of a batch's generated files in the folder.
+function submissionFilePrefix({ batchId, env }) {
   const prefix = env === 'prod' ? '' : 'v4-DEV-';
-  return `${prefix}clinvar-annotation-submission-${batchId}-${date}.json`;
+  return `${prefix}clinvar-annotation-submission-${batchId}-`;
+}
+function submissionFilename({ batchId, date, env }) {
+  return `${submissionFilePrefix({ batchId, env })}${date}.json`;
 }
 
 // Build the submission email fields (mirrors Generate.js createDraftEmail
@@ -41,4 +46,4 @@ function mailtoUrl({ to, cc, subject, body }) {
   return `mailto:${(to || []).join(',')}${q}`;
 }
 
-module.exports = { submissionFilename, buildSubmissionEmail, mailtoUrl };
+module.exports = { submissionFilePrefix, submissionFilename, buildSubmissionEmail, mailtoUrl };
