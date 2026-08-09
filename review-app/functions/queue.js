@@ -125,12 +125,11 @@ function splitScv(scv) {
 // the overlay doesn't show a saved row as unsaved.
 function shapeFreshRow(doc, rs) {
   const { scv_id, scv_ver } = splitScv(doc.scv);
-  // Display the VCV versionless (strip a trailing ".N") to match enriched rows,
-  // whose vcv_id from the TVF is the base accession. The version is preserved in
-  // BQ; on the queue it's the is_outdated_vcv flag that conveys version drift.
-  const vcvBase = String(doc.vcv || '').replace(/\.\d+$/, '');
+  // Show the VCV exactly as captured, INCLUDING its version — for a fresh row the
+  // version is meaningful (e.g. an older-version capture like VCV…010.100). It
+  // normalizes to the base accession + the is_outdated_vcv flag once enriched.
   return {
-    annotation_id: doc.annotation_id, variation_id: doc.variation_id, vcv_id: vcvBase,
+    annotation_id: doc.annotation_id, variation_id: doc.variation_id, vcv_id: doc.vcv,
     scv_id, scv_ver, submitter_id: doc.submitter_id, submitter_name: doc.submitter,
     action: String(doc.action || '').toLowerCase(), reason: doc.reason, notes: doc.notes,
     curator: doc.user_email, clinvar_review_status: doc.review_status,
