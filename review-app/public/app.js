@@ -82,7 +82,7 @@
       variant: `${r.vcv_id} (var ${r.variation_id})`,
       submitter: r.submitter_name || r.submitter_id,
       action: r.action, vreason: r.reason, flags: flags(r),
-      auto: r.auto_status || 'manual', auto_note: r.auto_note || '',
+      auto: r.auto_status || 'manual', auto_status: r.auto_status || '', auto_note: r.auto_note || '',
       // Prefill the editable Status with the SAVED status only (blank if
       // unreviewed) so it matches `baseline` and a row is "dirty" only after a
       // real edit. The auto-review suggestion stays visible in the Auto column;
@@ -187,6 +187,24 @@
         + (cleared ? ` (incl. ${cleared} cleared to none)` : '');
       await loadQueue();
     } catch (e) { err(e); refreshDirty(); }
+  });
+
+  // Fill blank Status cells with their auto-review suggestion (visible/filtered
+  // rows only), as real edits — the reviewer adjusts if needed, then Save all.
+  // Never clobbers a status the reviewer already set/saved.
+  $('apply-auto').addEventListener('click', () => {
+    if (!table) return;
+    let n = 0;
+    table.getRows('active').forEach((row) => {
+      const d = row.getData();
+      if (d.status === '' && STATUS_VALUES[d.auto_status] && d.auto_status !== '') {
+        row.update({ status: d.auto_status }); row.reformat(); n++;
+      }
+    });
+    refreshDirty();
+    $('status').textContent = n
+      ? `Applied ${n} auto-review suggestion${n > 1 ? 's' : ''} — review, then Save all.`
+      : 'No blank rows have an auto-review suggestion to apply.';
   });
 
   $('assign-selected').addEventListener('click', () => bulkBatch('/assign-bulk', (d) => d._eligible, 'assign'));
