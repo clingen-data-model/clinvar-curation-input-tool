@@ -2,7 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const {
-  buildUpsertReviewSql, buildAssignSql, buildUnassignSql, makeReviewHandler, STATUSES
+  buildUpsertReviewSql, buildAssignSql, buildUnassignSql,
+  buildBulkUpsertReviewSql, buildBulkAssignSql, buildBulkUnassignSql,
+  makeReviewHandler, STATUSES
 } = require('../review.js');
 
 const DS = 'clinvar_curator_v4_dev';
@@ -56,10 +58,58 @@ describe('buildUnassignSql', () => {
   });
 });
 
+describe('buildBulkUpsertReviewSql', () => {
+  const { sql, params, types } = buildBulkUpsertReviewSql({
+    dataset: DS, reviewer: 'r@x.org',
+    edits: [
+      { annotationId: '1', scvId: 'SCV1', scvVer: 2, status: 'OK', notes: "a'b" },
+      { annotationId: '2', scvId: 'SCV2', scvVer: null, status: 'Fixed', notes: null }
+    ]
+  });
+  it('MERGEs from an array-of-struct param (one job for all edits)', () => {
+    expect(sql).toContain('USING UNNEST(@edits) S');
+    expect(sql).toContain(`MERGE \`clingen-dev.${DS}.cvc_review_state\` T`);
+    expect(params.edits.length).toBe(2);
+    expect(params.edits[0]).toMatchObject({ annotation_id: '1', scv_id: 'SCV1', scv_ver: 2, status: 'OK', notes: "a'b" });
+    expect(params.edits[1].scv_ver).toBeNull();
+  });
+  it('declares explicit struct/array types (so an empty array still types)', () => {
+    expect(types.edits[0]).toMatchObject({ annotation_id: 'STRING', scv_ver: 'INT64', notes: 'STRING' });
+    expect(types.reviewer).toBe('STRING');
+  });
+  it('rejects a bad status and guards the dataset', () => {
+    expect(() => buildBulkUpsertReviewSql({ dataset: DS, reviewer: 'r', edits: [{ annotationId: '1', status: 'Bogus' }] }))
+      .toThrow(/status must be one of/);
+    expect(() => buildBulkUpsertReviewSql({ dataset: 'clinvar_curator', reviewer: 'r', edits: [] }))
+      .toThrow(/not an allowed v4/);
+  });
+});
+
+describe('buildBulkAssignSql / buildBulkUnassignSql', () => {
+  it('assign uses IN UNNEST(@ids) with the per-row gate, correlated to T', () => {
+    const { sql, params, types } = buildBulkAssignSql({ dataset: DS, annotationIds: ['1', '2'], batchId: '136' });
+    expect(sql).toContain('T.annotation_id IN UNNEST(@ids)');
+    expect(sql).toContain("T.review_status = 'OK'");
+    expect(sql).toContain('a.annotation_id = T.annotation_id');
+    expect(sql).toContain("LOWER(a.action) IN ('flagging candidate','remove flagged submission')");
+    expect(params.ids).toEqual(['1', '2']);
+    expect(params.batch).toBe('136');
+    expect(types).toEqual({ ids: ['STRING'], batch: 'STRING' });
+  });
+  it('unassign clears batch_id only for the given batch, over the id set', () => {
+    const { sql } = buildBulkUnassignSql({ dataset: DS, annotationIds: ['1'], batchId: '136' });
+    expect(sql).toContain('SET batch_id = NULL');
+    expect(sql).toContain('T.annotation_id IN UNNEST(@ids) AND T.batch_id = @batch');
+  });
+  it('rejects a non-numeric batchId', () => {
+    expect(() => buildBulkAssignSql({ dataset: DS, annotationIds: ['1'], batchId: '1;DROP' })).toThrow(/numeric/);
+  });
+});
+
 describe('makeReviewHandler', () => {
   const fake = () => {
     const calls = [];
-    const runDml = async (sql, params) => { calls.push({ sql, params }); return calls._affected ?? 1; };
+    const runDml = async (sql, params, types) => { calls.push({ sql, params, types }); return calls._affected ?? 1; };
     return { calls, runDml, setAffected: (n) => { calls._affected = n; } };
   };
   it('setReview runs the upsert and returns applied count', async () => {
@@ -78,5 +128,31 @@ describe('makeReviewHandler', () => {
     const f = fake(); f.setAffected(1);
     const h = makeReviewHandler({ runDml: f.runDml, dataset: DS });
     expect(await h.assign({ annotationId: '1', batchId: '136' })).toEqual({ applied: 1, eligible: true });
+  });
+
+  it('setReviews runs ONE bulk MERGE and passes types through', async () => {
+    const f = fake(); f.setAffected(2);
+    const h = makeReviewHandler({ runDml: f.runDml, dataset: DS });
+    const out = await h.setReviews({ reviewer: 'r@x.org', edits: [
+      { annotationId: '1', scvId: 'SCV1', scvVer: 1, status: 'OK', notes: 'n' },
+      { annotationId: '2', scvId: 'SCV2', scvVer: 2, status: 'Fixed', notes: '' }
+    ] });
+    expect(out.applied).toBe(2);
+    expect(f.calls.length).toBe(1);                          // single job for the whole selection
+    expect(f.calls[0].sql).toContain('UNNEST(@edits)');
+    expect(f.calls[0].types.edits[0].annotation_id).toBe('STRING');
+  });
+  it('setReviews / assignMany / unassignMany are a no-op on empty selection', async () => {
+    const f = fake();
+    const h = makeReviewHandler({ runDml: f.runDml, dataset: DS });
+    expect(await h.setReviews({ reviewer: 'r', edits: [] })).toEqual({ applied: 0 });
+    expect(await h.assignMany({ annotationIds: [], batchId: '136' })).toEqual({ applied: 0, requested: 0 });
+    expect(await h.unassignMany({ annotationIds: [], batchId: '136' })).toEqual({ applied: 0, requested: 0 });
+    expect(f.calls.length).toBe(0);                          // no job issued
+  });
+  it('assignMany reports applied + requested (applied<requested => some failed the gate)', async () => {
+    const f = fake(); f.setAffected(1);
+    const h = makeReviewHandler({ runDml: f.runDml, dataset: DS });
+    expect(await h.assignMany({ annotationIds: ['1', '2'], batchId: '136' })).toEqual({ applied: 1, requested: 2 });
   });
 });

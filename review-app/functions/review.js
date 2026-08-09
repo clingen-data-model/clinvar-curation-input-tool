@@ -78,6 +78,75 @@ function buildUnassignSql({ dataset, annotationId, batchId }) {
   return { sql, params };
 }
 
+// --- bulk variants (one BQ job for the whole selection) --------------------
+// The UI saves every edited row and assigns/unassigns every checked row with a
+// SINGLE button, so the backend does it in ONE job. Array params carry explicit
+// `types` so BigQuery types the array/struct even when empty (no rows → 0 jobs
+// upstream, but a 0-length typed param is still valid). Same gates as the singles.
+
+// MERGE many reviews from an array-of-struct param.
+function buildBulkUpsertReviewSql({ dataset, edits, reviewer }) {
+  const ds = assertReadDataset(dataset);
+  const rows = (edits || []).map((e) => {
+    assertStatus(e.status);
+    return {
+      annotation_id: String(e.annotationId),
+      scv_id: e.scvId == null ? null : String(e.scvId),
+      scv_ver: e.scvVer == null ? null : Number(e.scvVer),
+      status: e.status,
+      notes: e.notes == null ? null : String(e.notes)
+    };
+  });
+  const params = { edits: rows, reviewer: String(reviewer) };
+  const types = {
+    edits: [{ annotation_id: 'STRING', scv_id: 'STRING', scv_ver: 'INT64', status: 'STRING', notes: 'STRING' }],
+    reviewer: 'STRING'
+  };
+  const sql = [
+    `MERGE \`clingen-dev.${ds}.cvc_review_state\` T`,
+    'USING UNNEST(@edits) S',
+    'ON T.annotation_id = S.annotation_id',
+    'WHEN MATCHED THEN UPDATE SET',
+    '  review_status = S.status, notes = S.notes, reviewer = @reviewer,',
+    '  date_last_updated = CURRENT_TIMESTAMP()',
+    'WHEN NOT MATCHED THEN INSERT',
+    '  (annotation_id, scv_id, scv_ver, review_status, reviewer, notes, date_added, date_last_updated)',
+    '  VALUES (S.annotation_id, S.scv_id, S.scv_ver, S.status, @reviewer, S.notes, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP())'
+  ].join('\n');
+  return { sql, params, types };
+}
+
+// Assign many — same gate as buildAssignSql, correlated per row via IN UNNEST.
+function buildBulkAssignSql({ dataset, annotationIds, batchId }) {
+  const ds = assertReadDataset(dataset);
+  const params = { ids: (annotationIds || []).map(String), batch: assertNumeric('batchId', batchId) };
+  const types = { ids: ['STRING'], batch: 'STRING' };
+  const sql = [
+    `UPDATE \`clingen-dev.${ds}.cvc_review_state\` T`,
+    'SET batch_id = @batch, date_last_updated = CURRENT_TIMESTAMP()',
+    'WHERE T.annotation_id IN UNNEST(@ids)',
+    "  AND T.review_status = 'OK'",
+    '  AND T.batch_id IS NULL',
+    '  AND EXISTS (',
+    `    SELECT 1 FROM \`clingen-dev.${ds}.cvc_annotations_native_v4\` a`,
+    `    WHERE a.annotation_id = T.annotation_id AND LOWER(a.action) IN ('flagging candidate','remove flagged submission'))`
+  ].join('\n');
+  return { sql, params, types };
+}
+
+// Unassign many — only from the given (current) batch.
+function buildBulkUnassignSql({ dataset, annotationIds, batchId }) {
+  const ds = assertReadDataset(dataset);
+  const params = { ids: (annotationIds || []).map(String), batch: assertNumeric('batchId', batchId) };
+  const types = { ids: ['STRING'], batch: 'STRING' };
+  const sql = [
+    `UPDATE \`clingen-dev.${ds}.cvc_review_state\` T`,
+    'SET batch_id = NULL, date_last_updated = CURRENT_TIMESTAMP()',
+    'WHERE T.annotation_id IN UNNEST(@ids) AND T.batch_id = @batch'
+  ].join('\n');
+  return { sql, params, types };
+}
+
 function makeReviewHandler({ runDml, dataset }) {
   return {
     async setReview({ annotationId, scvId, scvVer, status, notes, reviewer }) {
@@ -92,11 +161,31 @@ function makeReviewHandler({ runDml, dataset }) {
     async unassign({ annotationId, batchId }) {
       const { sql, params } = buildUnassignSql({ dataset, annotationId, batchId });
       return { applied: await runDml(sql, params) };
+    },
+    // Bulk: empty selection is a no-op (no job). Each returns the affected count;
+    // for assign, `applied` may be < ids.length when some rows fail the gate.
+    async setReviews({ edits, reviewer }) {
+      if (!edits || !edits.length) return { applied: 0 };
+      const { sql, params, types } = buildBulkUpsertReviewSql({ dataset, edits, reviewer });
+      return { applied: await runDml(sql, params, types) };
+    },
+    async assignMany({ annotationIds, batchId }) {
+      if (!annotationIds || !annotationIds.length) return { applied: 0, requested: 0 };
+      const { sql, params, types } = buildBulkAssignSql({ dataset, annotationIds, batchId });
+      const applied = await runDml(sql, params, types);
+      return { applied, requested: params.ids.length }; // applied < requested => some failed the gate
+    },
+    async unassignMany({ annotationIds, batchId }) {
+      if (!annotationIds || !annotationIds.length) return { applied: 0, requested: 0 };
+      const { sql, params, types } = buildBulkUnassignSql({ dataset, annotationIds, batchId });
+      return { applied: await runDml(sql, params, types), requested: params.ids.length };
     }
   };
 }
 
 module.exports = {
   STATUSES, ASSIGNABLE_ACTIONS, assertStatus,
-  buildUpsertReviewSql, buildAssignSql, buildUnassignSql, makeReviewHandler
+  buildUpsertReviewSql, buildAssignSql, buildUnassignSql,
+  buildBulkUpsertReviewSql, buildBulkAssignSql, buildBulkUnassignSql,
+  makeReviewHandler
 };

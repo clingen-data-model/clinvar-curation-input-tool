@@ -23,13 +23,22 @@
       <button id="finalize">Finalize batch</button>
       <span id="assigned-count"></span>
     </div>
+    <div id="review-actions">
+      <button id="save-all" disabled>Save all</button>
+      <span id="unsaved" class="unsaved" hidden></span>
+      <span class="sep">·</span>
+      <button id="assign-selected" disabled>Add selected to batch</button>
+      <button id="unassign-selected" disabled>Unassign selected</button>
+      <span id="selected-count"></span>
+    </div>
     <div id="result"></div>
     <div id="status">Loading…</div>
     <table id="queue" hidden>
       <thead>
         <tr>
+          <th class="sel"><input type="checkbox" id="select-all" title="Select all eligible rows" /></th>
           <th>SCV</th><th>Variant</th><th>Submitter</th><th>Action</th><th>Reason</th>
-          <th>Flags</th><th>Auto-review</th><th>Status</th><th>Review notes</th><th></th><th>Batch</th>
+          <th>Flags</th><th>Auto-review</th><th>Status</th><th>Review notes</th><th>Batch</th>
         </tr>
       </thead>
       <tbody></tbody>
