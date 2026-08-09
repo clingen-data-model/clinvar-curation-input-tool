@@ -56,13 +56,8 @@
   }
 
   // --- row shaping -----------------------------------------------------------
-  function flags(r) {
-    const f = [];
-    if (r.is_deleted_scv) f.push('deleted');
-    if (r.is_outdated_scv) f.push('outdated');
-    if (!r.is_latest_annotation) f.push('superseded');
-    return f.join(', ');
-  }
+  // BQ DATE/TIMESTAMP params come back as { value: '…' }; unwrap to the scalar.
+  const bqval = (v) => (v && typeof v === 'object' && 'value' in v) ? v.value : v;
   // Map a queue row to the grid's row object + derived assign/select flags.
   // Eligibility is on the SAVED status (rs_review_status), not the editable
   // `status` cell — the backend gate re-checks it, so a status must be Saved
@@ -81,7 +76,18 @@
       scv: `${r.scv_id}.${r.scv_ver}${r.fresh ? ' 🆕' : ''}`,
       variant: `${r.vcv_id} (var ${r.variation_id})`,
       submitter: r.submitter_name || r.submitter_id,
-      action: r.action, vreason: r.reason, flags: flags(r),
+      action: r.action, vreason: r.reason,
+      // SCV / annotation context columns (from the cvc_annotations TVF via the
+      // materialized base). Booleans are true/false for enriched rows, null for
+      // fresh (not-yet-enriched) rows → shown blank.
+      scv_review: r.clinvar_review_status || '',
+      latest_anno: r.is_latest_annotation, outdated_vcv: r.is_outdated_vcv,
+      outdated_scv: r.is_outdated_scv, moved: r.is_moved_scv, deleted: r.is_deleted_scv,
+      deleted_rel: bqval(r.deleted_scv_release_date) || '',
+      latest_scv_ver: r.latest_scv_ver == null ? '' : r.latest_scv_ver,
+      latest_scv_classif: r.latest_scv_classification || '',
+      prior_ver: r.has_prior_scv_ver_annotation, prior_submitted: r.has_prior_submission_batch_id,
+      prior_any: r.has_prior_scv_id_annotation,   // drives the Phase B history affordance
       auto: r.auto_status || 'manual', auto_status: r.auto_status || '', auto_note: r.auto_note || '',
       // Prefill the editable Status with the SAVED status only (blank if
       // unreviewed) so it matches `baseline` and a row is "dirty" only after a
@@ -113,17 +119,32 @@
   }
 
   // --- Tabulator grid --------------------------------------------------------
+  // Compact boolean flag column: tick when true, blank when false/null (fresh).
+  const boolCol = (title, field, tip) => ({
+    title, field, width: 62, hozAlign: 'center', headerTooltip: tip,
+    formatter: 'tickCross', formatterParams: { crossElement: false, allowTruthy: true }
+  });
   const COLUMNS = [
     { formatter: 'rowSelection', titleFormatter: 'rowSelection', hozAlign: 'center', headerSort: false, width: 42 },
-    { title: 'SCV', field: 'scv', width: 140, headerFilter: 'input' },
+    { title: 'SCV', field: 'scv', width: 140, headerFilter: 'input', frozen: true },
     { title: 'Variant', field: 'variant', headerFilter: 'input' },
     { title: 'Submitter', field: 'submitter', headerFilter: 'input' },
     { title: 'Action', field: 'action', width: 170, headerFilter: 'input' },
     { title: 'Reason', field: 'vreason', headerFilter: 'input' },
-    { title: 'Flags', field: 'flags', width: 110, headerFilter: 'input' },
+    { title: 'SCV rev status', field: 'scv_review', width: 130, headerFilter: 'input', headerTooltip: 'ClinVar review status of the SCV at annotation time' },
+    boolCol('latest anno', 'latest_anno', 'This is the latest annotation for the SCV (blank = superseded)'),
+    boolCol('outdated vcv', 'outdated_vcv', 'A newer VCV version exists than at annotation time'),
+    boolCol('outdated scv', 'outdated_scv', 'A newer SCV version exists (or the SCV moved variation)'),
+    boolCol('moved', 'moved', 'The SCV moved to a different variation'),
+    boolCol('deleted', 'deleted', 'The SCV was deleted on/before the annotation release'),
+    { title: 'deleted rel date', field: 'deleted_rel', width: 120, headerTooltip: 'Release date the SCV was deleted' },
+    { title: 'latest scv ver', field: 'latest_scv_ver', width: 100, hozAlign: 'right', headerTooltip: 'Latest SCV version now' },
+    { title: 'latest scv classif', field: 'latest_scv_classif', width: 150, headerFilter: 'input', headerTooltip: 'Latest SCV classification now (compare to the annotated classification)' },
+    boolCol('prior same ver', 'prior_ver', 'A prior CvC annotation exists for this exact SCV version'),
+    boolCol('prior submitted', 'prior_submitted', 'A prior CvC annotation for this SCV was submitted in a batch'),
     { title: 'Auto', field: 'auto', width: 90, tooltip: (e, cell) => cell.getData().auto_note || '' },
     { title: 'Status', field: 'status', width: 120, editor: 'list', editorParams: { values: STATUS_VALUES }, headerFilter: 'list', headerFilterParams: { values: STATUS_VALUES } },
-    { title: 'Review notes', field: 'notes', widthGrow: 2, editor: 'input' },
+    { title: 'Review notes', field: 'notes', width: 240, editor: 'input' },
     { title: 'Batch', field: 'batch', width: 100, tooltip: (e, cell) => cell.getData().batch_reason || '' }
   ];
   function rowFormatter(row) {
@@ -136,7 +157,7 @@
     return new Promise((resolve) => {
       if (table) { table.replaceData(data).then(() => resolve()); return; }
       table = new Tabulator('#queue', {
-        index: 'id', layout: 'fitColumns', height: '64vh', data,
+        index: 'id', layout: 'fitDataFill', height: '64vh', data,
         placeholder: 'Queue is empty — no unreviewed annotations.',
         selectableRows: true, selectableRowsCheck: (row) => row.getData()._selectable,
         columns: COLUMNS, rowFormatter

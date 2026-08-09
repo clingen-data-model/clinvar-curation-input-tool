@@ -17,8 +17,10 @@ const BASE_COLS = [
   'annotation_id', 'variation_id', 'vcv_id', 'scv_id', 'scv_ver',
   'submitter_id', 'submitter_name', 'action', 'reason', 'notes',
   'curator', 'clinvar_review_status', 'classif_type', 'latest_scv_classification',
-  'is_outdated_scv', 'is_deleted_scv', 'is_latest_annotation',
-  'has_prior_scv_id_annotation', 'latest_scv_ver', 'annotated_on'
+  'is_outdated_scv', 'is_outdated_vcv', 'is_moved_scv', 'is_deleted_scv', 'is_latest_annotation',
+  'deleted_scv_release_date',
+  'has_prior_scv_id_annotation', 'has_prior_scv_ver_annotation', 'has_prior_submission_batch_id',
+  'latest_scv_ver', 'annotated_on'
 ];
 
 // Refresh (materialize) the enriched-unreviewed set. This is the ONE ~2.5 GB
@@ -99,8 +101,10 @@ function shapeFreshRow(doc, rs) {
     action: String(doc.action || '').toLowerCase(), reason: doc.reason, notes: doc.notes,
     curator: doc.user_email, clinvar_review_status: doc.review_status,
     classif_type: null, latest_scv_classification: null,
-    is_outdated_scv: null, is_deleted_scv: null, is_latest_annotation: null,
-    has_prior_scv_id_annotation: null, latest_scv_ver: null, annotated_on: doc.created_at || null,
+    is_outdated_scv: null, is_outdated_vcv: null, is_moved_scv: null,
+    is_deleted_scv: null, is_latest_annotation: null, deleted_scv_release_date: null,
+    has_prior_scv_id_annotation: null, has_prior_scv_ver_annotation: null,
+    has_prior_submission_batch_id: null, latest_scv_ver: null, annotated_on: doc.created_at || null,
     rs_review_status: (rs && rs.review_status) || null, rs_reviewer: (rs && rs.reviewer) || null,
     rs_notes: (rs && rs.notes) || null, rs_batch_id: (rs && rs.batch_id) || null,
     auto_status: '', auto_note: 'new capture — flags/auto-review pending next refresh',

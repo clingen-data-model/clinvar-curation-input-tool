@@ -16,6 +16,12 @@ button { width: auto; margin-bottom: 0; padding: 6px 12px; }
 .unsaved { background: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 10px;
   font-size: 12px; font-weight: 600; }
 
+#col-guide { margin: .25rem 0 .5rem; font-size: 13px; }
+#col-guide summary { cursor: pointer; color: var(--pico-primary); width: fit-content; }
+#col-guide dl { display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px;
+  margin: .5rem 0 0; padding: .5rem .75rem; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; }
+#col-guide dt { font-weight: 700; color: #374151; }
+#col-guide dd { margin: 0; color: #4b5563; }
 #result { margin: .5rem 0; font-size: 14px; display: flex; gap: .5rem; flex-wrap: wrap; }
 #status { color: #6b7280; font-size: 14px; margin: .5rem 0; }
 
