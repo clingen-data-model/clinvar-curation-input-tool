@@ -85,7 +85,9 @@
 
   function isDirty(c) { return c.sel.value !== c.base.status || c.note.value !== c.base.notes; }
   function dirtyRows() { return rowCtls.filter(isDirty); }
-  function selectedCtls() { return rowCtls.filter((c) => !c.cb.disabled && c.cb.checked); }
+  // Only rows that can be added/unassigned carry a checkbox (cb); the rest have cb === null.
+  function selectableCtls() { return rowCtls.filter((c) => c.cb); }
+  function selectedCtls() { return selectableCtls().filter((c) => c.cb.checked); }
 
   function refreshDirty() {
     let n = 0;
@@ -99,8 +101,9 @@
     $('assign-selected').disabled = !sel.some((c) => c.eligible);
     $('unassign-selected').disabled = !sel.some((c) => c.assigned);
     $('selected-count').textContent = sel.length ? `${sel.length} selected` : '';
-    const eligibleCbs = rowCtls.filter((c) => !c.cb.disabled);
-    $('select-all').checked = eligibleCbs.length > 0 && eligibleCbs.every((c) => c.cb.checked);
+    const cbs = selectableCtls();
+    $('select-all').checked = cbs.length > 0 && cbs.every((c) => c.cb.checked);
+    $('select-all').disabled = cbs.length === 0;
   }
 
   function renderQueue(rows) {
@@ -122,13 +125,18 @@
       else if (!savedOk) reason = 'set status OK and Save first';
       else if (r.fresh) reason = 'awaiting enrichment — refresh from capture';
 
-      // selection checkbox — enabled when the row can be assigned or unassigned
+      // selection checkbox — present ONLY on rows that can be added or
+      // unassigned; other rows show an empty cell (the Batch column carries the
+      // reason). cb stays null for those so the bulk helpers skip them.
       const cbTd = document.createElement('td'); cbTd.className = 'sel';
-      const cb = document.createElement('input'); cb.type = 'checkbox';
-      cb.disabled = !(assigned || eligible);
-      if (cb.disabled && reason) cb.title = reason;
-      cb.addEventListener('change', refreshSelection);
-      cbTd.appendChild(cb); tr.appendChild(cbTd);
+      let cb = null;
+      if (assigned || eligible) {
+        cb = document.createElement('input'); cb.type = 'checkbox';
+        cb.title = assigned ? 'select to unassign from the batch' : 'select to add to the batch';
+        cb.addEventListener('change', refreshSelection);
+        cbTd.appendChild(cb);
+      }
+      tr.appendChild(cbTd);
 
       tr.appendChild(cell(`${r.scv_id}.${r.scv_ver}${r.fresh ? '  🆕' : ''}`));
       tr.appendChild(cell(`${r.vcv_id} (var ${r.variation_id})`));
@@ -174,9 +182,9 @@
     loadQueue();
   });
 
-  // Select-all toggles every enabled checkbox.
+  // Select-all toggles every row that has a checkbox.
   $('select-all').addEventListener('change', (e) => {
-    rowCtls.forEach((c) => { if (!c.cb.disabled) c.cb.checked = e.target.checked; });
+    selectableCtls().forEach((c) => { c.cb.checked = e.target.checked; });
     refreshSelection();
   });
 
