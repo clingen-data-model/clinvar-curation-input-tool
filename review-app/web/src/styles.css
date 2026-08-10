@@ -36,15 +36,16 @@ header h1 { font-size: 1.25rem; margin: 0; }
 
 /* Grid (TanStack renders a plain table; we style it) */
 .grid-wrap { overflow: auto; max-height: 68vh; border: 1px solid #e5e7eb; border-radius: 6px; }
-/* border-collapse: separate (NOT collapse) — collapsed borders + position:sticky
-   headers is a Chrome bug that overlaps the first row and visually shifts cells.
-   Grid lines are drawn as right/bottom borders per cell instead. */
-table.grid { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; font-size: 13px; }
+/* table-layout: fixed + a <colgroup> makes each column ONE authoritative width
+   that thead and tbody both honor (guaranteed alignment). border-collapse:
+   separate avoids the sticky-header + collapsed-border Chrome bug. */
+table.grid { table-layout: fixed; border-collapse: separate; border-spacing: 0; font-size: 13px; }
 table.grid th, table.grid td { border-right: 1px solid #e5e7eb; border-bottom: 1px solid #e5e7eb;
-  padding: 3px 6px; text-align: left; vertical-align: top; white-space: nowrap; background-clip: padding-box; }
+  padding: 3px 6px; text-align: left; vertical-align: top; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; background-clip: padding-box; }
 table.grid thead th { background: #f3f4f6; position: sticky; top: 0; z-index: 2; border-top: 1px solid #e5e7eb; }
-table.grid th .sortable { cursor: pointer; user-select: none; }
-table.grid td input[type=text] { width: 14rem; }
+table.grid th .sortable { cursor: pointer; user-select: none; overflow: hidden; text-overflow: ellipsis; }
+table.grid td select, table.grid td input[type=text] { width: 100%; box-sizing: border-box; margin: 0; }
 table.grid tr.fresh { background: #fffbeb; }
 table.grid tr.dirty { background: #eff6ff; }
 table.grid tr.done { opacity: .55; }
