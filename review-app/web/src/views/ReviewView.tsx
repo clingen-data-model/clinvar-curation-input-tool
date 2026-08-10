@@ -6,6 +6,7 @@ import {
 import { api } from '../api';
 import { bqv, loadColSizing, type Config, type QueueRow, type GenerateResult, type GeneratedFile } from '../types';
 import { HistoryHover } from './HistoryHover';
+import { CellHover } from './CellHover';
 
 const STATUSES = ['', 'OK', 'Fixed', 'Archive', 'Question'];
 const ACTIONABLE = ['flagging candidate', 'remove flagged submission'];
@@ -16,6 +17,12 @@ interface Row extends QueueRow {
 }
 
 const tick = (v: boolean | null) => (v ? '✓' : '');
+
+// Freeze the first N columns (sticky-left) — only cols after this scroll.
+const FROZEN = 6;
+const cls = (...parts: (string | false | undefined)[]) => parts.filter(Boolean).join(' ') || undefined;
+const pinClass = (i: number) => (i < FROZEN ? (i === FROZEN - 1 ? 'pin pin-last' : 'pin') : '');
+const pinStyle = (i: number, lefts: number[]) => (i < FROZEN ? { left: lefts[i] } : undefined);
 
 export function ReviewView({ config, onConfigChange }: { config: Config; onConfigChange: () => Promise<void> }) {
   const nextBatchId = config.nextBatchId;
@@ -96,10 +103,15 @@ export function ReviewView({ config, onConfigChange }: { config: Config; onConfi
       cell: ({ row }) => (
         <input type="text" value={val(row.original.annotation_id).notes}
           onChange={(e) => setCell(row.original.annotation_id, 'notes', e.target.value)} />) },
-    { id: 'auto', header: 'Auto', size: 90, accessorFn: (r) => r.auto_status || 'manual',
-      cell: ({ row }) => <span title={row.original.auto_note || ''}>{row.original.auto_status || 'manual'}</span> },
-    { id: 'batch', header: 'Batch', size: 100,
-      cell: ({ row }) => <span title={row.original.reason}>{row.original.assigned ? `batch ${nextBatchId}` : row.original.eligible ? 'eligible' : '—'}</span> },
+    { id: 'auto', header: 'Auto', size: 100, accessorFn: (r) => r.auto_status || 'manual',
+      // Hover shows WHY it was (or wasn't) auto-reviewed (the auto_note reasoning).
+      cell: ({ row }) => (
+        <CellHover className="auto-cell" label={<span className="auto-label">{row.original.auto_status || 'manual'} ⓘ</span>}
+          load={() => (<pre>{row.original.auto_note || 'No auto-review note.'}</pre>)} />) },
+    { id: 'batch', header: 'Batch', size: 90,
+      // Assigned → just the batch number; eligible → empty; not eligible → dash (hover = why).
+      cell: ({ row }) => row.original.assigned ? <span>{nextBatchId}</span>
+        : row.original.eligible ? null : <span title={row.original.reason}>–</span> },
     { id: 'scv', header: 'SCV', size: 150, accessorFn: (r) => r.scv_disp },
     { id: 'variant', header: 'Variant', size: 180, accessorFn: (r) => r.variant },
     { id: 'submitter', header: 'Submitter', size: 170, accessorFn: (r) => r.submitter_name || r.submitter_id },
@@ -186,6 +198,11 @@ export function ReviewView({ config, onConfigChange }: { config: Config; onConfi
     catch (e) { setStatus('Error: ' + (e as Error).message); }
   };
 
+  // Cumulative left offset of each column (for the frozen sticky-left columns);
+  // recomputed from current sizes so it tracks resizing.
+  const lefts: number[] = [];
+  { let acc = 0; table.getVisibleLeafColumns().forEach((c, i) => { lefts[i] = acc; acc += c.getSize(); }); }
+
   return (
     <div>
       <div className="toolbar">
@@ -241,8 +258,9 @@ export function ReviewView({ config, onConfigChange }: { config: Config; onConfi
         <table className="grid" style={{ width: table.getTotalSize() }}>
           <colgroup>{table.getVisibleLeafColumns().map((c) => <col key={c.id} style={{ width: c.getSize() }} />)}</colgroup>
           <thead>{table.getHeaderGroups().map((hg) => (
-            <tr key={hg.id}>{hg.headers.map((h) => (
-              <th key={h.id} className={h.column.getCanSort() ? 'sortable' : ''} onClick={h.column.getToggleSortingHandler()}>
+            <tr key={hg.id}>{hg.headers.map((h, i) => (
+              <th key={h.id} className={cls(h.column.getCanSort() ? 'sortable' : '', pinClass(i))} style={pinStyle(i, lefts)}
+                onClick={h.column.getToggleSortingHandler()}>
                 {flexRender(h.column.columnDef.header, h.getContext())}
                 {{ asc: ' ▲', desc: ' ▼' }[h.column.getIsSorted() as string] ?? ''}
                 {h.column.getCanResize() && (
@@ -251,9 +269,10 @@ export function ReviewView({ config, onConfigChange }: { config: Config; onConfi
                     onMouseDown={h.getResizeHandler()} onTouchStart={h.getResizeHandler()} />)}
               </th>))}</tr>))}</thead>
           <tbody>{table.getRowModel().rows.map((row) => (
-            <tr key={row.id} className={(row.original.fresh ? 'fresh ' : '') + (isDirty(row.id) ? 'dirty' : '')}>
-              {row.getVisibleCells().map((cell) => (
-                <td key={cell.id}>{flexRender(cell.column.columnDef.cell ?? ((c) => c.getValue()), cell.getContext())}</td>
+            <tr key={row.id} className={cls(row.original.fresh ? 'fresh' : '', isDirty(row.id) ? 'dirty' : '')}>
+              {row.getVisibleCells().map((cell, i) => (
+                <td key={cell.id} className={cls(pinClass(i))} style={pinStyle(i, lefts)}>
+                  {flexRender(cell.column.columnDef.cell ?? ((c) => c.getValue()), cell.getContext())}</td>
               ))}
             </tr>))}</tbody>
         </table>
