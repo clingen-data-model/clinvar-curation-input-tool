@@ -45,6 +45,10 @@ function buildReflagCandidatesSql({ dataset, scvIds }) {
     `LEFT JOIN (SELECT DISTINCT scv_id FROM \`${B}.cvc_autoreflag_candidates\` WHERE is_autoreflag_candidate) a USING (scv_id)`,
     '  LEFT JOIN `clinvar_ingest.clinvar_scvs` cs ON cs.id = r.scv_id AND cs.version = r.current_scv_ver',
     'WHERE ' + conds.join(' AND '),
+    // Exactly ONE reflaggable row per SCV — the latest submission (and collapses
+    // any clinvar_scvs join fan-out). If an SCV was overridden multiple times,
+    // only its most recent submitted version appears.
+    'QUALIFY ROW_NUMBER() OVER (PARTITION BY r.scv_id ORDER BY r.batch_accepted_date DESC, r.submitted_scv_ver DESC) = 1',
     'ORDER BY is_autoreflag DESC, r.submitter_name, r.scv_id'
   ].join('\n');
   return { sql, params: scvIds && scvIds.length ? { scvIds: scvIds.map(String) } : {} };
