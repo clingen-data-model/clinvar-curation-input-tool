@@ -1,0 +1,52 @@
+name: Deploy (dev)
+
+# DORMANT DRAFT — manual-trigger only until the CI deploy credential is set up
+# (see .github/CI-CD-SETUP.md). To enable auto-deploy on merge to main, replace
+# the `workflow_dispatch` trigger with:
+#   push:
+#     branches: [main]
+#     paths: ['review-app/**']
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write   # for Workload Identity Federation (keyless GCP auth)
+
+jobs:
+  deploy:
+    name: build + deploy → clingen-cvc-dev
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+
+      # Build the SPA + install function deps (firebase deploy uploads functions/).
+      - name: Build web
+        working-directory: review-app/web
+        run: npm ci && npm run build
+      - name: Install functions deps
+        working-directory: review-app/functions
+        run: npm ci
+
+      # Keyless auth to GCP via Workload Identity Federation. Configure these repo
+      # values first (see CI-CD-SETUP.md):
+      #   vars.GCP_WIF_PROVIDER  — the WIF provider resource name
+      #   vars.CI_DEPLOY_SA_DEV  — the CI deploy service account email
+      - name: Auth to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.CI_DEPLOY_SA_DEV }}
+
+      - name: Deploy hosting + functions
+        working-directory: review-app
+        run: npx firebase-tools@latest deploy --only hosting,functions --project clingen-cvc-dev --non-interactive
+
+      # gen2 gotcha: a deploy that recreates the Cloud Run services can drop the
+      # run.invoker/actAs bindings the enrichment triggers need. Re-assert them.
+      - name: Re-grant runtime IAM
+        working-directory: review-app
+        run: SA=${{ vars.RUNTIME_SA_DEV }} WRITE_DATASET=clinvar_curator_v4_dev bash scripts/grant-iam.sh || true
