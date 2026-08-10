@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   useReactTable, getCoreRowModel, getFilteredRowModel, getSortedRowModel, flexRender,
-  type ColumnDef, type RowSelectionState, type ColumnFiltersState, type SortingState
+  type ColumnDef, type RowSelectionState, type ColumnFiltersState, type SortingState, type ColumnSizingState
 } from '@tanstack/react-table';
 import { api } from '../api';
 import { bqv, type ReflagCandidate } from '../types';
@@ -13,6 +13,10 @@ export function ReflagView() {
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [sorting, setSorting] = useState<SortingState>([]);
+  const [columnSizing, setColumnSizing] = useState<ColumnSizingState>(() => {
+    try { return JSON.parse(localStorage.getItem('cvc.reflag.colSizing') || '{}'); } catch { return {}; }
+  });
+  useEffect(() => { localStorage.setItem('cvc.reflag.colSizing', JSON.stringify(columnSizing)); }, [columnSizing]);
   const [status, setStatus] = useState('');
   const [loaded, setLoaded] = useState(false);
 
@@ -59,9 +63,11 @@ export function ReflagView() {
   ], []);
 
   const table = useReactTable({
-    data: rows, columns, state: { rowSelection, columnFilters, sorting },
+    data: rows, columns, state: { rowSelection, columnFilters, sorting, columnSizing },
     enableRowSelection: (row) => !row.original.already_reflagged, getRowId: (r) => r.scv_id,
-    onRowSelectionChange: setRowSelection, onColumnFiltersChange: setColumnFilters, onSortingChange: setSorting,
+    enableColumnResizing: true, columnResizeMode: 'onChange',
+    onRowSelectionChange: setRowSelection, onColumnFiltersChange: setColumnFilters,
+    onSortingChange: setSorting, onColumnSizingChange: setColumnSizing,
     getCoreRowModel: getCoreRowModel(), getFilteredRowModel: getFilteredRowModel(), getSortedRowModel: getSortedRowModel()
   });
 
@@ -113,7 +119,9 @@ export function ReflagView() {
                   {flexRender(h.column.columnDef.header, h.getContext())}
                   {{ asc: ' ▲', desc: ' ▼' }[h.column.getIsSorted() as string] ?? ''}
                 </div>
-                {/* Per-column filtering deferred — see ReviewView. */}
+                {h.column.getCanResize() && (
+                  <div className={'resizer' + (h.column.getIsResizing() ? ' resizing' : '')}
+                    onMouseDown={h.getResizeHandler()} onTouchStart={h.getResizeHandler()} />)}
               </th>))}</tr>))}</thead>
           <tbody>{table.getRowModel().rows.map((row) => (
             <tr key={row.id} className={row.original.already_reflagged ? 'done' : ''}>
