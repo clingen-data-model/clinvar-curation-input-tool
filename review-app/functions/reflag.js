@@ -23,7 +23,13 @@ const DEDUP_FIELDS = ['variation_id', 'vcv', 'scv', 'submitter', 'submitter_id',
 function buildReflagCandidatesSql({ dataset, scvIds }) {
   const ds = assertReadDataset(dataset);
   const B = `clingen-dev.${ds}`;
-  const where = scvIds && scvIds.length ? 'WHERE r.scv_id IN UNNEST(@scvIds)' : '';
+  // EXCLUDE any candidate that already has a CURRENT-version CvC annotation
+  // (a reflag, or otherwise under review) — an overridden previous submission
+  // must not appear once a current annotation exists for its SCV.
+  const conds = [
+    `NOT EXISTS (SELECT 1 FROM \`${B}.cvc_annotations_native_v4\` n WHERE n.scv_id = r.scv_id || '.' || CAST(r.current_scv_ver AS STRING))`
+  ];
+  if (scvIds && scvIds.length) conds.push('r.scv_id IN UNNEST(@scvIds)');
   const sql = [
     'SELECT',
     '  r.scv_id, r.variation_id, r.vcv_id, r.submitter_id, r.submitter_name,',
@@ -34,16 +40,13 @@ function buildReflagCandidatesSql({ dataset, scvIds }) {
     '  r.version_bump_count, r.latest_bump_date,',
     '  (a.scv_id IS NOT NULL) AS is_autoreflag,',
     '  cs.review_status AS current_review_status,',
-    '  cs.submitted_classification AS current_submitted_classification,',
-    '  (n.annotation_id IS NOT NULL) AS already_reflagged',
+    '  cs.submitted_classification AS current_submitted_classification',
     `FROM \`${B}.cvc_resubmission_candidates\` r`,
     `LEFT JOIN (SELECT DISTINCT scv_id FROM \`${B}.cvc_autoreflag_candidates\` WHERE is_autoreflag_candidate) a USING (scv_id)`,
     '  LEFT JOIN `clinvar_ingest.clinvar_scvs` cs ON cs.id = r.scv_id AND cs.version = r.current_scv_ver',
-    `  LEFT JOIN \`${B}.cvc_annotations_native_v4\` n`,
-    "    ON n.scv_id = r.scv_id || '.' || CAST(r.current_scv_ver AS STRING) AND LOWER(n.action) = 'flagging candidate'",
-    where,
+    'WHERE ' + conds.join(' AND '),
     'ORDER BY is_autoreflag DESC, r.submitter_name, r.scv_id'
-  ].filter(Boolean).join('\n');
+  ].join('\n');
   return { sql, params: scvIds && scvIds.length ? { scvIds: scvIds.map(String) } : {} };
 }
 

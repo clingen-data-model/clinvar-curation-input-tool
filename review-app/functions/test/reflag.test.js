@@ -6,18 +6,23 @@ const { buildReflagCandidatesSql, buildReflagDoc, reflagDocId, makeReflagHandler
 const DS = 'clinvar_curator_v4_dev';
 
 describe('buildReflagCandidatesSql', () => {
-  it('reads the broad resubmission set, badges autoreflag, joins current review_status + already-reflagged', () => {
+  it('reads the broad resubmission set, badges autoreflag, joins current review_status', () => {
     const { sql, params } = buildReflagCandidatesSql({ dataset: DS });
     expect(sql).toContain(`\`clingen-dev.${DS}.cvc_resubmission_candidates\` r`);
     expect(sql).toContain(`FROM \`clingen-dev.${DS}.cvc_autoreflag_candidates\` WHERE is_autoreflag_candidate`);
     expect(sql).toContain('(a.scv_id IS NOT NULL) AS is_autoreflag');
     expect(sql).toContain('cs.review_status AS current_review_status');
-    expect(sql).toContain('(n.annotation_id IS NOT NULL) AS already_reflagged');
     expect(params).toEqual({});
   });
-  it('restricts to selected scvIds for the write path (parameterized)', () => {
+  it('EXCLUDES candidates that already have a current-version annotation', () => {
+    const { sql } = buildReflagCandidatesSql({ dataset: DS });
+    expect(sql).toContain(`NOT EXISTS (SELECT 1 FROM \`clingen-dev.${DS}.cvc_annotations_native_v4\` n WHERE n.scv_id = r.scv_id || '.' || CAST(r.current_scv_ver AS STRING))`);
+    expect(sql).not.toContain('already_reflagged');
+  });
+  it('restricts to selected scvIds for the write path (parameterized), still excluding annotated', () => {
     const { sql, params } = buildReflagCandidatesSql({ dataset: DS, scvIds: ['SCV1', 'SCV2'] });
-    expect(sql).toContain('WHERE r.scv_id IN UNNEST(@scvIds)');
+    expect(sql).toContain('NOT EXISTS');
+    expect(sql).toContain('r.scv_id IN UNNEST(@scvIds)');
     expect(params).toEqual({ scvIds: ['SCV1', 'SCV2'] });
   });
   it('is dataset-guarded (rejects legacy)', () => {

@@ -26,8 +26,7 @@ export function ReflagView() {
       const c = await api.reflagCandidates();
       setRaw(c); setRowSelection({}); setLoaded(true);
       const auto = c.filter((x) => x.is_autoreflag).length;
-      const done = c.filter((x) => x.already_reflagged).length;
-      setStatus(`${c.length} candidate(s) · ${auto} autoreflag · ${done} already reflagged`);
+      setStatus(`${c.length} candidate(s) · ${auto} autoreflag`);
     } catch (e) { setStatus('Error: ' + (e as Error).message); }
   }, []);
   useEffect(() => { if (!loaded) void load(); }, [loaded, load]);
@@ -36,13 +35,12 @@ export function ReflagView() {
     {
       id: 'select', enableSorting: false, size: 42,
       header: ({ table }) => {
-        const fr = table.getFilteredRowModel().rows.filter((r) => !r.original.already_reflagged);
+        const fr = table.getFilteredRowModel().rows;
         const allSel = fr.length > 0 && fr.every((r) => r.getIsSelected());
-        return <input type="checkbox" title="Select all VISIBLE selectable rows" checked={allSel}
+        return <input type="checkbox" title="Select all VISIBLE rows" checked={allSel}
           onChange={(e) => fr.forEach((r) => r.toggleSelected(e.target.checked))} />;
       },
-      cell: ({ row }) => row.original.already_reflagged ? null
-        : <input type="checkbox" checked={row.getIsSelected()} onChange={row.getToggleSelectedHandler()} />
+      cell: ({ row }) => <input type="checkbox" checked={row.getIsSelected()} onChange={row.getToggleSelectedHandler()} />
     },
     { id: 'autoreflag', header: 'autoreflag', size: 100, accessorFn: (r) => (r.is_autoreflag ? 'yes' : ''),
       cell: ({ row }) => row.original.is_autoreflag ? <span className="badge-auto">autoreflag</span> : null },
@@ -54,13 +52,12 @@ export function ReflagView() {
     { id: 'outcome', header: 'Outcome', size: 160, accessorKey: 'outcome' },
     { id: 'batch', header: 'Orig batch', size: 90, accessorKey: 'orig_batch_id' },
     { id: 'bumps', header: 'Bumps', size: 74, accessorFn: (r) => bqv(r.version_bump_count) },
-    { id: 'reclassified', header: 'reclassified', size: 100, accessorFn: (r) => (r.was_reclassified ? '✓' : '') },
-    { id: 'already', header: 'already reflagged', size: 120, accessorFn: (r) => (r.already_reflagged ? '✓' : '') }
+    { id: 'reclassified', header: 'reclassified', size: 100, accessorFn: (r) => (r.was_reclassified ? '✓' : '') }
   ], []);
 
   const table = useReactTable({
     data: rows, columns, state: { rowSelection, columnFilters, sorting },
-    enableRowSelection: (row) => !row.original.already_reflagged, getRowId: (r) => r.scv_id,
+    enableRowSelection: true, getRowId: (r) => r.scv_id,
     onRowSelectionChange: setRowSelection, onColumnFiltersChange: setColumnFilters, onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(), getFilteredRowModel: getFilteredRowModel(), getSortedRowModel: getSortedRowModel()
   });
@@ -79,14 +76,18 @@ export function ReflagView() {
   const selected = table.getSelectedRowModel().rows.map((r) => r.original);
 
   const reflag = async () => {
-    const scvIds = selected.filter((r) => !r.already_reflagged).map((r) => r.scv_id);
+    const scvIds = selected.map((r) => r.scv_id);
     if (!scvIds.length) return;
     if (!confirm(`Reflag ${scvIds.length} SCV(s)? Each becomes a new Flagging Candidate at its current version and enters the review queue.`)) return;
     setStatus(`Reflagging ${scvIds.length}…`);
     try {
       const out = await api.reflag(scvIds);
-      setStatus(`Reflagged ${out.created}` + (out.skipped ? ` · ${out.skipped} skipped (already reflagged)` : '') + ' — they enrich into the review queue shortly.');
-      await load();
+      // Optimistically drop the reflagged SCVs from the list now — they won't be
+      // in native_v4 until enrichment runs, so a reload can't exclude them yet.
+      const done = new Set(scvIds);
+      setRaw((prev) => prev.filter((c) => !done.has(c.scv_id)));
+      setRowSelection({});
+      setStatus(`Reflagged ${out.created}` + (out.skipped ? ` · ${out.skipped} skipped` : '') + ' — removed from the list; they enter the review queue shortly.');
     } catch (e) { setStatus('Error: ' + (e as Error).message); }
   };
 
@@ -113,7 +114,7 @@ export function ReflagView() {
                 {{ asc: ' ▲', desc: ' ▼' }[h.column.getIsSorted() as string] ?? ''}
               </th>))}</tr>))}</thead>
           <tbody>{table.getRowModel().rows.map((row) => (
-            <tr key={row.id} className={row.original.already_reflagged ? 'done' : ''}>
+            <tr key={row.id}>
               {row.getVisibleCells().map((cell) => (
                 <td key={cell.id}>{flexRender(cell.column.columnDef.cell ?? ((c) => c.getValue()), cell.getContext())}</td>
               ))}
