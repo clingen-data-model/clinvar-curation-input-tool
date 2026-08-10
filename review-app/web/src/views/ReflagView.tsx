@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   useReactTable, getCoreRowModel, getFilteredRowModel, getSortedRowModel, flexRender,
-  type ColumnDef, type RowSelectionState, type ColumnFiltersState, type SortingState, type ColumnSizingState
+  type ColumnDef, type RowSelectionState, type ColumnFiltersState, type SortingState
 } from '@tanstack/react-table';
 import { api } from '../api';
 import { bqv, type ReflagCandidate } from '../types';
@@ -13,10 +13,6 @@ export function ReflagView() {
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [sorting, setSorting] = useState<SortingState>([]);
-  const [columnSizing, setColumnSizing] = useState<ColumnSizingState>(() => {
-    try { return JSON.parse(localStorage.getItem('cvc.reflag.colSizing') || '{}'); } catch { return {}; }
-  });
-  useEffect(() => { localStorage.setItem('cvc.reflag.colSizing', JSON.stringify(columnSizing)); }, [columnSizing]);
   const [status, setStatus] = useState('');
   const [loaded, setLoaded] = useState(false);
 
@@ -63,11 +59,9 @@ export function ReflagView() {
   ], []);
 
   const table = useReactTable({
-    data: rows, columns, state: { rowSelection, columnFilters, sorting, columnSizing },
+    data: rows, columns, state: { rowSelection, columnFilters, sorting },
     enableRowSelection: (row) => !row.original.already_reflagged, getRowId: (r) => r.scv_id,
-    enableColumnResizing: true, columnResizeMode: 'onChange',
-    onRowSelectionChange: setRowSelection, onColumnFiltersChange: setColumnFilters,
-    onSortingChange: setSorting, onColumnSizingChange: setColumnSizing,
+    onRowSelectionChange: setRowSelection, onColumnFiltersChange: setColumnFilters, onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(), getFilteredRowModel: getFilteredRowModel(), getSortedRowModel: getSortedRowModel()
   });
 
@@ -109,19 +103,14 @@ export function ReflagView() {
         <button className="secondary" onClick={load}>Reload candidates</button>
         <span className="status">{status}</span>
       </div>
+      <div className="grid-debug">header cols: {table.getVisibleLeafColumns().length} · first-row cells: {table.getRowModel().rows[0]?.getVisibleCells().length ?? 0}</div>
       <div className="grid-wrap">
-        <table className="grid" style={{ width: table.getTotalSize() }}>
-          <colgroup>{table.getVisibleLeafColumns().map((c) => <col key={c.id} style={{ width: c.getSize() }} />)}</colgroup>
+        <table className="grid">
           <thead>{table.getHeaderGroups().map((hg) => (
             <tr key={hg.id}>{hg.headers.map((h) => (
-              <th key={h.id}>
-                <div className={h.column.getCanSort() ? 'sortable' : ''} onClick={h.column.getToggleSortingHandler()}>
-                  {flexRender(h.column.columnDef.header, h.getContext())}
-                  {{ asc: ' ▲', desc: ' ▼' }[h.column.getIsSorted() as string] ?? ''}
-                </div>
-                {h.column.getCanResize() && (
-                  <div className={'resizer' + (h.column.getIsResizing() ? ' resizing' : '')}
-                    onMouseDown={h.getResizeHandler()} onTouchStart={h.getResizeHandler()} />)}
+              <th key={h.id} className={h.column.getCanSort() ? 'sortable' : ''} onClick={h.column.getToggleSortingHandler()}>
+                {flexRender(h.column.columnDef.header, h.getContext())}
+                {{ asc: ' ▲', desc: ' ▼' }[h.column.getIsSorted() as string] ?? ''}
               </th>))}</tr>))}</thead>
           <tbody>{table.getRowModel().rows.map((row) => (
             <tr key={row.id} className={row.original.already_reflagged ? 'done' : ''}>
