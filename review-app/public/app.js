@@ -123,11 +123,42 @@
     const u = $('unsaved'); u.hidden = n === 0;
     u.textContent = n ? `${n} unsaved change${n > 1 ? 's' : ''}` : '';
   }
+  let headerSelBox = null;
   function refreshSelection() {
     const sel = table ? table.getSelectedData() : [];
     $('assign-selected').disabled = !sel.some((d) => d._eligible);
     $('unassign-selected').disabled = !sel.some((d) => d._assigned);
+    $('apply-status').disabled = sel.length === 0;
     $('selected-count').textContent = sel.length ? `${sel.length} selected` : '';
+    if (headerSelBox && table) {
+      const active = table.getRows('active');
+      headerSelBox.checked = active.length > 0 && active.every((r) => r.isSelected());
+    }
+  }
+  // A filter-aware "select all VISIBLE rows" header checkbox. Acts only on the
+  // active (filtered) rows; `boxRef` hands the element back so its checked state
+  // can be kept in sync. Shared by the review + reflag grids.
+  function selectionColumn(getTable, boxRef) {
+    return {
+      formatter: 'rowSelection', hozAlign: 'center', headerSort: false, width: 42,
+      titleFormatter: function () {
+        const box = document.createElement('input');
+        box.type = 'checkbox'; box.title = 'Select all VISIBLE (filtered) rows';
+        box.addEventListener('click', (e) => e.stopPropagation());
+        box.addEventListener('change', () => {
+          getTable().getRows('active').forEach((r) => (box.checked ? r.select() : r.deselect()));
+        });
+        boxRef(box);
+        return box;
+      }
+    };
+  }
+  // Deselect any rows hidden by a filter change, so bulk actions never touch a
+  // record the curator can't currently see.
+  function deselectHidden(tbl, visibleRows, refreshFn) {
+    const active = new Set(visibleRows.map((r) => r.getData().id));
+    tbl.getSelectedRows().forEach((r) => { if (!active.has(r.getData().id)) r.deselect(); });
+    refreshFn();
   }
 
   // --- Tabulator grid --------------------------------------------------------
@@ -137,8 +168,14 @@
     formatter: 'tickCross', formatterParams: { crossElement: false, allowTruthy: true }
   });
   const COLUMNS = [
-    { formatter: 'rowSelection', titleFormatter: 'rowSelection', hozAlign: 'center', headerSort: false, width: 42 },
-    { title: 'SCV', field: 'scv', width: 140, headerFilter: 'input', frozen: true },
+    selectionColumn(() => table, (b) => { headerSelBox = b; }),
+    // Workflow-editing columns first (right after the checkbox) …
+    { title: 'Status', field: 'status', width: 120, editor: 'list', editorParams: { values: STATUS_VALUES }, headerFilter: 'list', headerFilterParams: { values: STATUS_VALUES } },
+    { title: 'Review notes', field: 'notes', width: 220, editor: 'input' },
+    { title: 'Auto', field: 'auto', width: 90, tooltip: (e, cell) => cell.getData().auto_note || '' },
+    { title: 'Batch', field: 'batch', width: 100, tooltip: (e, cell) => cell.getData().batch_reason || '' },
+    // … then the SCV + context columns.
+    { title: 'SCV', field: 'scv', width: 140, headerFilter: 'input' },
     { title: 'Variant', field: 'variant', headerFilter: 'input' },
     { title: 'Submitter', field: 'submitter', headerFilter: 'input' },
     { title: 'Action', field: 'action', width: 170, headerFilter: 'input' },
@@ -154,14 +191,11 @@
     { title: 'latest scv classif', field: 'latest_scv_classif', width: 150, headerFilter: 'input', headerTooltip: 'Latest SCV classification now (compare to the annotated classification)' },
     boolCol('prior same ver', 'prior_ver', 'A prior CvC annotation exists for this exact SCV version'),
     boolCol('prior submitted', 'prior_submitted', 'A prior CvC annotation for this SCV was submitted in a batch'),
-    { title: 'Prior hist', field: 'prior_any', width: 92, hozAlign: 'center', headerSort: false,
-      headerTooltip: 'Show all prior CvC annotations for this SCV',
-      formatter: (cell) => (cell.getValue() ? '<a href="#" class="hist-link">history ▸</a>' : ''),
-      cellClick: (e, cell) => { const d = cell.getData(); if (d.prior_any) { e.preventDefault(); openHistory(d); } } },
-    { title: 'Auto', field: 'auto', width: 90, tooltip: (e, cell) => cell.getData().auto_note || '' },
-    { title: 'Status', field: 'status', width: 120, editor: 'list', editorParams: { values: STATUS_VALUES }, headerFilter: 'list', headerFilterParams: { values: STATUS_VALUES } },
-    { title: 'Review notes', field: 'notes', width: 240, editor: 'input' },
-    { title: 'Batch', field: 'batch', width: 100, tooltip: (e, cell) => cell.getData().batch_reason || '' }
+    { title: 'Prior hist', field: 'prior_any', width: 96, hozAlign: 'center', headerSort: false,
+      headerTooltip: 'Hover to see prior CvC annotations for this SCV',
+      formatter: (cell) => (cell.getValue() ? '<span class="hist-link">history ▸</span>' : ''),
+      cellMouseEnter: (e, cell) => { if (cell.getData().prior_any) showHistPop(cell); },
+      cellMouseLeave: () => scheduleHideHistPop() }
   ];
   function rowFormatter(row) {
     const d = row.getData(); const el = row.getElement();
@@ -180,19 +214,32 @@
       : '';
     return `.${ver}\t${date} (${h.curator || ''}) ${h.action || ''} ${h.reason || ''}${rev}`;
   }
-  async function openHistory(d) {
-    const dlg = $('hist-dialog');
-    $('hist-title').textContent = `Prior annotations — ${d.scv_id}`;
-    const body = $('hist-body'); body.textContent = 'Loading…';
-    if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', '');
+  // Hover popover (like the extension's CvC badge). Fetches once per SCV (cached),
+  // positions near the hovered cell, and stays open while the mouse is over it.
+  const histCache = {};
+  let histHideTimer = null;
+  const escapeHtml = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+  function scheduleHideHistPop() { clearTimeout(histHideTimer); histHideTimer = setTimeout(() => { $('hist-pop').hidden = true; }, 200); }
+  async function showHistPop(cell) {
+    clearTimeout(histHideTimer);
+    const d = cell.getData();
+    const pop = $('hist-pop');
+    const rect = cell.getElement().getBoundingClientRect();
+    const maxLeft = window.scrollX + document.documentElement.clientWidth - 660;
+    pop.style.left = Math.max(8, Math.min(rect.left + window.scrollX, maxLeft)) + 'px';
+    pop.style.top = (rect.bottom + window.scrollY + 4) + 'px';
+    pop.hidden = false;
+    pop.innerHTML = `<div class="hist-hd">Prior annotations — ${escapeHtml(d.scv_id)}</div><pre>Loading…</pre>`;
     try {
-      const { rows } = await api('/scv-history?scvId=' + encodeURIComponent(d.scv_id));
-      body.textContent = (rows && rows.length)
-        ? rows.map(fmtHistLine).join('\n')
-        : 'No prior annotations found for this SCV.';
-    } catch (e) { body.textContent = 'Error: ' + (e && e.message ? e.message : e); }
+      let rows = histCache[d.scv_id];
+      if (!rows) { const r = await api('/scv-history?scvId=' + encodeURIComponent(d.scv_id)); rows = r.rows || []; histCache[d.scv_id] = rows; }
+      if (pop.hidden) return; // moved away before it loaded
+      const body = rows.length ? rows.map(fmtHistLine).join('\n') : 'No prior annotations found.';
+      pop.innerHTML = `<div class="hist-hd">Prior annotations — ${escapeHtml(d.scv_id)} (${rows.length})</div><pre>${escapeHtml(body)}</pre>`;
+    } catch (e) { pop.innerHTML = `<pre>Error: ${escapeHtml(e && e.message ? e.message : String(e))}</pre>`; }
   }
-  $('hist-close').addEventListener('click', () => $('hist-dialog').close());
+  $('hist-pop').addEventListener('mouseenter', () => clearTimeout(histHideTimer));
+  $('hist-pop').addEventListener('mouseleave', scheduleHideHistPop);
   // Build once, then replaceData on reload (returns a promise resolved when ready).
   function loadIntoTable(data) {
     return new Promise((resolve) => {
@@ -200,12 +247,13 @@
       table = new Tabulator('#queue', {
         index: 'id', layout: 'fitDataFill', height: '64vh', data,
         placeholder: 'Queue is empty — no unreviewed annotations.',
-        selectableRows: true, selectableRowsCheck: (row) => row.getData()._selectable,
+        selectableRows: true, // every row selectable (bulk status can touch any row)
         columns: COLUMNS, rowFormatter
       });
       // reformat re-runs rowFormatter so the dirty tint tracks the edit
       table.on('cellEdited', (cell) => { cell.getRow().reformat(); refreshDirty(); });
       table.on('rowSelectionChanged', () => refreshSelection());
+      table.on('dataFiltered', (filters, rows) => deselectHidden(table, rows, refreshSelection));
       table.on('tableBuilt', () => resolve());
     });
   }
@@ -312,6 +360,18 @@
       : 'No blank rows have an auto-review suggestion to apply.';
   });
 
+  // Set a status on every SELECTED (visible) row at once — a real edit, so the
+  // unsaved count updates and Save all persists it.
+  $('apply-status').addEventListener('click', () => {
+    if (!table) return;
+    const v = $('bulk-status').value;
+    const sel = table.getSelectedRows();
+    if (!sel.length) { $('status').textContent = 'Select rows first (check boxes or the header Select-all).'; return; }
+    sel.forEach((r) => { r.update({ status: v }); r.reformat(); });
+    refreshDirty();
+    $('status').textContent = `Set status "${v || '(none)'}" on ${sel.length} row(s) — review, then Save all.`;
+  });
+
   $('assign-selected').addEventListener('click', () => bulkBatch('/assign-bulk', (d) => d._eligible, 'assign'));
   $('unassign-selected').addEventListener('click', () => bulkBatch('/unassign-bulk', (d) => d._assigned, 'unassign'));
   async function bulkBatch(path, pick, verb) {
@@ -395,8 +455,9 @@
     if (reflag && !reflagTable) loadReflagCandidates();
   }
 
+  let reflagHeaderSelBox = null;
   const REFLAG_COLUMNS = [
-    { formatter: 'rowSelection', titleFormatter: 'rowSelection', hozAlign: 'center', headerSort: false, width: 42 },
+    selectionColumn(() => reflagTable, (b) => { reflagHeaderSelBox = b; }),
     { title: '', field: 'is_autoreflag', width: 90, hozAlign: 'center', headerSort: true,
       formatter: (cell) => cell.getValue() ? '<span class="badge-auto">autoreflag</span>' : '' },
     { title: 'SCV', field: 'scv_disp', width: 150, headerFilter: 'input', frozen: true },
@@ -428,6 +489,10 @@
     const sel = reflagTable ? reflagTable.getSelectedData() : [];
     $('reflag-selected').disabled = sel.length === 0;
     $('reflag-selected-count').textContent = sel.length ? `${sel.length} selected` : '';
+    if (reflagHeaderSelBox && reflagTable) {
+      const active = reflagTable.getRows('active').filter((r) => !r.getData()._already);
+      reflagHeaderSelBox.checked = active.length > 0 && active.every((r) => r.isSelected());
+    }
   }
   async function loadReflagCandidates() {
     $('reflag-status').textContent = 'Loading candidates…';
@@ -444,6 +509,7 @@
           rowFormatter: (row) => row.getElement().classList.toggle('done', !!row.getData()._already)
         });
         reflagTable.on('rowSelectionChanged', refreshReflagSelection);
+        reflagTable.on('dataFiltered', (filters, rows) => deselectHidden(reflagTable, rows, refreshReflagSelection));
         reflagTable.on('tableBuilt', () => { refreshReflagSelection(); });
       } else {
         await reflagTable.replaceData(data);
