@@ -112,9 +112,7 @@ export function ReflagView() {
                   {flexRender(h.column.columnDef.header, h.getContext())}
                   {{ asc: ' ▲', desc: ' ▼' }[h.column.getIsSorted() as string] ?? ''}
                 </div>
-                {h.column.getCanFilter() && (
-                  <input className="col-filter" placeholder="filter" value={(h.column.getFilterValue() as string) ?? ''}
-                    onChange={(e) => h.column.setFilterValue(e.target.value)} />)}
+                {/* Per-column filtering deferred — see ReviewView. */}
               </th>))}</tr>))}</thead>
           <tbody>{table.getRowModel().rows.map((row) => (
             <tr key={row.id} className={row.original.already_reflagged ? 'done' : ''}>
