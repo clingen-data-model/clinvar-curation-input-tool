@@ -1,4 +1,22 @@
+import type { MouseEvent } from 'react';
 import type { Table } from '@tanstack/react-table';
+
+// Checkbox click with shift-range support: a plain click toggles the row and sets
+// the anchor; shift-click sets the whole range from the anchor to the anchor's
+// state (spreadsheet-style). Operates on the VISIBLE (filtered/sorted) rows.
+export function rangeSelectClick<T>(e: MouseEvent, table: Table<T>, rowId: string, anchor: { current: number | null }) {
+  const visible = table.getRowModel().rows;
+  const idx = visible.findIndex((r) => r.id === rowId);
+  if (idx < 0) return;
+  if (e.shiftKey && anchor.current != null && anchor.current < visible.length) {
+    const state = visible[anchor.current].getIsSelected();
+    const [a, b] = anchor.current <= idx ? [anchor.current, idx] : [idx, anchor.current];
+    for (let k = a; k <= b; k++) if (visible[k].getCanSelect()) visible[k].toggleSelected(state);
+  } else {
+    visible[idx].toggleSelected(!visible[idx].getIsSelected());
+    anchor.current = idx;
+  }
+}
 
 // Combine class name parts, dropping falsy ones.
 export const cls = (...parts: (string | false | undefined)[]) => parts.filter(Boolean).join(' ') || undefined;

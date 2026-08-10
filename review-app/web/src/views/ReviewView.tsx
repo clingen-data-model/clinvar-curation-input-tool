@@ -7,7 +7,7 @@ import { api } from '../api';
 import { bqv, loadColSizing, type Config, type QueueRow, type GenerateResult, type GeneratedFile } from '../types';
 import { HistoryHover } from './HistoryHover';
 import { CellHover } from './CellHover';
-import { cls, pinClass, pinStyle, colLefts, exportVisibleCsv } from './gridUtil';
+import { cls, pinClass, pinStyle, colLefts, exportVisibleCsv, rangeSelectClick } from './gridUtil';
 
 const STATUSES = ['', 'OK', 'Fixed', 'Archive', 'Question'];
 const ACTIONABLE = ['flagging candidate', 'remove flagged submission'];
@@ -37,6 +37,7 @@ export function ReviewView({ config, onConfigChange }: { config: Config; onConfi
   const [result, setResult] = useState<GenerateResult | null>(null);
   const [files, setFiles] = useState<GeneratedFile[]>([]);
   const [bulkStatus, setBulkStatus] = useState('');
+  const anchorRef = useRef<number | null>(null);   // shift-click range anchor
 
   const rows: Row[] = useMemo(() => raw.map((r) => {
     const assigned = r.rs_batch_id != null && String(r.rs_batch_id) === String(nextBatchId);
@@ -93,7 +94,8 @@ export function ReviewView({ config, onConfigChange }: { config: Config; onConfi
         return <input type="checkbox" title="Select all VISIBLE rows" checked={allSel}
           onChange={(e) => fr.forEach((r) => r.toggleSelected(e.target.checked))} />;
       },
-      cell: ({ row }) => <input type="checkbox" checked={row.getIsSelected()} onChange={row.getToggleSelectedHandler()} />
+      cell: ({ row, table }) => <input type="checkbox" checked={row.getIsSelected()} onChange={() => {}}
+        onClick={(e) => rangeSelectClick(e, table, row.id, anchorRef)} />
     },
     { id: 'status', header: 'Status', size: 110, accessorFn: (r) => val(r.annotation_id).status,
       cell: ({ row }) => (
@@ -175,6 +177,17 @@ export function ReviewView({ config, onConfigChange }: { config: Config; onConfi
       await loadQueue();
     } catch (e) { setStatus('Error: ' + (e as Error).message); }
   };
+  // Copy the first selected row's Status + Notes to every selected row.
+  const fillSelected = () => {
+    if (selected.length < 2) { setStatus('Select 2+ rows (the first is the source).'); return; }
+    const src = val(selected[0].annotation_id);
+    setEdits((prev) => {
+      const next = { ...prev };
+      selected.forEach((r) => { next[r.annotation_id] = { status: src.status, notes: src.notes }; });
+      return next;
+    });
+    setStatus(`Copied Status/Notes from ${selected[0].scv_id} to ${selected.length} selected row(s) — review, then Save all.`);
+  };
   const applyBulkStatus = () => {
     if (!selected.length) { setStatus('Select rows first.'); return; }
     setEdits((prev) => {
@@ -227,6 +240,8 @@ export function ReviewView({ config, onConfigChange }: { config: Config; onConfi
           </select>
         </label>
         <button className="secondary" disabled={!selected.length} onClick={applyBulkStatus}>Apply</button>
+        <button className="secondary" disabled={selected.length < 2} onClick={fillSelected}
+          title="Copy the first selected row's Status + Notes to all selected rows">Copy Status+Notes ↓</button>
         <span className="sep">·</span>
         <button className="secondary" disabled={!selected.some((r) => r.eligible)} onClick={() => bulkBatch('assign')}>Add selected to batch</button>
         <button className="secondary" disabled={!selected.some((r) => r.assigned)} onClick={() => bulkBatch('unassign')}>Unassign selected</button>

@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   useReactTable, getCoreRowModel, getFilteredRowModel, getSortedRowModel, flexRender,
   type ColumnDef, type RowSelectionState, type ColumnFiltersState, type SortingState, type ColumnSizingState
 } from '@tanstack/react-table';
 import { api } from '../api';
 import { bqv, loadColSizing, type ReflagCandidate } from '../types';
-import { cls, pinClass, pinStyle, colLefts, exportVisibleCsv } from './gridUtil';
+import { cls, pinClass, pinStyle, colLefts, exportVisibleCsv, rangeSelectClick } from './gridUtil';
 
 const FROZEN = 4;               // freeze the first 4 reflag columns
 const namePart = (email: string) => (email || '').split('@')[0];
@@ -21,6 +21,7 @@ export function ReflagView() {
   useEffect(() => { localStorage.setItem('cvc.reflag.colSizing', JSON.stringify(columnSizing)); }, [columnSizing]);
   const [status, setStatus] = useState('');
   const [loaded, setLoaded] = useState(false);
+  const anchorRef = useRef<number | null>(null);
 
   const rows: Row[] = useMemo(() => raw.map((c) => ({
     ...c, scv_disp: `${c.scv_id}.${bqv(c.current_scv_ver)}`,
@@ -47,7 +48,8 @@ export function ReflagView() {
         return <input type="checkbox" title="Select all VISIBLE rows" checked={allSel}
           onChange={(e) => fr.forEach((r) => r.toggleSelected(e.target.checked))} />;
       },
-      cell: ({ row }) => <input type="checkbox" checked={row.getIsSelected()} onChange={row.getToggleSelectedHandler()} />
+      cell: ({ row, table }) => <input type="checkbox" checked={row.getIsSelected()} onChange={() => {}}
+        onClick={(e) => rangeSelectClick(e, table, row.id, anchorRef)} />
     },
     { id: 'autoreflag', header: 'autoreflag', size: 100, accessorFn: (r) => (r.is_autoreflag ? 'yes' : ''),
       cell: ({ row }) => row.original.is_autoreflag ? <span className="badge-auto">autoreflag</span> : null },
