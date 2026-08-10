@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   useReactTable, getCoreRowModel, getFilteredRowModel, getSortedRowModel, flexRender,
-  type ColumnDef, type RowSelectionState, type ColumnFiltersState, type SortingState, type ColumnSizingState
+  type ColumnDef, type RowSelectionState, type ColumnFiltersState, type SortingState, type ColumnSizingState, type Table
 } from '@tanstack/react-table';
 import { api } from '../api';
 import { bqv, loadColSizing, type Config, type QueueRow, type GenerateResult, type GeneratedFile } from '../types';
@@ -43,6 +43,9 @@ export function ReviewView({ config, onConfigChange }: { config: Config; onConfi
   const [files, setFiles] = useState<GeneratedFile[]>([]);
   const [bulkStatus, setBulkStatus] = useState('');
   const anchorRef = useRef<number | null>(null);   // shift-click range anchor
+  const [activeId, setActiveId] = useState<string | null>(null);   // highlighted "source" row
+  const activeIdRef = useRef<string | null>(null);
+  activeIdRef.current = activeId;
 
   const rows: Row[] = useMemo(() => raw.map((r) => {
     const assigned = r.rs_batch_id != null && String(r.rs_batch_id) === String(nextBatchId);
@@ -103,16 +106,20 @@ export function ReviewView({ config, onConfigChange }: { config: Config; onConfi
         onClick={(e) => rangeSelectClick(e, table, row.id, anchorRef)} />
     },
     { id: 'status', header: 'Status', size: 110, accessorFn: (r) => val(r.annotation_id).status,
-      cell: ({ row }) => (
+      cell: ({ row, table }) => (
         <select className={fieldDirty(row.original.annotation_id, 'status') ? 'cell-dirty' : ''}
-          value={val(row.original.annotation_id).status} onChange={(e) => setCell(row.original.annotation_id, 'status', e.target.value)}>
+          value={val(row.original.annotation_id).status} onChange={(e) => setCell(row.original.annotation_id, 'status', e.target.value)}
+          onMouseDown={(e) => { if (e.shiftKey) e.preventDefault(); }}
+          onClick={(e) => { if (e.shiftKey) { e.stopPropagation(); fillColumn('status', row.original.annotation_id, table); } }}>
           {STATUSES.map((s) => <option key={s} value={s}>{s || '(none)'}</option>)}
         </select>) },
     { id: 'notes', header: 'Review notes', size: 240, accessorFn: (r) => val(r.annotation_id).notes,
-      cell: ({ row }) => (
+      cell: ({ row, table }) => (
         <input type="text" className={fieldDirty(row.original.annotation_id, 'notes') ? 'cell-dirty' : ''}
           value={val(row.original.annotation_id).notes}
-          onChange={(e) => setCell(row.original.annotation_id, 'notes', e.target.value)} />) },
+          onChange={(e) => setCell(row.original.annotation_id, 'notes', e.target.value)}
+          onMouseDown={(e) => { if (e.shiftKey) e.preventDefault(); }}
+          onClick={(e) => { if (e.shiftKey) { e.stopPropagation(); fillColumn('notes', row.original.annotation_id, table); } }} />) },
     { id: 'auto', header: 'Auto', size: 100, accessorFn: (r) => r.auto_status || 'manual',
       // Hover shows WHY it was (or wasn't) auto-reviewed (the auto_note reasoning).
       cell: ({ row }) => (
@@ -183,6 +190,27 @@ export function ReviewView({ config, onConfigChange }: { config: Config; onConfi
       setStatus(`Saved ${editsPayload.length} change(s)` + (out.cleared ? ` (incl. ${out.cleared} cleared)` : ''));
       await loadQueue();
     } catch (e) { setStatus('Error: ' + (e as Error).message); }
+  };
+  // Shift-click a Status/Notes cell: fill THAT column from the active (highlighted)
+  // row down/up to the clicked row across the visible range.
+  const fillColumn = (k: 'status' | 'notes', targetId: string, table: Table<Row>) => {
+    const src = activeIdRef.current;
+    if (!src) { setStatus('Click a row to set the source, then shift-click a Status/Notes cell to fill.'); return; }
+    const visible = table.getRowModel().rows;
+    const ai = visible.findIndex((r) => r.id === src);
+    const ti = visible.findIndex((r) => r.id === targetId);
+    if (ai < 0 || ti < 0) return;
+    const v = (editsRef.current[src] || baseline.current[src] || { status: '', notes: '' })[k];
+    const [a, b] = ai <= ti ? [ai, ti] : [ti, ai];
+    setEdits((prev) => {
+      const next = { ...prev };
+      for (let idx = a; idx <= b; idx++) {
+        const id = visible[idx].original.annotation_id;
+        next[id] = { ...(prev[id] || baseline.current[id] || { status: '', notes: '' }), [k]: v };
+      }
+      return next;
+    });
+    setStatus(`Filled ${k} across ${b - a + 1} row(s) — review, then Save all.`);
   };
   // Copy the first selected row's Status + Notes to every selected row.
   const fillSelected = () => {
@@ -294,7 +322,8 @@ export function ReviewView({ config, onConfigChange }: { config: Config; onConfi
                     onMouseDown={h.getResizeHandler()} onTouchStart={h.getResizeHandler()} />)}
               </th>))}</tr>))}</thead>
           <tbody>{table.getRowModel().rows.map((row) => (
-            <tr key={row.id} className={cls(row.original.fresh ? 'fresh' : '', isDirty(row.id) ? 'dirty' : '')}>
+            <tr key={row.id} onClick={() => setActiveId(row.id)}
+              className={cls(row.original.fresh ? 'fresh' : '', isDirty(row.id) ? 'dirty' : '', row.id === activeId ? 'active' : '')}>
               {row.getVisibleCells().map((cell, i) => (
                 <td key={cell.id} className={cls(pinClass(i, FROZEN))} style={pinStyle(i, lefts, FROZEN)}>
                   {flexRender(cell.column.columnDef.cell ?? ((c) => c.getValue()), cell.getContext())}</td>

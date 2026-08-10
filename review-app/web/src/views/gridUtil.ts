@@ -1,21 +1,23 @@
 import type { MouseEvent } from 'react';
 import type { Table } from '@tanstack/react-table';
 
-// Checkbox click with shift-range support: a plain click toggles the row and sets
-// the anchor; shift-click sets the whole range from the anchor to the anchor's
-// state (spreadsheet-style). Operates on the VISIBLE (filtered/sorted) rows.
+// Checkbox click with shift-range support (checks OR unchecks). A plain click
+// toggles the row; shift-click sets the whole range from the anchor to the state
+// the clicked row is toggling TO — so shift-clicking an unchecked row checks the
+// range, and shift-clicking a checked row unchecks it. Operates on the VISIBLE
+// (filtered/sorted) rows; the last-clicked row becomes the new anchor.
 export function rangeSelectClick<T>(e: MouseEvent, table: Table<T>, rowId: string, anchor: { current: number | null }) {
   const visible = table.getRowModel().rows;
   const idx = visible.findIndex((r) => r.id === rowId);
   if (idx < 0) return;
   if (e.shiftKey && anchor.current != null && anchor.current < visible.length) {
-    const state = visible[anchor.current].getIsSelected();
+    const target = !visible[idx].getIsSelected();
     const [a, b] = anchor.current <= idx ? [anchor.current, idx] : [idx, anchor.current];
-    for (let k = a; k <= b; k++) if (visible[k].getCanSelect()) visible[k].toggleSelected(state);
+    for (let k = a; k <= b; k++) if (visible[k].getCanSelect()) visible[k].toggleSelected(target);
   } else {
     visible[idx].toggleSelected(!visible[idx].getIsSelected());
-    anchor.current = idx;
   }
+  anchor.current = idx;
 }
 
 // Combine class name parts, dropping falsy ones.
