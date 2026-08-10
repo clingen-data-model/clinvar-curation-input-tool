@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   useReactTable, getCoreRowModel, getFilteredRowModel, getSortedRowModel, flexRender,
-  type ColumnDef, type RowSelectionState, type ColumnFiltersState, type SortingState, type ColumnSizingState
+  type ColumnDef, type RowSelectionState, type ColumnFiltersState, type SortingState
 } from '@tanstack/react-table';
 import { api } from '../api';
 import { bqv, type Config, type QueueRow, type GenerateResult, type GeneratedFile } from '../types';
@@ -25,11 +25,6 @@ export function ReviewView({ config, onConfigChange }: { config: Config; onConfi
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [sorting, setSorting] = useState<SortingState>([]);
-  // Persist user-resized column widths across reloads.
-  const [columnSizing, setColumnSizing] = useState<ColumnSizingState>(() => {
-    try { return JSON.parse(localStorage.getItem('cvc.review.colSizing') || '{}'); } catch { return {}; }
-  });
-  useEffect(() => { localStorage.setItem('cvc.review.colSizing', JSON.stringify(columnSizing)); }, [columnSizing]);
   const [status, setStatus] = useState('Loading queue…');
   const [result, setResult] = useState<GenerateResult | null>(null);
   const [files, setFiles] = useState<GeneratedFile[]>([]);
@@ -125,11 +120,9 @@ export function ReviewView({ config, onConfigChange }: { config: Config; onConfi
   ], [edits, nextBatchId]);
 
   const table = useReactTable({
-    data: rows, columns, state: { rowSelection, columnFilters, sorting, columnSizing },
+    data: rows, columns, state: { rowSelection, columnFilters, sorting },
     enableRowSelection: true, getRowId: (r) => r.annotation_id,
-    enableColumnResizing: true, columnResizeMode: 'onChange',
-    onRowSelectionChange: setRowSelection, onColumnFiltersChange: setColumnFilters,
-    onSortingChange: setSorting, onColumnSizingChange: setColumnSizing,
+    onRowSelectionChange: setRowSelection, onColumnFiltersChange: setColumnFilters, onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(), getFilteredRowModel: getFilteredRowModel(), getSortedRowModel: getSortedRowModel()
   });
 
@@ -239,19 +232,14 @@ export function ReviewView({ config, onConfigChange }: { config: Config; onConfi
 
       <div className="status">{status}</div>
 
+      <div className="grid-debug">header cols: {table.getVisibleLeafColumns().length} · first-row cells: {table.getRowModel().rows[0]?.getVisibleCells().length ?? 0}</div>
       <div className="grid-wrap">
-        <table className="grid" style={{ width: table.getTotalSize() }}>
-          <colgroup>{table.getVisibleLeafColumns().map((c) => <col key={c.id} style={{ width: c.getSize() }} />)}</colgroup>
+        <table className="grid">
           <thead>{table.getHeaderGroups().map((hg) => (
             <tr key={hg.id}>{hg.headers.map((h) => (
-              <th key={h.id}>
-                <div className={h.column.getCanSort() ? 'sortable' : ''} onClick={h.column.getToggleSortingHandler()}>
-                  {flexRender(h.column.columnDef.header, h.getContext())}
-                  {{ asc: ' ▲', desc: ' ▼' }[h.column.getIsSorted() as string] ?? ''}
-                </div>
-                {h.column.getCanResize() && (
-                  <div className={'resizer' + (h.column.getIsResizing() ? ' resizing' : '')}
-                    onMouseDown={h.getResizeHandler()} onTouchStart={h.getResizeHandler()} />)}
+              <th key={h.id} className={h.column.getCanSort() ? 'sortable' : ''} onClick={h.column.getToggleSortingHandler()}>
+                {flexRender(h.column.columnDef.header, h.getContext())}
+                {{ asc: ' ▲', desc: ' ▼' }[h.column.getIsSorted() as string] ?? ''}
               </th>))}</tr>))}</thead>
           <tbody>{table.getRowModel().rows.map((row) => (
             <tr key={row.id} className={(row.original.fresh ? 'fresh ' : '') + (isDirty(row.id) ? 'dirty' : '')}>
