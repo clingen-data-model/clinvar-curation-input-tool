@@ -96,3 +96,14 @@ export const bqv = (v: BqVal | undefined): string => {
   if (typeof v === 'object' && 'value' in v) return String(v.value);
   return String(v);
 };
+
+// Persisted column widths, CLAMPED to a sane range so a bad drag / stale value
+// can never wedge the grid (that was the earlier resize bug).
+export function loadColSizing(key: string): Record<string, number> {
+  try {
+    const s = JSON.parse(localStorage.getItem(key) || '{}');
+    const out: Record<string, number> = {};
+    for (const k in s) { const v = Number(s[k]); if (Number.isFinite(v) && v >= 40 && v <= 900) out[k] = v; }
+    return out;
+  } catch { return {}; }
+}
