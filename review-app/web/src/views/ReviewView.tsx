@@ -85,36 +85,36 @@ export function ReviewView({ config, onConfigChange }: { config: Config; onConfi
       },
       cell: ({ row }) => <input type="checkbox" checked={row.getIsSelected()} onChange={row.getToggleSelectedHandler()} />
     },
-    { id: 'status', header: 'Status', accessorFn: (r) => val(r.annotation_id).status, filterFn: 'equalsString',
+    { id: 'status', header: 'Status', size: 110, accessorFn: (r) => val(r.annotation_id).status,
       cell: ({ row }) => (
         <select value={val(row.original.annotation_id).status} onChange={(e) => setCell(row.original.annotation_id, 'status', e.target.value)}>
           {STATUSES.map((s) => <option key={s} value={s}>{s || '(none)'}</option>)}
         </select>) },
-    { id: 'notes', header: 'Review notes', enableColumnFilter: false,
+    { id: 'notes', header: 'Review notes', size: 240,
       cell: ({ row }) => (
         <input type="text" value={val(row.original.annotation_id).notes}
           onChange={(e) => setCell(row.original.annotation_id, 'notes', e.target.value)} />) },
-    { id: 'auto', header: 'Auto', accessorFn: (r) => r.auto_status || 'manual',
+    { id: 'auto', header: 'Auto', size: 90, accessorFn: (r) => r.auto_status || 'manual',
       cell: ({ row }) => <span title={row.original.auto_note || ''}>{row.original.auto_status || 'manual'}</span> },
-    { id: 'batch', header: 'Batch',
+    { id: 'batch', header: 'Batch', size: 100,
       cell: ({ row }) => <span title={row.original.reason}>{row.original.assigned ? `batch ${nextBatchId}` : row.original.eligible ? 'eligible' : '—'}</span> },
-    { id: 'scv', header: 'SCV', accessorFn: (r) => r.scv_disp },
-    { id: 'variant', header: 'Variant', accessorFn: (r) => r.variant },
-    { id: 'submitter', header: 'Submitter', accessorFn: (r) => r.submitter_name || r.submitter_id },
-    { id: 'action', header: 'Action', accessorKey: 'action' },
-    { id: 'reason', header: 'Reason', accessorKey: 'reason' },
-    { id: 'scv_review', header: 'SCV rev status', accessorFn: (r) => r.clinvar_review_status || '' },
-    { id: 'latest_anno', header: 'latest anno', enableColumnFilter: false, accessorFn: (r) => tick(r.is_latest_annotation) },
-    { id: 'outdated_vcv', header: 'outdated vcv', enableColumnFilter: false, accessorFn: (r) => tick(r.is_outdated_vcv) },
-    { id: 'outdated_scv', header: 'outdated scv', enableColumnFilter: false, accessorFn: (r) => tick(r.is_outdated_scv) },
-    { id: 'moved', header: 'moved', enableColumnFilter: false, accessorFn: (r) => tick(r.is_moved_scv) },
-    { id: 'deleted', header: 'deleted', enableColumnFilter: false, accessorFn: (r) => tick(r.is_deleted_scv) },
-    { id: 'deleted_rel', header: 'deleted rel date', enableColumnFilter: false, accessorFn: (r) => bqv(r.deleted_scv_release_date) },
-    { id: 'latest_scv_ver', header: 'latest scv ver', enableColumnFilter: false, accessorFn: (r) => bqv(r.latest_scv_ver) },
-    { id: 'latest_scv_classif', header: 'latest scv classif', accessorFn: (r) => r.latest_scv_classification || '' },
-    { id: 'prior_ver', header: 'prior same ver', enableColumnFilter: false, accessorFn: (r) => tick(r.has_prior_scv_ver_annotation) },
-    { id: 'prior_sub', header: 'prior submitted', enableColumnFilter: false, accessorFn: (r) => tick(r.has_prior_submission_batch_id) },
-    { id: 'prior_hist', header: 'Prior hist', enableSorting: false, enableColumnFilter: false,
+    { id: 'scv', header: 'SCV', size: 150, accessorFn: (r) => r.scv_disp },
+    { id: 'variant', header: 'Variant', size: 180, accessorFn: (r) => r.variant },
+    { id: 'submitter', header: 'Submitter', size: 170, accessorFn: (r) => r.submitter_name || r.submitter_id },
+    { id: 'action', header: 'Action', size: 150, accessorKey: 'action' },
+    { id: 'reason', header: 'Reason', size: 240, accessorKey: 'reason' },
+    { id: 'scv_review', header: 'SCV rev status', size: 150, accessorFn: (r) => r.clinvar_review_status || '' },
+    { id: 'latest_anno', header: 'latest anno', size: 84, accessorFn: (r) => tick(r.is_latest_annotation) },
+    { id: 'outdated_vcv', header: 'outdated vcv', size: 90, accessorFn: (r) => tick(r.is_outdated_vcv) },
+    { id: 'outdated_scv', header: 'outdated scv', size: 90, accessorFn: (r) => tick(r.is_outdated_scv) },
+    { id: 'moved', header: 'moved', size: 72, accessorFn: (r) => tick(r.is_moved_scv) },
+    { id: 'deleted', header: 'deleted', size: 72, accessorFn: (r) => tick(r.is_deleted_scv) },
+    { id: 'deleted_rel', header: 'deleted rel date', size: 120, accessorFn: (r) => bqv(r.deleted_scv_release_date) },
+    { id: 'latest_scv_ver', header: 'latest scv ver', size: 100, accessorFn: (r) => bqv(r.latest_scv_ver) },
+    { id: 'latest_scv_classif', header: 'latest scv classif', size: 150, accessorFn: (r) => r.latest_scv_classification || '' },
+    { id: 'prior_ver', header: 'prior same ver', size: 100, accessorFn: (r) => tick(r.has_prior_scv_ver_annotation) },
+    { id: 'prior_sub', header: 'prior submitted', size: 104, accessorFn: (r) => tick(r.has_prior_submission_batch_id) },
+    { id: 'prior_hist', header: 'Prior hist', size: 96, enableSorting: false,
       cell: ({ row }) => row.original.has_prior_scv_id_annotation ? <HistoryHover scvId={row.original.scv_id} /> : null }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   ], [edits, nextBatchId]);
@@ -233,7 +233,8 @@ export function ReviewView({ config, onConfigChange }: { config: Config; onConfi
       <div className="status">{status}</div>
 
       <div className="grid-wrap">
-        <table className="grid">
+        <table className="grid" style={{ width: table.getTotalSize() }}>
+          <colgroup>{table.getVisibleLeafColumns().map((c) => <col key={c.id} style={{ width: c.getSize() }} />)}</colgroup>
           <thead>{table.getHeaderGroups().map((hg) => (
             <tr key={hg.id}>{hg.headers.map((h) => (
               <th key={h.id}>

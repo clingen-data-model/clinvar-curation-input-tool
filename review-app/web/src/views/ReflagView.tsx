@@ -44,18 +44,18 @@ export function ReflagView() {
       cell: ({ row }) => row.original.already_reflagged ? null
         : <input type="checkbox" checked={row.getIsSelected()} onChange={row.getToggleSelectedHandler()} />
     },
-    { id: 'autoreflag', header: 'autoreflag', accessorFn: (r) => (r.is_autoreflag ? 'yes' : ''),
+    { id: 'autoreflag', header: 'autoreflag', size: 100, accessorFn: (r) => (r.is_autoreflag ? 'yes' : ''),
       cell: ({ row }) => row.original.is_autoreflag ? <span className="badge-auto">autoreflag</span> : null },
-    { id: 'scv', header: 'SCV', accessorFn: (r) => r.scv_disp },
-    { id: 'submitter', header: 'Submitter (lab)', accessorKey: 'submitter_name' },
-    { id: 'variant', header: 'Variant', accessorFn: (r) => r.variant },
-    { id: 'reason', header: 'Original flag reason', accessorKey: 'flagging_reason' },
-    { id: 'classif', header: 'Current classification', accessorKey: 'current_classification' },
-    { id: 'outcome', header: 'Outcome', accessorKey: 'outcome' },
-    { id: 'batch', header: 'Orig batch', accessorKey: 'orig_batch_id', enableColumnFilter: false },
-    { id: 'bumps', header: 'Bumps', enableColumnFilter: false, accessorFn: (r) => bqv(r.version_bump_count) },
-    { id: 'reclassified', header: 'reclassified', enableColumnFilter: false, accessorFn: (r) => (r.was_reclassified ? '✓' : '') },
-    { id: 'already', header: 'already reflagged', enableColumnFilter: false, accessorFn: (r) => (r.already_reflagged ? '✓' : '') }
+    { id: 'scv', header: 'SCV', size: 150, accessorFn: (r) => r.scv_disp },
+    { id: 'submitter', header: 'Submitter (lab)', size: 180, accessorKey: 'submitter_name' },
+    { id: 'variant', header: 'Variant', size: 180, accessorFn: (r) => r.variant },
+    { id: 'reason', header: 'Original flag reason', size: 300, accessorKey: 'flagging_reason' },
+    { id: 'classif', header: 'Current classification', size: 170, accessorKey: 'current_classification' },
+    { id: 'outcome', header: 'Outcome', size: 160, accessorKey: 'outcome' },
+    { id: 'batch', header: 'Orig batch', size: 90, accessorKey: 'orig_batch_id' },
+    { id: 'bumps', header: 'Bumps', size: 74, accessorFn: (r) => bqv(r.version_bump_count) },
+    { id: 'reclassified', header: 'reclassified', size: 100, accessorFn: (r) => (r.was_reclassified ? '✓' : '') },
+    { id: 'already', header: 'already reflagged', size: 120, accessorFn: (r) => (r.already_reflagged ? '✓' : '') }
   ], []);
 
   const table = useReactTable({
@@ -104,7 +104,8 @@ export function ReflagView() {
         <span className="status">{status}</span>
       </div>
       <div className="grid-wrap">
-        <table className="grid">
+        <table className="grid" style={{ width: table.getTotalSize() }}>
+          <colgroup>{table.getVisibleLeafColumns().map((c) => <col key={c.id} style={{ width: c.getSize() }} />)}</colgroup>
           <thead>{table.getHeaderGroups().map((hg) => (
             <tr key={hg.id}>{hg.headers.map((h) => (
               <th key={h.id}>
