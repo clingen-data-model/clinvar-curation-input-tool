@@ -7,6 +7,7 @@ import { api } from '../api';
 import { bqv, loadColSizing, type Config, type QueueRow, type GenerateResult, type GeneratedFile } from '../types';
 import { HistoryHover } from './HistoryHover';
 import { CellHover } from './CellHover';
+import { cls, pinClass, pinStyle, colLefts, exportVisibleCsv } from './gridUtil';
 
 const STATUSES = ['', 'OK', 'Fixed', 'Archive', 'Question'];
 const ACTIONABLE = ['flagging candidate', 'remove flagged submission'];
@@ -17,12 +18,10 @@ interface Row extends QueueRow {
 }
 
 const tick = (v: boolean | null) => (v ? '✓' : '');
+const clinvarVcvUrl = (acc: string) => `https://www.ncbi.nlm.nih.gov/clinvar/variation/${acc}/`;
 
 // Freeze the first N columns (sticky-left) — only cols after this scroll.
 const FROZEN = 6;
-const cls = (...parts: (string | false | undefined)[]) => parts.filter(Boolean).join(' ') || undefined;
-const pinClass = (i: number) => (i < FROZEN ? (i === FROZEN - 1 ? 'pin pin-last' : 'pin') : '');
-const pinStyle = (i: number, lefts: number[]) => (i < FROZEN ? { left: lefts[i] } : undefined);
 
 export function ReviewView({ config, onConfigChange }: { config: Config; onConfigChange: () => Promise<void> }) {
   const nextBatchId = config.nextBatchId;
@@ -49,7 +48,8 @@ export function ReviewView({ config, onConfigChange }: { config: Config; onConfi
     return {
       ...r,
       scv_disp: `${r.scv_id}.${bqv(r.scv_ver)}${r.fresh ? ' 🆕' : ''}`,
-      variant: `${r.vcv_id} (var ${r.variation_id})`,
+      // Full VCV accession (base id + annotated version) — rendered as a ClinVar link.
+      variant: r.vcv_id.includes('.') ? r.vcv_id : (bqv(r.vcv_ver) ? `${r.vcv_id}.${bqv(r.vcv_ver)}` : r.vcv_id),
       assigned, eligible, reason
     };
   }), [raw, nextBatchId]);
@@ -79,6 +79,7 @@ export function ReviewView({ config, onConfigChange }: { config: Config; onConfi
     const b = baseline.current[id]; const e = val(id);
     return !!b && (e.status !== b.status || e.notes !== b.notes);
   };
+  const fieldDirty = (id: string, k: 'status' | 'notes') => { const b = baseline.current[id]; return !!b && val(id)[k] !== b[k]; };
   const dirtyIds = useMemo(() => rows.map((r) => r.annotation_id).filter(isDirty), [rows, edits]);
   const setCell = (id: string, k: 'status' | 'notes', v: string) =>
     setEdits((prev) => ({ ...prev, [id]: { ...val(id), [k]: v } }));
@@ -96,12 +97,14 @@ export function ReviewView({ config, onConfigChange }: { config: Config; onConfi
     },
     { id: 'status', header: 'Status', size: 110, accessorFn: (r) => val(r.annotation_id).status,
       cell: ({ row }) => (
-        <select value={val(row.original.annotation_id).status} onChange={(e) => setCell(row.original.annotation_id, 'status', e.target.value)}>
+        <select className={fieldDirty(row.original.annotation_id, 'status') ? 'cell-dirty' : ''}
+          value={val(row.original.annotation_id).status} onChange={(e) => setCell(row.original.annotation_id, 'status', e.target.value)}>
           {STATUSES.map((s) => <option key={s} value={s}>{s || '(none)'}</option>)}
         </select>) },
-    { id: 'notes', header: 'Review notes', size: 240,
+    { id: 'notes', header: 'Review notes', size: 240, accessorFn: (r) => val(r.annotation_id).notes,
       cell: ({ row }) => (
-        <input type="text" value={val(row.original.annotation_id).notes}
+        <input type="text" className={fieldDirty(row.original.annotation_id, 'notes') ? 'cell-dirty' : ''}
+          value={val(row.original.annotation_id).notes}
           onChange={(e) => setCell(row.original.annotation_id, 'notes', e.target.value)} />) },
     { id: 'auto', header: 'Auto', size: 100, accessorFn: (r) => r.auto_status || 'manual',
       // Hover shows WHY it was (or wasn't) auto-reviewed (the auto_note reasoning).
@@ -109,11 +112,13 @@ export function ReviewView({ config, onConfigChange }: { config: Config; onConfi
         <CellHover className="auto-cell" label={<span className="auto-label">{row.original.auto_status || 'manual'} ⓘ</span>}
           load={() => (<pre>{row.original.auto_note || 'No auto-review note.'}</pre>)} />) },
     { id: 'batch', header: 'Batch', size: 90,
+      accessorFn: (r) => (r.assigned ? String(nextBatchId) : r.eligible ? 'eligible' : ''),
       // Assigned → just the batch number; eligible → empty; not eligible → dash (hover = why).
       cell: ({ row }) => row.original.assigned ? <span>{nextBatchId}</span>
         : row.original.eligible ? null : <span title={row.original.reason}>–</span> },
     { id: 'scv', header: 'SCV', size: 150, accessorFn: (r) => r.scv_disp },
-    { id: 'variant', header: 'Variant', size: 180, accessorFn: (r) => r.variant },
+    { id: 'variant', header: 'VCV', size: 170, accessorFn: (r) => r.variant,
+      cell: ({ row }) => <a href={clinvarVcvUrl(row.original.variant)} target="_blank" rel="noreferrer">{row.original.variant}</a> },
     { id: 'submitter', header: 'Submitter', size: 170, accessorFn: (r) => r.submitter_name || r.submitter_id },
     { id: 'action', header: 'Action', size: 150, accessorKey: 'action' },
     { id: 'reason', header: 'Reason', size: 240, accessorKey: 'reason' },
@@ -198,10 +203,7 @@ export function ReviewView({ config, onConfigChange }: { config: Config; onConfi
     catch (e) { setStatus('Error: ' + (e as Error).message); }
   };
 
-  // Cumulative left offset of each column (for the frozen sticky-left columns);
-  // recomputed from current sizes so it tracks resizing.
-  const lefts: number[] = [];
-  { let acc = 0; table.getVisibleLeafColumns().forEach((c, i) => { lefts[i] = acc; acc += c.getSize(); }); }
+  const lefts = colLefts(table);   // frozen-column offsets (track resizing)
 
   return (
     <div>
@@ -209,6 +211,7 @@ export function ReviewView({ config, onConfigChange }: { config: Config; onConfi
         <span>Next batch: <strong>{nextBatchId || '(unset)'}</strong></span>
         <button className="secondary" onClick={loadQueue}>Reload queue</button>
         <button className="secondary" onClick={() => setColumnSizing({})} title="Reset all column widths">Reset widths</button>
+        <a href="#" className="csv-link" onClick={(e) => { e.preventDefault(); exportVisibleCsv(table, 'review-queue.csv', new Set(['select', 'prior_hist'])); }}>⤓ CSV</a>
         <button className="secondary" onClick={doGenerate}>Generate file</button>
         <button className="secondary" disabled={config.releaseStale} onClick={doFinalize}
           title={config.releaseStale ? 'Re-process against the current ClinVar release first' : ''}>Finalize batch</button>
@@ -259,7 +262,7 @@ export function ReviewView({ config, onConfigChange }: { config: Config; onConfi
           <colgroup>{table.getVisibleLeafColumns().map((c) => <col key={c.id} style={{ width: c.getSize() }} />)}</colgroup>
           <thead>{table.getHeaderGroups().map((hg) => (
             <tr key={hg.id}>{hg.headers.map((h, i) => (
-              <th key={h.id} className={cls(h.column.getCanSort() ? 'sortable' : '', pinClass(i))} style={pinStyle(i, lefts)}
+              <th key={h.id} className={cls(h.column.getCanSort() ? 'sortable' : '', pinClass(i, FROZEN))} style={pinStyle(i, lefts, FROZEN)}
                 onClick={h.column.getToggleSortingHandler()}>
                 {flexRender(h.column.columnDef.header, h.getContext())}
                 {{ asc: ' ▲', desc: ' ▼' }[h.column.getIsSorted() as string] ?? ''}
@@ -271,7 +274,7 @@ export function ReviewView({ config, onConfigChange }: { config: Config; onConfi
           <tbody>{table.getRowModel().rows.map((row) => (
             <tr key={row.id} className={cls(row.original.fresh ? 'fresh' : '', isDirty(row.id) ? 'dirty' : '')}>
               {row.getVisibleCells().map((cell, i) => (
-                <td key={cell.id} className={cls(pinClass(i))} style={pinStyle(i, lefts)}>
+                <td key={cell.id} className={cls(pinClass(i, FROZEN))} style={pinStyle(i, lefts, FROZEN)}>
                   {flexRender(cell.column.columnDef.cell ?? ((c) => c.getValue()), cell.getContext())}</td>
               ))}
             </tr>))}</tbody>

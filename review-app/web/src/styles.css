@@ -71,7 +71,13 @@ table.grid tr.done { opacity: .55; }
 .hist-link { cursor: help; color: var(--pico-primary, #2563eb); white-space: nowrap; }
 .auto-cell { cursor: help; }
 .auto-label { white-space: nowrap; }
-.hist-pop { z-index: 1000; min-width: 320px; max-width: 640px;
+.hist-pop { z-index: 1000; min-width: 320px; max-width: 560px;
   background: #fff; border: 1px solid #9ca3af; border-radius: 6px; box-shadow: 0 6px 24px rgba(0,0,0,.18); padding: .5rem .7rem; }
 .hist-pop .hist-hd { font-weight: 700; margin-bottom: .3rem; color: #374151; font-size: 12px; }
-.hist-pop pre { white-space: pre; overflow: auto; max-height: 45vh; margin: 0; font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+/* Wrap long text; only scroll vertically for excessive content. */
+.hist-pop pre { white-space: pre-wrap; overflow-wrap: anywhere; overflow-x: hidden; overflow-y: auto;
+  max-height: 45vh; margin: 0; font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+
+/* Unsaved (edited-not-saved) cell: distinct light amber vs the blue dirty row. */
+table.grid td select.cell-dirty, table.grid td input.cell-dirty { background: #fef08a; }
+.csv-link { color: var(--pico-primary, #2563eb); font-size: 13px; white-space: nowrap; cursor: pointer; }

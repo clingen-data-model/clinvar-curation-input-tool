@@ -18,6 +18,7 @@ export interface QueueRow {
   annotation_id: string;
   variation_id: string;
   vcv_id: string;
+  vcv_ver: BqVal;
   scv_id: string;
   scv_ver: BqVal;
   submitter_id: string;
@@ -77,6 +78,8 @@ export interface ReflagCandidate {
   is_autoreflag: boolean;
   was_reclassified: boolean;
   version_bump_count: BqVal;
+  orig_curator: string;
+  orig_annotated_date: BqVal;
 }
 
 export interface GenerateResult {

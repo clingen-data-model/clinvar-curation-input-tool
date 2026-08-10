@@ -6,11 +6,12 @@ import { CellHover } from './CellHover';
 // overflow). Fetched once per SCV (module cache).
 const cache: Record<string, HistoryRow[]> = {};
 
+const namePart = (email: string) => (email || '').split('@')[0];
 function fmt(h: HistoryRow): string {
   const rev = h.review_status
-    ? ` [ ${h.review_status}${h.reviewer ? ' (' + h.reviewer + ')' : ''}${h.batch_id ? ' *' + h.batch_id + '*' : ''} ]`
+    ? ` [ ${h.review_status}${h.reviewer ? ' (' + namePart(h.reviewer) + ')' : ''}${h.batch_id ? ' *' + h.batch_id + '*' : ''} ]`
     : '';
-  return `.${bqv(h.scv_ver)}\t${bqv(h.annotated_date)} (${h.curator || ''}) ${h.action || ''} ${h.reason || ''}${rev}`;
+  return `.${bqv(h.scv_ver)}\t${bqv(h.annotated_date)} (${namePart(h.curator)}) ${h.action || ''} ${h.reason || ''}${rev}`;
 }
 
 export function HistoryHover({ scvId }: { scvId: string }) {
