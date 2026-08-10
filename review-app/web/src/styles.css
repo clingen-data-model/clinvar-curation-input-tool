@@ -35,19 +35,23 @@ header h1 { font-size: 1.25rem; margin: 0; }
 .badge-auto { background: #7c3aed; color: #fff; padding: 1px 7px; border-radius: 10px; font-size: 11px; font-weight: 700; }
 
 /* Grid (TanStack renders a plain table; we style it) */
-.grid-debug { font-size: 11px; color: #9ca3af; margin: .25rem 0; }
-.grid-wrap { overflow-x: auto; max-height: 68vh; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 6px; }
-/* Explicit display: table-* so no global/Pico rule (e.g. display:block/flex on
-   table elements) can break column alignment — the likely cause of offset rows.
-   Plain border-collapse table; columns align by the HTML table algorithm. */
-table.grid { display: table; border-collapse: collapse; width: 100%; font-size: 13px; }
+.grid-wrap { overflow: auto; max-height: 68vh; border: 1px solid #e5e7eb; border-radius: 6px; }
+/* table-layout: fixed + a <colgroup> (rendered from each column's size) makes
+   every column ONE authoritative width honored by thead + tbody (verified
+   aligned in headless Chrome). Explicit display: table-* also guards against any
+   global rule setting display:block/flex on table elements. */
+table.grid { display: table; table-layout: fixed; border-collapse: separate; border-spacing: 0; font-size: 13px; }
 table.grid thead { display: table-header-group; }
 table.grid tbody { display: table-row-group; }
 table.grid tr { display: table-row; }
-table.grid th, table.grid td { display: table-cell; border: 1px solid #e5e7eb;
-  padding: 4px 6px; text-align: left; vertical-align: top; white-space: nowrap; }
-table.grid thead th { background: #f3f4f6; cursor: default; }
+table.grid th, table.grid td { display: table-cell; border-right: 1px solid #e5e7eb; border-bottom: 1px solid #e5e7eb;
+  padding: 4px 6px; text-align: left; vertical-align: top; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+table.grid thead th { background: #f3f4f6; position: sticky; top: 0; z-index: 2; border-top: 1px solid #e5e7eb; }
 table.grid th.sortable { cursor: pointer; user-select: none; }
+/* Drag handle to resize a column (TanStack column resizing). */
+table.grid th .resizer { position: absolute; top: 0; right: 0; height: 100%; width: 6px;
+  cursor: col-resize; user-select: none; touch-action: none; }
+table.grid th .resizer:hover, table.grid th .resizer.resizing { background: #93c5fd; }
 table.grid td select, table.grid td input[type=text] { width: 100%; box-sizing: border-box; margin: 0; }
 table.grid tr.fresh { background: #fffbeb; }
 table.grid tr.dirty { background: #eff6ff; }
