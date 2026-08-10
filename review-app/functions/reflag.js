@@ -40,10 +40,14 @@ function buildReflagCandidatesSql({ dataset, scvIds }) {
     '  r.version_bump_count, r.latest_bump_date,',
     '  (a.scv_id IS NOT NULL) AS is_autoreflag,',
     '  cs.review_status AS current_review_status,',
-    '  cs.submitted_classification AS current_submitted_classification',
+    '  cs.submitted_classification AS current_submitted_classification,',
+    // The ORIGINAL annotation being copied — its curator + timestamp (the reflag
+    // replicate gets the CURRENT user + a new timestamp instead).
+    '  oa.curator_email AS orig_curator, oa.annotation_date AS orig_annotated_date',
     `FROM \`${B}.cvc_resubmission_candidates\` r`,
     `LEFT JOIN (SELECT DISTINCT scv_id FROM \`${B}.cvc_autoreflag_candidates\` WHERE is_autoreflag_candidate) a USING (scv_id)`,
     '  LEFT JOIN `clinvar_ingest.clinvar_scvs` cs ON cs.id = r.scv_id AND cs.version = r.current_scv_ver',
+    `  LEFT JOIN \`${B}.cvc_annotations_native_v4\` oa ON oa.annotation_id = r.annotation_id`,
     'WHERE ' + conds.join(' AND '),
     // Exactly ONE reflaggable row per SCV — the latest submission (and collapses
     // any clinvar_scvs join fan-out). If an SCV was overridden multiple times,

@@ -14,7 +14,7 @@ const { autoReview } = require('./autoReview.js');
 // The enriched-unreviewed columns (all clinvar_ingest-derived → expensive to
 // compute). Materialized in cvc_review_queue_base; read fast by the queue.
 const BASE_COLS = [
-  'annotation_id', 'variation_id', 'vcv_id', 'scv_id', 'scv_ver',
+  'annotation_id', 'variation_id', 'vcv_id', 'vcv_ver', 'scv_id', 'scv_ver',
   'submitter_id', 'submitter_name', 'action', 'reason', 'notes',
   'curator', 'clinvar_review_status', 'classif_type', 'latest_scv_classification',
   'is_outdated_scv', 'is_outdated_vcv', 'is_moved_scv', 'is_deleted_scv', 'is_latest_annotation',
@@ -95,7 +95,7 @@ function buildScvHistorySql({ dataset, scvId }) {
     `LEFT JOIN \`${B}.cvc_clinvar_reviews\` rev ON rev.annotation_id = n.annotation_id`,
     `LEFT JOIN \`${B}.cvc_clinvar_submissions\` sub ON sub.annotation_id = n.annotation_id`,
     "WHERE REGEXP_REPLACE(n.scv_id, r'\\.\\d+$', '') = @scvId",
-    'ORDER BY scv_ver, annotated_date'
+    'ORDER BY annotated_date DESC, scv_ver DESC'   // most recent annotation first
   ].join('\n');
   return { sql, params: { scvId: String(scvId) } };
 }
@@ -125,11 +125,12 @@ function splitScv(scv) {
 // the overlay doesn't show a saved row as unsaved.
 function shapeFreshRow(doc, rs) {
   const { scv_id, scv_ver } = splitScv(doc.scv);
-  // Show the VCV exactly as captured, INCLUDING its version — for a fresh row the
-  // version is meaningful (e.g. an older-version capture like VCV…010.100). It
-  // normalizes to the base accession + the is_outdated_vcv flag once enriched.
+  // Split the captured VCV accession into base id + version (e.g.
+  // "VCV000000010.100" → "VCV000000010" + "100") so the row carries vcv_ver like
+  // an enriched row; the UI rebuilds the full accession + a ClinVar link.
+  const { scv_id: vcv_id, scv_ver: vcv_ver } = splitScv(doc.vcv);
   return {
-    annotation_id: doc.annotation_id, variation_id: doc.variation_id, vcv_id: doc.vcv,
+    annotation_id: doc.annotation_id, variation_id: doc.variation_id, vcv_id, vcv_ver,
     scv_id, scv_ver, submitter_id: doc.submitter_id, submitter_name: doc.submitter,
     action: String(doc.action || '').toLowerCase(), reason: doc.reason, notes: doc.notes,
     curator: doc.user_email, clinvar_review_status: doc.review_status,

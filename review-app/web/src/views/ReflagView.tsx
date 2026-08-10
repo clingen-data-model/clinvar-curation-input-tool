@@ -5,6 +5,10 @@ import {
 } from '@tanstack/react-table';
 import { api } from '../api';
 import { bqv, loadColSizing, type ReflagCandidate } from '../types';
+import { cls, pinClass, pinStyle, colLefts, exportVisibleCsv } from './gridUtil';
+
+const FROZEN = 4;               // freeze the first 4 reflag columns
+const namePart = (email: string) => (email || '').split('@')[0];
 
 interface Row extends ReflagCandidate { scv_disp: string; variant: string }
 
@@ -19,7 +23,8 @@ export function ReflagView() {
   const [loaded, setLoaded] = useState(false);
 
   const rows: Row[] = useMemo(() => raw.map((c) => ({
-    ...c, scv_disp: `${c.scv_id}.${bqv(c.current_scv_ver)}`, variant: `${c.vcv_id} (var ${c.variation_id})`
+    ...c, scv_disp: `${c.scv_id}.${bqv(c.current_scv_ver)}`,
+    variant: bqv(c.current_vcv_ver) ? `${c.vcv_id}.${bqv(c.current_vcv_ver)}` : c.vcv_id
   })), [raw]);
 
   const load = useCallback(async () => {
@@ -48,8 +53,13 @@ export function ReflagView() {
       cell: ({ row }) => row.original.is_autoreflag ? <span className="badge-auto">autoreflag</span> : null },
     { id: 'scv', header: 'SCV', size: 150, accessorFn: (r) => r.scv_disp },
     { id: 'submitter', header: 'Submitter (lab)', size: 180, accessorKey: 'submitter_name' },
-    { id: 'variant', header: 'Variant', size: 180, accessorFn: (r) => r.variant },
+    { id: 'variant', header: 'VCV', size: 170, accessorFn: (r) => r.variant,
+      cell: ({ row }) => <a href={`https://www.ncbi.nlm.nih.gov/clinvar/variation/${row.original.variant}/`} target="_blank" rel="noreferrer">{row.original.variant}</a> },
     { id: 'reason', header: 'Original flag reason', size: 300, accessorKey: 'flagging_reason' },
+    // The original annotation being copied — its curator + timestamp (a reflag
+    // replicate gets the current user + a new timestamp).
+    { id: 'orig_curator', header: 'Orig curator', size: 120, accessorFn: (r) => namePart(r.orig_curator) },
+    { id: 'orig_date', header: 'Orig annotated', size: 140, accessorFn: (r) => bqv(r.orig_annotated_date) },
     { id: 'classif', header: 'Current classification', size: 170, accessorKey: 'current_classification' },
     { id: 'outcome', header: 'Outcome', size: 160, accessorKey: 'outcome' },
     { id: 'batch', header: 'Orig batch', size: 90, accessorKey: 'orig_batch_id' },
@@ -95,6 +105,8 @@ export function ReflagView() {
     } catch (e) { setStatus('Error: ' + (e as Error).message); }
   };
 
+  const lefts = colLefts(table);
+
   return (
     <div>
       <p className="reflag-intro">
@@ -107,14 +119,16 @@ export function ReflagView() {
         {selected.length > 0 && <span className="muted">{selected.length} selected</span>}
         <button className="secondary" onClick={load}>Reload candidates</button>
         <button className="secondary" onClick={() => setColumnSizing({})} title="Reset all column widths">Reset widths</button>
+        <a href="#" className="csv-link" onClick={(e) => { e.preventDefault(); exportVisibleCsv(table, 'reflag-candidates.csv'); }}>⤓ CSV</a>
         <span className="status">{status}</span>
       </div>
       <div className="grid-wrap">
         <table className="grid" style={{ width: table.getTotalSize() }}>
           <colgroup>{table.getVisibleLeafColumns().map((c) => <col key={c.id} style={{ width: c.getSize() }} />)}</colgroup>
           <thead>{table.getHeaderGroups().map((hg) => (
-            <tr key={hg.id}>{hg.headers.map((h) => (
-              <th key={h.id} className={h.column.getCanSort() ? 'sortable' : ''} onClick={h.column.getToggleSortingHandler()}>
+            <tr key={hg.id}>{hg.headers.map((h, i) => (
+              <th key={h.id} className={cls(h.column.getCanSort() ? 'sortable' : '', pinClass(i, FROZEN))} style={pinStyle(i, lefts, FROZEN)}
+                onClick={h.column.getToggleSortingHandler()}>
                 {flexRender(h.column.columnDef.header, h.getContext())}
                 {{ asc: ' ▲', desc: ' ▼' }[h.column.getIsSorted() as string] ?? ''}
                 {h.column.getCanResize() && (
@@ -124,8 +138,9 @@ export function ReflagView() {
               </th>))}</tr>))}</thead>
           <tbody>{table.getRowModel().rows.map((row) => (
             <tr key={row.id}>
-              {row.getVisibleCells().map((cell) => (
-                <td key={cell.id}>{flexRender(cell.column.columnDef.cell ?? ((c) => c.getValue()), cell.getContext())}</td>
+              {row.getVisibleCells().map((cell, i) => (
+                <td key={cell.id} className={cls(pinClass(i, FROZEN))} style={pinStyle(i, lefts, FROZEN)}>
+                  {flexRender(cell.column.columnDef.cell ?? ((c) => c.getValue()), cell.getContext())}</td>
               ))}
             </tr>))}</tbody>
         </table>

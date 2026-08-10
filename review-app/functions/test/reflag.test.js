@@ -12,6 +12,8 @@ describe('buildReflagCandidatesSql', () => {
     expect(sql).toContain(`FROM \`clingen-dev.${DS}.cvc_autoreflag_candidates\` WHERE is_autoreflag_candidate`);
     expect(sql).toContain('(a.scv_id IS NOT NULL) AS is_autoreflag');
     expect(sql).toContain('cs.review_status AS current_review_status');
+    expect(sql).toContain('oa.curator_email AS orig_curator, oa.annotation_date AS orig_annotated_date');
+    expect(sql).toContain('LEFT JOIN `clingen-dev.clinvar_curator_v4_dev.cvc_annotations_native_v4` oa ON oa.annotation_id = r.annotation_id');
     expect(params).toEqual({});
   });
   it('EXCLUDES candidates that already have a current-version annotation', () => {
