@@ -32,7 +32,11 @@ function buildReflagCandidatesSql({ dataset, scvIds }) {
   if (scvIds && scvIds.length) conds.push('r.scv_id IN UNNEST(@scvIds)');
   const sql = [
     'SELECT',
-    '  r.scv_id, r.variation_id, r.vcv_id, r.submitter_id, r.submitter_name,',
+    // submitter_name can be null when the submitter org was deleted from ClinVar
+    // (the upstream join only sees current submitters). Fall back to the
+    // historical clinvar_submitters name, then the id.
+    '  r.scv_id, r.variation_id, r.vcv_id, r.submitter_id,',
+    '  COALESCE(r.submitter_name, sm.current_name, r.submitter_id) AS submitter_name,',
     '  r.batch_id AS orig_batch_id, r.annotation_id AS orig_annotation_id,',
     '  r.flagging_reason, r.outcome, r.resubmission_reason,',
     '  r.current_scv_ver, r.current_vcv_ver, r.current_classification, r.current_classif_type,',
@@ -48,6 +52,8 @@ function buildReflagCandidatesSql({ dataset, scvIds }) {
     `LEFT JOIN (SELECT DISTINCT scv_id FROM \`${B}.cvc_autoreflag_candidates\` WHERE is_autoreflag_candidate) a USING (scv_id)`,
     '  LEFT JOIN `clinvar_ingest.clinvar_scvs` cs ON cs.id = r.scv_id AND cs.version = r.current_scv_ver',
     `  LEFT JOIN \`${B}.cvc_annotations_native_v4\` oa ON oa.annotation_id = r.annotation_id`,
+    '  LEFT JOIN (SELECT id, current_name FROM `clinvar_ingest.clinvar_submitters`',
+    '            QUALIFY ROW_NUMBER() OVER (PARTITION BY id ORDER BY end_release_date DESC) = 1) sm ON sm.id = r.submitter_id',
     'WHERE ' + conds.join(' AND '),
     // Exactly ONE reflaggable row per SCV — the latest submission (and collapses
     // any clinvar_scvs join fan-out). If an SCV was overridden multiple times,
