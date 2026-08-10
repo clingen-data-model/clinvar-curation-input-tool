@@ -66,6 +66,9 @@ table.grid th.pin-last, table.grid td.pin-last { border-right: 2px solid #cbd5e1
 table.grid tr.fresh { background: #fffbeb; }
 table.grid tr.dirty { background: #eff6ff; }
 table.grid tr.done { opacity: .55; }
+/* active "source" row (click to set) — shift-click a Status/Notes cell to fill from it */
+table.grid tbody tr.active td, table.grid tbody tr.active td.pin { background: #dbeafe; }
+table.grid tbody tr.active td:first-child { box-shadow: inset 3px 0 0 #2563eb; }
 
 /* Hover popovers (history + auto explanation) — portaled to <body>, positioned fixed. */
 .hist-link { cursor: help; color: var(--pico-primary, #2563eb); white-space: nowrap; }
