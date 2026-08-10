@@ -76,7 +76,6 @@ export interface ReflagCandidate {
   current_classif_type: string;
   is_autoreflag: boolean;
   was_reclassified: boolean;
-  already_reflagged: boolean;
   version_bump_count: BqVal;
 }
 
