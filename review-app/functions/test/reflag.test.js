@@ -19,6 +19,10 @@ describe('buildReflagCandidatesSql', () => {
     expect(sql).toContain(`NOT EXISTS (SELECT 1 FROM \`clingen-dev.${DS}.cvc_annotations_native_v4\` n WHERE n.scv_id = r.scv_id || '.' || CAST(r.current_scv_ver AS STRING))`);
     expect(sql).not.toContain('already_reflagged');
   });
+  it('keeps exactly ONE row per scv_id — the latest submission (dedup via QUALIFY)', () => {
+    const { sql } = buildReflagCandidatesSql({ dataset: DS });
+    expect(sql).toContain('QUALIFY ROW_NUMBER() OVER (PARTITION BY r.scv_id ORDER BY r.batch_accepted_date DESC, r.submitted_scv_ver DESC) = 1');
+  });
   it('restricts to selected scvIds for the write path (parameterized), still excluding annotated', () => {
     const { sql, params } = buildReflagCandidatesSql({ dataset: DS, scvIds: ['SCV1', 'SCV2'] });
     expect(sql).toContain('NOT EXISTS');
