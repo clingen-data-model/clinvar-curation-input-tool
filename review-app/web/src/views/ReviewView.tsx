@@ -241,9 +241,8 @@ export function ReviewView({ config, onConfigChange }: { config: Config; onConfi
                   {flexRender(h.column.columnDef.header, h.getContext())}
                   {{ asc: ' ▲', desc: ' ▼' }[h.column.getIsSorted() as string] ?? ''}
                 </div>
-                {h.column.getCanFilter() && (
-                  <input className="col-filter" placeholder="filter" value={(h.column.getFilterValue() as string) ?? ''}
-                    onChange={(e) => h.column.setFilterValue(e.target.value)} />)}
+                {/* Per-column filtering deferred — reintroduce once row/column
+                    alignment is verified (the column defs keep headerFilter meta). */}
               </th>))}</tr>))}</thead>
           <tbody>{table.getRowModel().rows.map((row) => (
             <tr key={row.id} className={(row.original.fresh ? 'fresh ' : '') + (isDirty(row.id) ? 'dirty' : '')}>
