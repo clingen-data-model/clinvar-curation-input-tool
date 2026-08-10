@@ -45,6 +45,10 @@ table.grid th, table.grid td { border-right: 1px solid #e5e7eb; border-bottom: 1
   overflow: hidden; text-overflow: ellipsis; background-clip: padding-box; }
 table.grid thead th { background: #f3f4f6; position: sticky; top: 0; z-index: 2; border-top: 1px solid #e5e7eb; }
 table.grid th .sortable { cursor: pointer; user-select: none; overflow: hidden; text-overflow: ellipsis; }
+/* Drag handle to resize a column (TanStack column resizing). */
+table.grid th .resizer { position: absolute; top: 0; right: 0; height: 100%; width: 6px;
+  cursor: col-resize; user-select: none; touch-action: none; }
+table.grid th .resizer:hover, table.grid th .resizer.resizing { background: #93c5fd; }
 table.grid td select, table.grid td input[type=text] { width: 100%; box-sizing: border-box; margin: 0; }
 table.grid tr.fresh { background: #fffbeb; }
 table.grid tr.dirty { background: #eff6ff; }
