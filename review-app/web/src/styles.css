@@ -1,5 +1,7 @@
 :root { --pico-font-size: 90%; --pico-spacing: .6rem; }
-body { margin: 1.25rem; }
+/* Comfortable page gutters so content isn't jammed against the window frame. */
+body { margin: 0; padding: 1.25rem 1.75rem; }
+@media (max-width: 640px) { body { padding: 1rem; } }
 button { width: auto; margin-bottom: 0; padding: 6px 12px; }
 select, input[type=text] { margin: 0; }
 
@@ -45,22 +47,31 @@ table.grid thead { display: table-header-group; }
 table.grid tbody { display: table-row-group; }
 table.grid tr { display: table-row; }
 table.grid th, table.grid td { display: table-cell; border-right: 1px solid #e5e7eb; border-bottom: 1px solid #e5e7eb;
-  padding: 4px 6px; text-align: left; vertical-align: top; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-table.grid thead th { background: #f3f4f6; position: sticky; top: 0; z-index: 2; border-top: 1px solid #e5e7eb; }
+  padding: 4px 6px; text-align: left; vertical-align: top; white-space: nowrap; }
+table.grid td { overflow: hidden; text-overflow: ellipsis; }        /* clip data cells only */
+table.grid th { position: relative; overflow: visible; }            /* relative so the resize handle isn't clipped */
+table.grid thead th { background: #f3f4f6; position: sticky; top: 0; z-index: 3; border-top: 1px solid #e5e7eb; }
 table.grid th.sortable { cursor: pointer; user-select: none; }
 /* Drag handle to resize a column (TanStack column resizing). */
-table.grid th .resizer { position: absolute; top: 0; right: 0; height: 100%; width: 6px;
-  cursor: col-resize; user-select: none; touch-action: none; }
-table.grid th .resizer:hover, table.grid th .resizer.resizing { background: #93c5fd; }
+table.grid th .resizer { position: absolute; top: 0; right: -2px; height: 100%; width: 10px;
+  cursor: col-resize; user-select: none; touch-action: none; z-index: 5; }
+table.grid th .resizer:hover, table.grid th .resizer.resizing { background: #60a5fa; }
 table.grid td select, table.grid td input[type=text] { width: 100%; box-sizing: border-box; margin: 0; }
+/* Frozen (sticky-left) columns — `left` set inline per cell from column offsets. */
+table.grid th.pin, table.grid td.pin { position: sticky; z-index: 2; background: #fff; }
+table.grid thead th.pin { z-index: 4; background: #f3f4f6; }
+table.grid tr.fresh td.pin { background: #fffbeb; }
+table.grid tr.dirty td.pin { background: #eff6ff; }
+table.grid th.pin-last, table.grid td.pin-last { border-right: 2px solid #cbd5e1; }
 table.grid tr.fresh { background: #fffbeb; }
 table.grid tr.dirty { background: #eff6ff; }
 table.grid tr.done { opacity: .55; }
 
-/* Prior-history hover popover */
-.hist { position: relative; }
+/* Hover popovers (history + auto explanation) — portaled to <body>, positioned fixed. */
 .hist-link { cursor: help; color: var(--pico-primary, #2563eb); white-space: nowrap; }
-.hist-pop { position: absolute; z-index: 1000; top: 1.2rem; left: 0; min-width: 420px; max-width: 640px;
+.auto-cell { cursor: help; }
+.auto-label { white-space: nowrap; }
+.hist-pop { z-index: 1000; min-width: 320px; max-width: 640px;
   background: #fff; border: 1px solid #9ca3af; border-radius: 6px; box-shadow: 0 6px 24px rgba(0,0,0,.18); padding: .5rem .7rem; }
 .hist-pop .hist-hd { font-weight: 700; margin-bottom: .3rem; color: #374151; font-size: 12px; }
 .hist-pop pre { white-space: pre; overflow: auto; max-height: 45vh; margin: 0; font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
