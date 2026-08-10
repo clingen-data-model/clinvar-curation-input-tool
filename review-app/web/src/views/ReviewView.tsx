@@ -27,6 +27,11 @@ export function ReviewView({ config, onConfigChange }: { config: Config; onConfi
   const nextBatchId = config.nextBatchId;
   const [raw, setRaw] = useState<QueueRow[]>([]);
   const [edits, setEdits] = useState<Record<string, { status: string; notes: string }>>({});
+  // Latest edits via a ref so the (stable) column cell functions read current
+  // values WITHOUT `edits` being a columns-useMemo dep — otherwise every keystroke
+  // recreates the cell fns and React remounts the input, dropping focus.
+  const editsRef = useRef(edits);
+  editsRef.current = edits;
   const baseline = useRef<Record<string, { status: string; notes: string }>>({});
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -75,7 +80,7 @@ export function ReviewView({ config, onConfigChange }: { config: Config; onConfi
 
   useEffect(() => { void loadQueue(); void loadFiles(); }, [loadQueue, loadFiles]);
 
-  const val = (id: string) => edits[id] || baseline.current[id] || { status: '', notes: '' };
+  const val = (id: string) => editsRef.current[id] || baseline.current[id] || { status: '', notes: '' };
   const isDirty = (id: string) => {
     const b = baseline.current[id]; const e = val(id);
     return !!b && (e.status !== b.status || e.notes !== b.notes);
@@ -83,7 +88,7 @@ export function ReviewView({ config, onConfigChange }: { config: Config; onConfi
   const fieldDirty = (id: string, k: 'status' | 'notes') => { const b = baseline.current[id]; return !!b && val(id)[k] !== b[k]; };
   const dirtyIds = useMemo(() => rows.map((r) => r.annotation_id).filter(isDirty), [rows, edits]);
   const setCell = (id: string, k: 'status' | 'notes', v: string) =>
-    setEdits((prev) => ({ ...prev, [id]: { ...val(id), [k]: v } }));
+    setEdits((prev) => ({ ...prev, [id]: { ...(prev[id] || baseline.current[id] || { status: '', notes: '' }), [k]: v } }));
 
   const columns = useMemo<ColumnDef<Row>[]>(() => [
     {
@@ -137,8 +142,10 @@ export function ReviewView({ config, onConfigChange }: { config: Config; onConfi
     { id: 'prior_sub', header: 'prior submitted', size: 104, accessorFn: (r) => tick(r.has_prior_submission_batch_id) },
     { id: 'prior_hist', header: 'Prior hist', size: 96, enableSorting: false,
       cell: ({ row }) => row.original.has_prior_scv_id_annotation ? <HistoryHover scvId={row.original.scv_id} /> : null }
+  // Stable columns (NOT dep on `edits`) so cell fns/inputs aren't remounted per
+  // keystroke; cells read live values via editsRef.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [edits, nextBatchId]);
+  ], [nextBatchId]);
 
   const table = useReactTable({
     data: rows, columns, state: { rowSelection, columnFilters, sorting, columnSizing },
