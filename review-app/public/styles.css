@@ -9,7 +9,10 @@ header h1 { font-size: 1.25rem; margin: 0; }
 #whoami { color: #6b7280; font-size: 13px; }
 
 /* Toolbars: inline, auto-width buttons (Pico defaults buttons to block/full-width). */
-#views { display: flex; gap: .25rem; margin: .5rem 0; border-bottom: 2px solid #e5e7eb; }
+#views { display: flex; justify-content: flex-start; gap: .25rem; margin: .5rem 0; border-bottom: 2px solid #e5e7eb; }
+#views button { flex: 0 0 auto; width: auto; }
+#review-actions .inline { font-size: 13px; color: #4b5563; display: inline-flex; align-items: center; gap: .3rem; margin: 0; }
+#review-actions .inline select { margin: 0; padding: 2px 6px; font-size: 13px; width: auto; }
 #views button { border-radius: 6px 6px 0 0; margin-bottom: -2px; background: #f3f4f6; color: #374151; border-color: #e5e7eb; }
 #views button.active { background: var(--pico-primary, #2563eb); color: #fff; border-color: var(--pico-primary, #2563eb); }
 #reflag-actions { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; margin: .5rem 0; }
@@ -44,12 +47,14 @@ button { width: auto; margin-bottom: 0; padding: 6px 12px; }
 #result { margin: .5rem 0; font-size: 14px; display: flex; gap: .5rem; flex-wrap: wrap; }
 #status { color: #6b7280; font-size: 14px; margin: .5rem 0; }
 
-/* Prior-annotations history popover */
-.hist-link { cursor: pointer; }
-#hist-dialog article { max-width: min(900px, 92vw); }
-.hist-body { white-space: pre; overflow: auto; max-height: 60vh; margin: 0;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
-  background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: .6rem .8rem; }
+/* Prior-annotations history — hover popover (like the extension's CvC badge) */
+.hist-link { cursor: help; color: var(--pico-primary, #2563eb); white-space: nowrap; }
+#hist-pop { position: absolute; z-index: 1000; max-width: 640px; background: #fff;
+  border: 1px solid #9ca3af; border-radius: 6px; box-shadow: 0 6px 24px rgba(0,0,0,.18);
+  padding: .5rem .7rem; font-size: 12px; }
+#hist-pop .hist-hd { font-weight: 700; margin-bottom: .3rem; color: #374151; }
+#hist-pop pre { white-space: pre; overflow: auto; max-height: 45vh; margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 
 /* Tabulator row states — override the grid's own row background. */
 .tabulator .tabulator-row.fresh { background-color: #fffbeb; }  /* just-captured, not yet enriched */

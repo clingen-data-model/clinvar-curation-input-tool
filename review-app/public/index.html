@@ -40,6 +40,13 @@
       <button id="save-all" disabled>Save all</button>
       <span id="unsaved" class="unsaved" hidden></span>
       <span class="sep">·</span>
+      <label class="inline">Set status of selected:
+        <select id="bulk-status">
+          <option value="">(none)</option><option>OK</option><option>Fixed</option><option>Archive</option><option>Question</option>
+        </select>
+      </label>
+      <button id="apply-status" class="secondary" disabled>Apply</button>
+      <span class="sep">·</span>
       <button id="assign-selected" class="secondary" disabled>Add selected to batch</button>
       <button id="unassign-selected" class="secondary" disabled>Unassign selected</button>
       <span id="selected-count"></span>
@@ -90,13 +97,7 @@
     </div>
   </section>
 
-  <dialog id="hist-dialog">
-    <article>
-      <header><strong id="hist-title">Prior annotations</strong></header>
-      <pre id="hist-body" class="hist-body"></pre>
-      <footer><button id="hist-close" class="secondary">Close</button></footer>
-    </article>
-  </dialog>
+  <div id="hist-pop" hidden></div>
 
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
