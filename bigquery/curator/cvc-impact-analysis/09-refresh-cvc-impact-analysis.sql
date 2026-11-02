@@ -1337,11 +1337,18 @@ BEGIN
       -- Exclude SCVs where a "remove flagged submission" was accepted
       -- AFTER the most recent flagging candidate submission
       AND (lrf.scv_id IS NULL OR lrf.latest_remove_date < fc.batch_accepted_date)
+  ),
+
+  -- Prior annotation history per annotation, from the cvc_annotations TVF.
+  prior_annotations AS (
+    SELECT annotation_id, prior_scv_annotations
+    FROM `@@DATASET@@.cvc_annotations`('ALL')
   )
 
   SELECT
     ab.*,
     sub.current_name AS submitter_name,
+    pa.prior_scv_annotations,
 
     -- Summary flag: all 6 substantive fields unchanged = auto-reflag candidate
     (ab.classif_type_unchanged
@@ -1377,6 +1384,8 @@ BEGIN
   LEFT JOIN `clinvar_ingest.clinvar_submitters` sub
     ON ab.submitter_id = sub.id
     AND sub.deleted_release_date IS NULL
+  LEFT JOIN prior_annotations pa
+    ON pa.annotation_id = ab.annotation_id
   ORDER BY
     ab.target_lab_label,
     ab.scv_id;
