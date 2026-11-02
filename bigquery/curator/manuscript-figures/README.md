@@ -150,6 +150,10 @@ The source comes from `scv_summary.comments` rows with `type = 'FlaggedComment'`
 
 An SCV or variant with more than one source is reported as a combination, e.g. `ClinGen CvC + NCBI`.
 
+Variant and SCV combination counts do not correlate directly. A variant shows a combination when two or more of its SCVs have different individual sources, even if no single SCV has more than one source. An SCV shows a combination only when multiple sources flagged that same SCV. Example: variant 2423950 has SCV003792454 flagged by NCBI and SCV003794881 flagged by ClinGen non-CvC. It counts as 1 ClinGen non-CvC + NCBI variant, while its SCVs count as 1 NCBI and 1 ClinGen non-CvC, with 0 ClinGen non-CvC + NCBI.
+
+`manuscript_flag_source_combo_by_consequence_view` lists up to the first 5 SCV accessions or variation ids behind each `item_count` in `first_item_ids`, in order. Each view row is one combination of variation type, consequence group, count level and flag source.
+
 ```sql
 -- Refresh the data
 CALL `clinvar_ingest.refresh_flagged_scv_by_consequence`(NULL);

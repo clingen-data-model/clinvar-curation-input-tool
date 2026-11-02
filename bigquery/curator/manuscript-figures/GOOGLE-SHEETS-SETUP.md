@@ -337,6 +337,7 @@ For the summary table on the sheet's `Flag source counts` tab, create a pivot ta
 | `count_level` | `scv` or `variant` |
 | `flag_source_combo` | ClinGen CvC, ClinGen non-CvC, NCBI, or a combination such as `ClinGen CvC + NCBI` |
 | `item_count` | SCVs or variants with exactly this combination |
+| `first_item_ids` | Up to the first 5 of those SCV accessions or variation ids, in order, separated by commas |
 
 ### Variation Type Breakdown
 

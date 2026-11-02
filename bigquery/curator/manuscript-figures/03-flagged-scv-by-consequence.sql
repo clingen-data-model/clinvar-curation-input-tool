@@ -55,6 +55,7 @@
 --   count_level                 - 'scv' or 'variant'
 --   flag_source_combo           - Exact source combination, e.g. 'ClinGen CvC + NCBI'
 --   item_count                  - SCVs or variants with exactly this combination
+--   first_item_ids              - Up to the first 5 of those SCV accessions or variation ids, in order
 --   These rows do not overlap, so they sum to the flagged totals.
 --
 -- Output Columns (manuscript_cvc_vs_clinvar_consequence_bar_view, Figure 3 chart):
@@ -102,6 +103,7 @@ CREATE OR REPLACE TABLE `clinvar_ingest.manuscript_flag_source_combo_by_conseque
   count_level STRING,  -- 'scv' or 'variant'
   flag_source_combo STRING,
   item_count INT64,
+  first_item_ids STRING,  -- Up to the first 5 SCV accessions or variation ids, in order
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP()
 );
 
@@ -315,7 +317,8 @@ BEGIN
       consequence_group,
       count_level,
       flag_source_combo,
-      item_count
+      item_count,
+      first_item_ids
     )
     WITH
     flagged_items AS (
@@ -361,7 +364,12 @@ BEGIN
         ),
         'unattributed'
       ) AS flag_source_combo,
-      COUNT(*) AS item_count
+      COUNT(*) AS item_count,
+      -- Variation ids sort numerically; SCV accessions do not cast, so they sort as text
+      ARRAY_TO_STRING(
+        ARRAY_AGG(item_id ORDER BY SAFE_CAST(item_id AS INT64), item_id LIMIT 5),
+        ', '
+      ) AS first_item_ids
     FROM flagged_items
     GROUP BY variation_type, consequence_group, count_level, flag_source_combo
   """,
@@ -414,7 +422,8 @@ SELECT
   consequence_group,
   count_level,
   flag_source_combo,
-  item_count
+  item_count,
+  first_item_ids
 FROM `clinvar_ingest.manuscript_flag_source_combo_by_consequence`
 WHERE release_date = (SELECT MAX(release_date) FROM `clinvar_ingest.manuscript_flag_source_combo_by_consequence`)
 ORDER BY
