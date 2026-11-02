@@ -14,6 +14,7 @@ Use the table below as a README sheet in your Google Sheets file. Replace `[Link
 | 1b | ClinVar Landscape (Conflict Rate) | `clinvar_ingest.manuscript_clinvar_landscape` | `01-clinvar-landscape.sql` | Scatter Plot | [Link] |
 | 2 | Submitter Landscape | `clinvar_ingest.manuscript_submitter_landscape` | `02-submitter-landscape.sql` | Bar Chart | [Link] |
 | 3 | Variants by Consequence Group: All ClinVar vs CvC Flagged | `clinvar_ingest.manuscript_cvc_vs_clinvar_consequence_bar_view` | `03-flagged-scv-by-consequence.sql` | Clustered Bar Chart | [Link] |
+| 3 (alternative) | Variants by Consequence Group: Stacked Bars | `clinvar_ingest.manuscript_cvc_vs_clinvar_consequence_bar_view` | `03-flagged-scv-by-consequence.sql` | 100% Stacked Bar Chart | [Link] |
 | Supporting | Flag Source Combinations | `clinvar_ingest.manuscript_flag_source_combo_by_consequence_view` | `03-flagged-scv-by-consequence.sql` | Table | [Link] |
 
 ---
@@ -298,6 +299,38 @@ The two populations differ by about 2,000-fold, so chart percentages rather than
 - Chart title: "Molecular consequence: all ClinVar variants vs. CvC-flagged variants"
 - Category axis title: "Molecular consequence group"
 - Value axis title: "% of variants in group"
+
+### Figure 3 Alternative: Stacked Bars
+
+The sheet's `Figure 3 (stacked)` tab shows the same percentages as one 100% stacked horizontal bar per group, so each group's whole consequence mix can be read at a glance. The layout follows Figure 3C in the manuscript draft, but the values come from this view, not from the draft's image. Small groups such as in-frame indels are harder to compare here than in the clustered chart.
+
+Add this source block on the same sheet as the extract, below the first block. Chart labels come from these cells, so the release date and each group's n update on refresh.
+
+| Cell | Formula or value |
+|------|------------------|
+| `H9` | `Group` |
+| `H10` | `="All ClinVar variants"&CHAR(10)&"n="&TEXT(SUM($C$2:$C),"#,##0")&CHAR(10)&"ClinVar release "&TEXT(MAX($A$2:$A),"yyyy-mm-dd")` |
+| `H11` | `="CvC-flagged variants"&CHAR(10)&"n="&TEXT(SUM($D$2:$D),"#,##0")&CHAR(10)&"ClinVar release "&TEXT(MAX($A$2:$A),"yyyy-mm-dd")` |
+| `I9:M9` | `Missense`, `Predicted LoF`, `UTR/intronic`, `In-frame indels`, `Other` |
+| `I10:M10` | `=SUMIF($B$2:$B,"<group>",$E$2:$E)`, where `<group>` is `missense`, `predicted LOF`, `UTR/intronic`, `inframe indels` or `other` |
+| `I11:M11` | `=SUMIF($B$2:$B,"<group>",$F$2:$F)`, with the same groups |
+
+Select `H9:M11`, insert a chart, then apply these settings. Sheets turns on **Switch rows / columns** for this block, so turn it off.
+
+| Setting | Value |
+|---------|-------|
+| Chart type | 100% stacked bar chart |
+| Data range | `H9:M11` |
+| Switch rows / columns | Off |
+| Use column H as headers | On |
+| Use row 9 as labels | On |
+| Legend position | Bottom |
+| Series colors | Missense #4285F4 (blue), Predicted LoF #34A853 (green), UTR/intronic #FF6D01 (orange), In-frame indels #FBBC04 (yellow), Other #8E7CC3 (purple) |
+| Chart title | "Molecular consequence distribution: all ClinVar variants vs. CvC-flagged variants" |
+| Horizontal axis title | "% of variants in group" |
+| Vertical axis title | None |
+
+Use **Move to own sheet** from the chart menu to give it a full tab.
 
 ### Consequence Groups
 
