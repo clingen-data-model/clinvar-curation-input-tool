@@ -15,6 +15,8 @@ Use the table below as a README sheet in your Google Sheets file. Replace `[Link
 | 2 | Submitter Landscape | `clinvar_ingest.manuscript_submitter_landscape` | `02-submitter-landscape.sql` | Bar Chart | [Link] |
 | 3a | Variants by Consequence Group | `clinvar_ingest.manuscript_flagged_scv_by_consequence_view` | `03-flagged-scv-by-consequence.sql` | Donut Chart | [Link] |
 | 3b | Flagged Variants by Consequence Group | `clinvar_ingest.manuscript_flagged_scv_by_consequence_view` | `03-flagged-scv-by-consequence.sql` | Donut Chart | [Link] |
+| 4a | Outcomes of SCV Annotations | `clinvar_ingest.manuscript_figure4a_outcomes_view` | `04-conflict-resolution-outcomes.sql`, `generate_figure4.py` | Pie, pasted as a static image | [Figure 4 sheet](https://docs.google.com/spreadsheets/d/1qx6_90ZHtcu_xlVq0zU1DjkSnk0tHFJDA-GJMcvvkos/edit) |
+| 4b | Direction of Conflict Resolution | `clinvar_ingest.manuscript_figure4b_flows_view` | `04-conflict-resolution-outcomes.sql`, `generate_figure4.py` | Sankey, pasted as a static image | [Figure 4 sheet](https://docs.google.com/spreadsheets/d/1qx6_90ZHtcu_xlVq0zU1DjkSnk0tHFJDA-GJMcvvkos/edit) |
 
 ---
 
