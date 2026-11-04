@@ -18,6 +18,8 @@ Use the table below as a README sheet in your Google Sheets file. Replace `[Link
 | Supporting | Flag Source Combinations | `clinvar_ingest.manuscript_flag_source_combo_by_consequence_view` | `03-flagged-scv-by-consequence.sql` | Table | [Link] |
 | 4a | Outcomes of SCV Annotations | `clinvar_ingest.manuscript_figure4a_outcomes_view` | `04-conflict-resolution-outcomes.sql`, `generate_figure4.py` | Pie, pasted as a static image | [Figure 4 sheet](https://docs.google.com/spreadsheets/d/1qx6_90ZHtcu_xlVq0zU1DjkSnk0tHFJDA-GJMcvvkos/edit) |
 | 4b | Direction of Conflict Resolution | `clinvar_ingest.manuscript_figure4b_flows_view` | `04-conflict-resolution-outcomes.sql`, `generate_figure4.py` | Sankey, pasted as a static image | [Figure 4 sheet](https://docs.google.com/spreadsheets/d/1qx6_90ZHtcu_xlVq0zU1DjkSnk0tHFJDA-GJMcvvkos/edit) |
+| 6a | Reasons Conflicts are Resolved, in Total | `clinvar_ingest.manuscript_figure6a_reason_totals_view` | `06-conflict-resolution-reasons.sql`, `generate_figure6.py` | Bars by reason and conflict type, pasted as a static image | [Figure 6 sheet](https://docs.google.com/spreadsheets/d/1hx0aX859RjFrbtwWuIc7t4s1TkQd8wWhKOuQUU839bQ/edit) |
+| 6b | Reasons Conflicts are Resolved, by Monthly Release | `clinvar_ingest.manuscript_figure6b_monthly_view` | `06-conflict-resolution-reasons.sql`, `generate_figure6.py` | Stacked monthly bars, pasted as a static image | [Figure 6 sheet](https://docs.google.com/spreadsheets/d/1hx0aX859RjFrbtwWuIc7t4s1TkQd8wWhKOuQUU839bQ/edit) |
 
 ---
 
