@@ -16,6 +16,7 @@ Each script in this folder generates a dataset that underpins a specific figure 
 | `02-submitter-landscape.sql` | `clinvar_ingest.manuscript_submitter_landscape` | Per-institution-type summary of ClinVar submitter organizations and their Germline Variant Pathogenicity Classification contributions. Shows submitter counts, SCV counts, and variant counts grouped by institution type (clinical testing, research, expert panel, etc.). |
 | `03-flagged-scv-by-consequence.sql` | `clinvar_ingest.manuscript_cvc_vs_clinvar_consequence_bar_view`, `clinvar_ingest.manuscript_flag_source_combo_by_consequence_view`, `clinvar_ingest.manuscript_flagged_scv_by_consequence_view` | Molecular consequence of pathogenicity-assessed variants in ClinVar versus variants flagged through the CvC project, with flagged variant and SCV counts by flag source (ClinGen CvC, ClinGen non-CvC, NCBI) and their combinations. `generate_figure3.py` reads the first view, calculates the statistics and draws the figures. |
 | `04-conflict-resolution-outcomes.sql` | `clinvar_ingest.manuscript_figure4_variant_outcomes(as_of_date)`, `clinvar_ingest.manuscript_figure4_variant_outcomes_view`, `clinvar_ingest.manuscript_figure4a_outcomes_view`, `clinvar_ingest.manuscript_figure4a_outcome_detail_view`, `clinvar_ingest.manuscript_figure4b_flows_view`, `clinvar_ingest.manuscript_figure4b_final_classifications_view`, `clinvar_ingest.manuscript_figure4b_conflict_combinations_view`, `clinvar_ingest.manuscript_figure4_rank_group_transitions_view` | One row per variant reviewed by CvC, with its outcome and the top ranked group's state before and after flagging, at the point of submission to ClinVar. `generate_figure4.py` calls the table function and draws both panels. |
+| `06-conflict-resolution-reasons.sql` | `clinvar_ingest.manuscript_figure6_resolution_events(as_of_date)`, `clinvar_ingest.manuscript_figure6_resolution_events_view`, `clinvar_ingest.manuscript_figure6a_reason_totals_view`, `clinvar_ingest.manuscript_figure6b_monthly_view`, `clinvar_ingest.manuscript_figure6_granular_view`, `clinvar_ingest.manuscript_figure6_submitter_concentration_view` | One row per time a ClinVar conflict resolved, with the reason. Covers all of ClinVar, not only variants CvC reviewed. `generate_figure6.py` calls the table function and draws both figures as separate titled images. |
 
 ## Data Scope
 
@@ -293,6 +294,78 @@ CvC submitted flagging candidates on non-pathogenicity SCVs for 5 variants. Thos
 | [9393](https://www.ncbi.nlm.nih.gov/clinvar/variation/9393/) | risk factor | SCV000987620 | |
 | [203643](https://www.ncbi.nlm.nih.gov/clinvar/variation/203643/) | other | SCV000700738 | SCV000676997 |
 | [67509](https://www.ncbi.nlm.nih.gov/clinvar/variation/67509/) | risk factor | SCV000206987, SCV000987628 | SCV000696033 |
+
+---
+
+## Figure 6: Reasons Conflicts are Resolved
+
+Script `06-conflict-resolution-reasons.sql` creates a table function that returns one row per time a conflict resolved, and the views behind the sheet. `generate_figure6.py` calls the table function and writes Figure 6A and Figure 6B as separate titled images, which are pasted into the sheet as static images.
+
+Figures and counts: [CvC Manuscript Figure 6 sheet](https://docs.google.com/spreadsheets/d/1hx0aX859RjFrbtwWuIc7t4s1TkQd8wWhKOuQUU839bQ/edit). The tab `About Figure 6` has the steps for refreshing the tables and replacing the images. Counts quoted below are for monthly releases 2023-08 through 2026-10 (release 2026-10-04).
+
+```bash
+# First pick up new releases. Nothing schedules this, and it replaces the shared
+# monthly conflict tables. Run it from clinvar-ingest-bq-tools.
+scripts/conflict-resolution-analysis/00-run-all-analytics.sh --no-gcloud-update
+
+# Only when the SQL changes: deploy the table function and views
+bq query --project_id=clingen-dev --use_legacy_sql=false < 06-conflict-resolution-reasons.sql
+
+# All releases. Requires the bq CLI; PNGs also require Chrome.
+python3 generate_figure6.py --out output/figure6
+
+# Limit to releases through a date
+python3 generate_figure6.py --as-of 2026-06-06 --out output/figure6-jun2026
+
+# Redraw from a saved query result
+python3 generate_figure6.py --input output/figure6/resolution_events.csv --out output/figure6
+```
+
+### What the Figure Represents
+
+Why do conflicts in ClinVar stop being conflicts, and how often is a flag through CvC the reason? Each resolution is counted once, in the monthly release where the conflict stopped, with one reason. The series compares the first ClinVar release of each month with the release before it, among germline pathogenicity SCVs, reading the conflict from the variant's top ranked group.
+
+| Reason | All conflicts | Medically significant | Non-medically significant |
+| --- | --- | --- | --- |
+| Reclassified | 8,086 (42.2%) | 3,138 (38.8%) | 4,948 (44.7%) |
+| Rank lowered | 3,668 (19.2%) | 659 (8.2%) | 3,009 (27.2%) |
+| Removed | 3,003 (15.7%) | 742 (9.2%) | 2,261 (20.4%) |
+| Flagged through CvC | 2,378 (12.4%) | 2,301 (28.5%) | 77 (0.7%) |
+| Expert panel added | 1,740 (9.1%) | 1,026 (12.7%) | 714 (6.4%) |
+| 1 star added to 0 star conflict | 141 (0.7%) | 117 (1.4%) | 24 (0.2%) |
+| Flagged outside CvC | 87 (0.5%) | 53 (0.7%) | 34 (0.3%) |
+| Other | 48 (0.3%) | 43 (0.5%) | 5 (0.0%) |
+| **Total** | **19,151** | **8,079** | **11,072** |
+
+The 19,151 resolutions cover 18,925 variants, because a variant that resolves twice counts twice.
+
+### Outputs
+
+| File | Contents |
+| --- | --- |
+| `figure6a.svg`, `figure6a.png` | Figure 6A, totals by reason and conflict type |
+| `figure6b.svg`, `figure6b.png` | Figure 6B, the same counts by monthly release |
+| `resolution_events.csv` | The saved query result, one row per resolution |
+| `figure6a_reason_totals.csv` | The table behind Figure 6A |
+| `figure6b_monthly.csv` | The table behind Figure 6B |
+| `figure6_granular.csv` | One row per exact `classification_to_start` and result |
+| `figure6_submitter_concentration.csv` | Resolutions by reason and submitter |
+
+### How to Interpret It
+
+- **Later returns stay counted.** 789 of the 2,378 resolutions flagged through CvC were in conflict again in a later release, and 697 were in conflict at 2026-10-04. So were 893 of 3,668 Rank lowered, 915 of 8,086 Reclassified, 140 of 3,003 Removed and none of the 1,740 Expert panel added. The figure does not show how many stayed resolved, and recent resolutions have had less time to return. Filter `returned_by_cutoff` and `in_conflict_at_cutoff`.
+- **A few submitters drive some bars.** 3,664 of the 3,668 Rank lowered resolutions come from two submitters in one release each: PreventionGenetics, 2,864 in 2024-10, and Counsyl, 800 in 2025-07. Illumina accounts for 2,655 of the 3,003 Removed across 24 releases, and 1,694 Removed from all submitters fall in the 2026-04 release. `manuscript_figure6_submitter_concentration_view` has every submitter.
+- **Flags come from CvC's own submissions.** Flagged through CvC means a flagged SCV had a valid CvC flagging candidate submitted on or before that release, matched on accession. All 87 Flagged outside CvC carry NCBI flag comments, in three releases: 51 in 2023-12, 11 in 2024-08 and 25 in 2026-02.
+- **A candidate before a submitter's own change is timing only.** 514 Reclassified resolutions had a valid candidate on the changed SCV before that release (420 within about 60 days), as did 244 Removed (236) and 19 Rank lowered (17). They stay in those bars, because this does not show that CvC caused the change. Filter `cvc_candidate_before` and `cvc_candidate_within_60_days`.
+- **Each resolution has one reason.** 558 had more than one SCV change. The order is expert panel, 1 star added, flagged, removed, rank lowered, reclassified. `all_scv_reasons` lists every change. Three source reasons that describe context (`single_submitter_withdrawn`, `vcv_rank_changed`, `outlier_reclassified`) map to the SCV change behind them, or to Other, and `source_primary_reason` keeps the original.
+- **Other is small and specific.** Of the 48, 45 had an existing SCV raised from 0 star to 1 star, 34 of them in the 2026-10 release. 2 had only a new SCV listed, and 1 had no SCV change recorded.
+- **Selection applies.** CvC chooses what it reviews, so its flags are selected rather than sampled, and a difference between conflict types describes what was flagged. A resolution means the top ranked group no longer disagrees. It does not show that the remaining classification is correct. The figure compares no sampled groups, so it has no statistical tests.
+- **Some classifications are counted together.** P includes pathogenic low penetrance (`p-lp`) and established risk allele (`era`). LP includes likely pathogenic low penetrance (`lp-lp`) and likely risk allele (`lra`). VUS includes `vus-h`, `vus-m`, `vus-l` and uncertain risk allele (`ura`). `source_agg_classif` keeps the original codes. 8 resolutions start with `cdfs` (conflicting data from submitters), which sits in the VUS tier and keeps its own label because it has no agreed group.
+- **The cutoff differs from Figures 3 and 4.** This series uses the first release of each month, so it ends at 2026-10-04, while they use 2026-10-24.
+
+### Exclusions
+
+Resolutions before the August 2023 start of the series are left out: 2,852 in the six monthly releases from 2023-02 to 2023-07. No resolution inside the series is excluded.
 
 ---
 
