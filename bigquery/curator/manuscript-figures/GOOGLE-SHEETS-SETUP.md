@@ -13,8 +13,9 @@ Use the table below as a README sheet in your Google Sheets file. Replace `[Link
 | 1a | ClinVar Landscape (Conflict Count) | `clinvar_ingest.manuscript_clinvar_landscape` | `01-clinvar-landscape.sql` | Scatter Plot | [Link] |
 | 1b | ClinVar Landscape (Conflict Rate) | `clinvar_ingest.manuscript_clinvar_landscape` | `01-clinvar-landscape.sql` | Scatter Plot | [Link] |
 | 2 | Submitter Landscape | `clinvar_ingest.manuscript_submitter_landscape` | `02-submitter-landscape.sql` | Bar Chart | [Link] |
-| 3a | Variants by Consequence Group | `clinvar_ingest.manuscript_flagged_scv_by_consequence_view` | `03-flagged-scv-by-consequence.sql` | Donut Chart | [Link] |
-| 3b | Flagged Variants by Consequence Group | `clinvar_ingest.manuscript_flagged_scv_by_consequence_view` | `03-flagged-scv-by-consequence.sql` | Donut Chart | [Link] |
+| 3 | Variants by Consequence Group: All ClinVar vs CvC Flagged | `clinvar_ingest.manuscript_cvc_vs_clinvar_consequence_bar_view` | `03-flagged-scv-by-consequence.sql`, `generate_figure3.py` | Paired bars and forest plot, pasted as a static image | [Figure 3 sheet](https://docs.google.com/spreadsheets/d/17wr65aFoU9xVD0eluNfLxOzbxpJbAv7jYoG4Ir4POyY/edit) |
+| 3 (stacked) | Variants by Consequence Group: Stacked Bars | `clinvar_ingest.manuscript_cvc_vs_clinvar_consequence_bar_view` | `03-flagged-scv-by-consequence.sql`, `generate_figure3.py` | 100% stacked bars with change from baseline, pasted as a static image | [Figure 3 sheet](https://docs.google.com/spreadsheets/d/17wr65aFoU9xVD0eluNfLxOzbxpJbAv7jYoG4Ir4POyY/edit) |
+| Supporting | Flag Source Combinations | `clinvar_ingest.manuscript_flag_source_combo_by_consequence_view` | `03-flagged-scv-by-consequence.sql` | Table | [Link] |
 
 ---
 
@@ -243,32 +244,58 @@ Connect to the view `clinvar_ingest.manuscript_submitter_landscape` in BigQuery.
 
 ## Figure 3: Variants by Molecular Consequence
 
-**View:** `clinvar_ingest.manuscript_flagged_scv_by_consequence_view`
-**Script:** `03-flagged-scv-by-consequence.sql`
+**Chart view:** `clinvar_ingest.manuscript_cvc_vs_clinvar_consequence_bar_view`
+**Scripts:** `03-flagged-scv-by-consequence.sql`, `generate_figure3.py`
 
-**Purpose:** Visualizes the distribution of pathogenicity-assessed variants across molecular consequence categories, comparing all variants versus those with flagged submissions. Shows how ClinVar curation flagging activity varies by predicted functional impact.
+**Purpose:** Compare the molecular consequence distribution of all pathogenicity-assessed variants in ClinVar with variants flagged through the CvC project, in two versions of the figure. NCBI and ClinGen non-CvC flags are excluded from the CvC bars.
 
 ### Data Source
 
-Connect to the view `clinvar_ingest.manuscript_flagged_scv_by_consequence_view` in BigQuery. The view is created by running `03-flagged-scv-by-consequence.sql` and calling the refresh procedure:
+Run `03-flagged-scv-by-consequence.sql` to create the tables, procedure and views, then populate them with:
 
 ```sql
 CALL `clinvar_ingest.refresh_flagged_scv_by_consequence`(NULL);
 ```
 
-Both donut charts (3a and 3b) use the same extracted data.
+Re-running the script replaces the result tables, so always call the procedure afterwards.
 
 ### Figure 3 Setup Steps
 
-1. Connect to `clinvar_ingest.manuscript_flagged_scv_by_consequence_view` via Data Connector
-2. Click **Extract** to pull the data into a regular sheet
-3. For the donut charts, you may want to aggregate across `variation_type` to show only consequence groups:
-   - Create a pivot table or use `SUMIF` formulas to sum `all_variant_count` and `flagged_variant_count` by `consequence_group`
-4. Create two donut charts from the aggregated data (see 3a and 3b below)
+The current sheet is the [CvC Manuscript Figure 3 sheet](https://docs.google.com/spreadsheets/d/17wr65aFoU9xVD0eluNfLxOzbxpJbAv7jYoG4Ir4POyY/edit). See the [README](README.md#what-the-figure-represents) for what the figure represents and how to read its statistics. To rebuild it:
+
+1. Connect to `clinvar_ingest.manuscript_cvc_vs_clinvar_consequence_bar_view` via Data Connector.
+2. Click **Extract** to pull the data into a regular sheet named `Figure 3 data`, starting at A1.
+3. Add the `Figure 3 statistics` tab described below.
+4. From this folder, run `python3 generate_figure3.py --out output/figure3`.
+5. Add a tab for each figure and choose **Insert > Image > Insert image over cells**: `figure3_bars.png` on the `Figure 3` tab and `figure3_stacked.png` on the `Figure 3 (stacked)` tab.
+6. In row 1 of each figure tab, state that the image is static and which release it shows. In the sheet, this cell compares that release with `MAX('Figure 3 data'!A2:A)` and says when the image is out of date.
+7. Below each image, add notes on how to read the table, then choose **Extract > Existing sheet** on the connected tab to put an extract of the view at the bottom of the figure tab. In the sheet, it starts at A40. Keep it last on the tab, so nothing blocks it if it grows.
+
+### Figure 3 Statistics Tab
+
+The tab recalculates what `generate_figure3.py` calculates, with formulas, so the two can be checked against each other and the values update on refresh. Rows 6 to 10 hold the five groups in the order most to least severe, and row 11 holds the totals. Rows 15 to 19 repeat the layout without `other`.
+
+| Column | Formula in row 6 |
+|--------|------------------|
+| `B`, flagged variants | `=SUMIF('Figure 3 data'!$B$2:$B,$A6,'Figure 3 data'!$D$2:$D)` |
+| `C`, all ClinVar variants | `=SUMIF('Figure 3 data'!$B$2:$B,$A6,'Figure 3 data'!$C$2:$C)` |
+| `D`, not flagged variants | `=C6-B6` |
+| `E`, `F`, `G`, percentages | `=100*B6/B$11`, and the same for `C` and `D` |
+| `H`, odds ratio | `=(B6*(D$11-D6))/((B$11-B6)*D6)` |
+| `I`, `J`, odds ratio 95% CI | `=EXP(LN(H6)-1.959964*SQRT(1/B6+1/(B$11-B6)+1/D6+1/(D$11-D6)))`, and with `+` for the upper limit |
+| `K`, Fisher p | Sum of the hypergeometric probabilities no more likely than the observed one, using `GAMMALN` over a `SEQUENCE`, because Sheets has no Fisher's exact function |
+| `L`, Holm-adjusted Fisher p | `=MIN(1,MAX(ARRAYFORMULA(IF($K$6:$K$10<=K6,$K$6:$K$10*(COUNT($K$6:$K$10)+1-MATCH($K$6:$K$10,SORT($K$6:$K$10),0)),0))))` |
+| `M`, change in points | `=E6-F6` |
+| `N`, `O`, change 95% CI | The Wilson interval of `B6/B$11`, minus `F6` |
+| `P`, ratio to baseline | `=E6/F6` |
+| `Q`, binomial p | The same approach as column `K`, with binomial probabilities against `C6/C$11` |
+| `R`, Holm-adjusted binomial p | The same formula as column `L`, on column `Q` |
+
+Rows 23 to 26 hold the overall chi-square tests. Their p values use the closed forms for 4 and 3 degrees of freedom, because `CHISQ.DIST.RT` returns 0 for values this small.
 
 ### Consequence Groups
 
-The view categorizes variants into five molecular consequence groups based on MANE Select transcript annotations:
+Each MANE Select row is assigned using the first term of its consequence label. A variant with more than one MANE Select row is counted once, in its most severe group, in the order below.
 
 | Group | Consequence Labels Included |
 |-------|----------------------------|
@@ -278,112 +305,50 @@ The view categorizes variants into five molecular consequence groups based on MA
 | UTR/intronic | 5 prime UTR variant, 3 prime UTR variant, intron variant |
 | other | All other consequences (synonymous, stop lost, start lost, etc.) and variants without MANE Select annotation |
 
----
+### Figure 3 Chart Columns
 
-### Figure 3a: All Variants by Consequence Group
+| Column | Description |
+|--------|-------------|
+| `release_date` | ClinVar release date used for this snapshot |
+| `consequence_group` | Categorized molecular consequence |
+| `all_variant_count` | All pathogenicity-assessed variants in this group |
+| `cvc_flagged_variant_count` | Variants with an SCV flagged through the CvC project |
+| `all_variant_pct` | Percent of all variants in this group |
+| `cvc_flagged_variant_pct` | Percent of CvC flagged variants in this group |
 
-**Chart type:** Donut chart showing the distribution of all pathogenicity-assessed variants across consequence groups.
+### Flag Source Counts
 
-#### Data Preparation
+**View:** `clinvar_ingest.manuscript_flag_source_combo_by_consequence_view`
 
-Aggregate the extracted data by `consequence_group`:
+Use this view for the exact source combinations. Rows do not overlap, so they sum to the flagged totals. Filter on `count_level` and never add `scv` and `variant` rows together.
 
-| consequence_group | total_variants |
-|-------------------|----------------|
-| predicted LOF | `=SUMIF(consequence_group, "predicted LOF", all_variant_count)` |
-| missense | `=SUMIF(consequence_group, "missense", all_variant_count)` |
-| inframe indels | `=SUMIF(consequence_group, "inframe indels", all_variant_count)` |
-| UTR/intronic | `=SUMIF(consequence_group, "UTR/intronic", all_variant_count)` |
-| other | `=SUMIF(consequence_group, "other", all_variant_count)` |
-
-#### Chart Configuration
-
-| Setting | Value |
-|---------|-------|
-| Chart type | Pie > Donut |
-| Labels | `consequence_group` |
-| Values | Aggregated `all_variant_count` |
-| Slice order | By value (descending) or custom order |
-
-#### Chart & Axis Titles
-
-- Chart title: "Pathogenicity-Assessed Variants by Molecular Consequence"
-- Chart subtitle: "All Variants with Pathogenicity Classifications in ClinVar"
-
-#### Suggested Colors
-
-| Consequence Group | Color | Hex |
-|-------------------|-------|-----|
-| predicted LOF | Red | #EA4335 |
-| missense | Blue | #4285F4 |
-| inframe indels | Yellow | #FBBC05 |
-| UTR/intronic | Green | #34A853 |
-| other | Gray | #9E9E9E |
-
----
-
-### Figure 3b: Flagged Variants by Consequence Group
-
-**Chart type:** Donut chart showing the distribution of flagged pathogenicity-assessed variants across consequence groups.
-
-#### Data Preparation
-
-Aggregate the extracted data by `consequence_group`:
-
-| consequence_group | flagged_variants |
-|-------------------|------------------|
-| predicted LOF | `=SUMIF(consequence_group, "predicted LOF", flagged_variant_count)` |
-| missense | `=SUMIF(consequence_group, "missense", flagged_variant_count)` |
-| inframe indels | `=SUMIF(consequence_group, "inframe indels", flagged_variant_count)` |
-| UTR/intronic | `=SUMIF(consequence_group, "UTR/intronic", flagged_variant_count)` |
-| other | `=SUMIF(consequence_group, "other", flagged_variant_count)` |
-
-#### Chart Configuration
-
-| Setting | Value |
-|---------|-------|
-| Chart type | Pie > Donut |
-| Labels | `consequence_group` |
-| Values | Aggregated `flagged_variant_count` |
-| Slice order | By value (descending) or custom order |
-
-#### Chart & Axis Titles
-
-- Chart title: "Flagged Pathogenicity-Assessed Variants by Molecular Consequence"
-- Chart subtitle: "Variants with Flagged Submission Status"
-
-#### Suggested Colors
-
-Use the same color scheme as Figure 3a for consistency.
-
----
-
-### Figure 3 Key Columns
+For the summary table on the sheet's `Flag source counts` tab, create a pivot table from the connected view with rows `flag_source_combo` (totals on) and `release_date`, column `count_level`, and value `SUM` of `item_count`.
 
 | Column | Description |
 |--------|-------------|
 | `variation_type` | Type of variation (e.g., single nucleotide variant, Deletion) |
-| `consequence_group` | Categorized molecular consequence (predicted LOF, missense, etc.) |
-| `all_variant_count` | Distinct pathogenicity-assessed variants in this group |
-| `flagged_variant_count` | Distinct variants with at least one flagged SCV |
-| `all_scv_count` | Distinct pathogenicity SCVs in this group |
-| `flagged_scv_count` | Distinct SCVs with flagged submission status |
+| `consequence_group` | Categorized molecular consequence |
+| `count_level` | `scv` or `variant` |
+| `flag_source_combo` | ClinGen CvC, ClinGen non-CvC, NCBI, or a combination such as `ClinGen CvC + NCBI` |
+| `item_count` | SCVs or variants with exactly this combination |
+| `first_item_ids` | Up to the first 5 of those SCV accessions or variation ids, in order, separated by commas |
+
+### Variation Type Breakdown
+
+**View:** `clinvar_ingest.manuscript_flagged_scv_by_consequence_view`
+
+The per-source columns overlap when a variant or SCV has more than one source. `flagged_variant_count` and `flagged_scv_count` include every source, including NCBI, so do not use them for Figure 3.
+
+| Column | Description |
+|--------|-------------|
+| `variation_type` | Type of variation (e.g., single nucleotide variant, Deletion) |
+| `consequence_group` | Categorized molecular consequence |
+| `all_variant_count`, `all_scv_count` | All pathogenicity-assessed variants and SCVs |
+| `flagged_variant_count`, `flagged_scv_count` | Flagged from any source |
+| `cvc_flagged_variant_count`, `cvc_flagged_scv_count` | Flagged by ClinGen CvC |
+| `ncbi_flagged_variant_count`, `ncbi_flagged_scv_count` | Flagged by NCBI |
+| `clingen_non_cvc_flagged_variant_count`, `clingen_non_cvc_flagged_scv_count` | Flagged by ClinGen non-CvC |
 | `consq_labels` | Audit trail: sorted list of consequence labels with counts |
-
-### Figure 3 Interpretation
-
-- **Comparing 3a vs 3b**: Shows whether flagging activity is proportionally distributed across consequence groups or concentrated in certain categories
-- **Predicted LOF**: Typically represents loss-of-function variants with strongest functional impact predictions
-- **Missense**: Often the largest category and may have higher uncertainty in pathogenicity assessment
-- **Other/No MANE Select**: Includes variants without MANE Select transcript annotation, useful for assessing annotation coverage
-
-### Figure 3 Alternative Views
-
-| Variant | Chart Type | Insight |
-|---------|-----------|---------|
-| Stacked bar by variation_type | Stacked Bar | How does consequence distribution vary by variant type (SNV vs indel)? |
-| Flagging rate | Calculated field | `flagged_variant_count / all_variant_count * 100` per consequence group |
-| SCV-level donut | Donut | Use `all_scv_count` and `flagged_scv_count` for submission-level view |
 
 ---
 
@@ -392,6 +357,7 @@ Use the same color scheme as Figure 3a for consistency.
 - **Source**: BigQuery `clinvar_ingest` dataset
 - **Refresh frequency**: After each ClinVar release (~monthly)
 - **To refresh**: Data > Data connectors > Refresh options
+- **Figure 3**: first run `CALL clinvar_ingest.refresh_flagged_scv_by_consequence(NULL)` in BigQuery, because its views read result tables rather than live ClinVar data. Its figures are static images, so also rerun `generate_figure3.py` and replace them, as the [README](README.md#refreshing-the-data) describes
 
 ---
 
