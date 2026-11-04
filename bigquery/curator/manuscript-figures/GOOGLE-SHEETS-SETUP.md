@@ -269,7 +269,7 @@ The current sheet is the [CvC Manuscript Figure 3 sheet](https://docs.google.com
 4. From this folder, run `python3 generate_figure3.py --out output/figure3`.
 5. Add a tab for each figure and choose **Insert > Image > Insert image over cells**: `figure3_bars.png` on the `Figure 3` tab and `figure3_stacked.png` on the `Figure 3 (stacked)` tab.
 6. In row 1 of each figure tab, state that the image is static and which release it shows. In the sheet, this cell compares that release with `MAX('Figure 3 data'!A2:A)` and says when the image is out of date.
-7. Below each image, add a table that reads the `Figure 3 statistics` tab, so analysts can see the current values.
+7. Below each image, add notes on how to read the table, then choose **Extract > Existing sheet** on the connected tab to put an extract of the view at the bottom of the figure tab. In the sheet, it starts at A40. Keep it last on the tab, so nothing blocks it if it grows.
 
 ### Figure 3 Statistics Tab
 

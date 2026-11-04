@@ -157,7 +157,7 @@ All five per-group p values are below 0.001 in both tests. Overall, the test of 
 
 ### Refreshing the Data
 
-The tables on the sheet read live views, but the figures are static images. Row 1 of each figure tab says when its image no longer matches the data.
+The table under each figure is a connector extract of `manuscript_cvc_vs_clinvar_consequence_bar_view`, and the `Figure 3 statistics` tab recalculates from the same counts, so both update on refresh. The figures are static images. Row 1 of each figure tab says when its image no longer matches the data.
 
 After a new ClinVar release:
 
