@@ -16,6 +16,8 @@ Use the table below as a README sheet in your Google Sheets file. Replace `[Link
 | 3 | Variants by Consequence Group: All ClinVar vs CvC Flagged | `clinvar_ingest.manuscript_cvc_vs_clinvar_consequence_bar_view` | `03-flagged-scv-by-consequence.sql`, `generate_figure3.py` | Paired bars and forest plot, pasted as a static image | [Figure 3 sheet](https://docs.google.com/spreadsheets/d/17wr65aFoU9xVD0eluNfLxOzbxpJbAv7jYoG4Ir4POyY/edit) |
 | 3 (stacked) | Variants by Consequence Group: Stacked Bars | `clinvar_ingest.manuscript_cvc_vs_clinvar_consequence_bar_view` | `03-flagged-scv-by-consequence.sql`, `generate_figure3.py` | 100% stacked bars with change from baseline, pasted as a static image | [Figure 3 sheet](https://docs.google.com/spreadsheets/d/17wr65aFoU9xVD0eluNfLxOzbxpJbAv7jYoG4Ir4POyY/edit) |
 | Supporting | Flag Source Combinations | `clinvar_ingest.manuscript_flag_source_combo_by_consequence_view` | `03-flagged-scv-by-consequence.sql` | Table | [Link] |
+| 4a | Outcomes of SCV Annotations | `clinvar_ingest.manuscript_figure4a_outcomes_view` | `04-conflict-resolution-outcomes.sql`, `generate_figure4.py` | Pie, pasted as a static image | [Figure 4 sheet](https://docs.google.com/spreadsheets/d/1qx6_90ZHtcu_xlVq0zU1DjkSnk0tHFJDA-GJMcvvkos/edit) |
+| 4b | Direction of Conflict Resolution | `clinvar_ingest.manuscript_figure4b_flows_view` | `04-conflict-resolution-outcomes.sql`, `generate_figure4.py` | Sankey, pasted as a static image | [Figure 4 sheet](https://docs.google.com/spreadsheets/d/1qx6_90ZHtcu_xlVq0zU1DjkSnk0tHFJDA-GJMcvvkos/edit) |
 
 ---
 
