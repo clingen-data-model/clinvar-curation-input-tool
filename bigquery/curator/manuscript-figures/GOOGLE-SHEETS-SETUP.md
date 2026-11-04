@@ -13,8 +13,8 @@ Use the table below as a README sheet in your Google Sheets file. Replace `[Link
 | 1a | ClinVar Landscape (Conflict Count) | `clinvar_ingest.manuscript_clinvar_landscape` | `01-clinvar-landscape.sql` | Scatter Plot | [Link] |
 | 1b | ClinVar Landscape (Conflict Rate) | `clinvar_ingest.manuscript_clinvar_landscape` | `01-clinvar-landscape.sql` | Scatter Plot | [Link] |
 | 2 | Submitter Landscape | `clinvar_ingest.manuscript_submitter_landscape` | `02-submitter-landscape.sql` | Bar Chart | [Link] |
-| 3 | Variants by Consequence Group: All ClinVar vs CvC Flagged | `clinvar_ingest.manuscript_cvc_vs_clinvar_consequence_bar_view` | `03-flagged-scv-by-consequence.sql` | Clustered Bar Chart | [Link] |
-| 3 (alternative) | Variants by Consequence Group: Stacked Bars | `clinvar_ingest.manuscript_cvc_vs_clinvar_consequence_bar_view` | `03-flagged-scv-by-consequence.sql` | 100% Stacked Bar Chart | [Link] |
+| 3 | Variants by Consequence Group: All ClinVar vs CvC Flagged | `clinvar_ingest.manuscript_cvc_vs_clinvar_consequence_bar_view` | `03-flagged-scv-by-consequence.sql`, `generate_figure3.py` | Paired bars and forest plot, pasted as a static image | [Figure 3 sheet](https://docs.google.com/spreadsheets/d/17wr65aFoU9xVD0eluNfLxOzbxpJbAv7jYoG4Ir4POyY/edit) |
+| 3 (stacked) | Variants by Consequence Group: Stacked Bars | `clinvar_ingest.manuscript_cvc_vs_clinvar_consequence_bar_view` | `03-flagged-scv-by-consequence.sql`, `generate_figure3.py` | 100% stacked bars with change from baseline, pasted as a static image | [Figure 3 sheet](https://docs.google.com/spreadsheets/d/17wr65aFoU9xVD0eluNfLxOzbxpJbAv7jYoG4Ir4POyY/edit) |
 | Supporting | Flag Source Combinations | `clinvar_ingest.manuscript_flag_source_combo_by_consequence_view` | `03-flagged-scv-by-consequence.sql` | Table | [Link] |
 
 ---
@@ -245,9 +245,9 @@ Connect to the view `clinvar_ingest.manuscript_submitter_landscape` in BigQuery.
 ## Figure 3: Variants by Molecular Consequence
 
 **Chart view:** `clinvar_ingest.manuscript_cvc_vs_clinvar_consequence_bar_view`
-**Script:** `03-flagged-scv-by-consequence.sql`
+**Scripts:** `03-flagged-scv-by-consequence.sql`, `generate_figure3.py`
 
-**Purpose:** One bar chart comparing the molecular consequence distribution of all pathogenicity-assessed variants in ClinVar with variants flagged through the CvC project. NCBI and ClinGen non-CvC flags are excluded from the CvC bars.
+**Purpose:** Compare the molecular consequence distribution of all pathogenicity-assessed variants in ClinVar with variants flagged through the CvC project, in two versions of the figure. NCBI and ClinGen non-CvC flags are excluded from the CvC bars.
 
 ### Data Source
 
@@ -261,76 +261,37 @@ Re-running the script replaces the result tables, so always call the procedure a
 
 ### Figure 3 Setup Steps
 
-The current sheet is the [CvC Manuscript Figure 3 sheet](https://docs.google.com/spreadsheets/d/17wr65aFoU9xVD0eluNfLxOzbxpJbAv7jYoG4Ir4POyY/edit). See the [README](README.md#what-the-figure-represents) for what the figure represents. To rebuild it:
+The current sheet is the [CvC Manuscript Figure 3 sheet](https://docs.google.com/spreadsheets/d/17wr65aFoU9xVD0eluNfLxOzbxpJbAv7jYoG4Ir4POyY/edit). See the [README](README.md#what-the-figure-represents) for what the figure represents and how to read its statistics. To rebuild it:
 
-1. Connect to `clinvar_ingest.manuscript_cvc_vs_clinvar_consequence_bar_view` via Data Connector
-2. Click **Extract** to pull the data into a regular sheet, starting at A1
-3. Add the chart source block below in `H1:J6`
-4. Select `H1:J6` and insert a chart
+1. Connect to `clinvar_ingest.manuscript_cvc_vs_clinvar_consequence_bar_view` via Data Connector.
+2. Click **Extract** to pull the data into a regular sheet named `Figure 3 data`, starting at A1.
+3. Add the `Figure 3 statistics` tab described below.
+4. From this folder, run `python3 generate_figure3.py --out output/figure3`.
+5. Add a tab for each figure and choose **Insert > Image > Insert image over cells**: `figure3_bars.png` on the `Figure 3` tab and `figure3_stacked.png` on the `Figure 3 (stacked)` tab.
+6. In row 1 of each figure tab, state that the image is static and which release it shows. In the sheet, this cell compares that release with `MAX('Figure 3 data'!A2:A)` and says when the image is out of date.
+7. Below each image, add a table that reads the `Figure 3 statistics` tab, so analysts can see the current values.
 
-### Figure 3 Chart Source Block
+### Figure 3 Statistics Tab
 
-Chart titles in Google Sheets are fixed text, but legend labels come from header cells. These formulas put the release date and each group's n in the legend, so they update on refresh.
+The tab recalculates what `generate_figure3.py` calculates, with formulas, so the two can be checked against each other and the values update on refresh. Rows 6 to 10 hold the five groups in the order most to least severe, and row 11 holds the totals. Rows 15 to 19 repeat the layout without `other`.
 
-| Cell | Formula or value |
-|------|------------------|
-| `H1` | `Molecular consequence group` |
-| `I1` | `="All ClinVar variants (n="&TEXT(SUM(C2:C),"#,##0")&"; ClinVar release "&TEXT(MAX(A2:A),"yyyy-mm-dd")&")"` |
-| `J1` | `="CvC-flagged variants (n="&TEXT(SUM(D2:D),"#,##0")&"; ClinVar release "&TEXT(MAX(A2:A),"yyyy-mm-dd")&")"` |
-| `H2:H6` | `predicted LOF`, `missense`, `inframe indels`, `UTR/intronic`, `other` |
-| `I2`, filled down | `=SUMIF($B$2:$B,$H2,$E$2:$E)` |
-| `J2`, filled down | `=SUMIF($B$2:$B,$H2,$F$2:$F)` |
+| Column | Formula in row 6 |
+|--------|------------------|
+| `B`, flagged variants | `=SUMIF('Figure 3 data'!$B$2:$B,$A6,'Figure 3 data'!$D$2:$D)` |
+| `C`, all ClinVar variants | `=SUMIF('Figure 3 data'!$B$2:$B,$A6,'Figure 3 data'!$C$2:$C)` |
+| `D`, not flagged variants | `=C6-B6` |
+| `E`, `F`, `G`, percentages | `=100*B6/B$11`, and the same for `C` and `D` |
+| `H`, odds ratio | `=(B6*(D$11-D6))/((B$11-B6)*D6)` |
+| `I`, `J`, odds ratio 95% CI | `=EXP(LN(H6)-1.959964*SQRT(1/B6+1/(B$11-B6)+1/D6+1/(D$11-D6)))`, and with `+` for the upper limit |
+| `K`, Fisher p | Sum of the hypergeometric probabilities no more likely than the observed one, using `GAMMALN` over a `SEQUENCE`, because Sheets has no Fisher's exact function |
+| `L`, Holm-adjusted Fisher p | `=MIN(1,MAX(ARRAYFORMULA(IF($K$6:$K$10<=K6,$K$6:$K$10*(COUNT($K$6:$K$10)+1-MATCH($K$6:$K$10,SORT($K$6:$K$10),0)),0))))` |
+| `M`, change in points | `=E6-F6` |
+| `N`, `O`, change 95% CI | The Wilson interval of `B6/B$11`, minus `F6` |
+| `P`, ratio to baseline | `=E6/F6` |
+| `Q`, binomial p | The same approach as column `K`, with binomial probabilities against `C6/C$11` |
+| `R`, Holm-adjusted binomial p | The same formula as column `L`, on column `Q` |
 
-### Figure 3 Chart Configuration
-
-The two populations differ by about 2,000-fold, so chart percentages rather than counts.
-
-| Setting | Value |
-|---------|-------|
-| Chart type | Clustered column or clustered bar |
-| Data range | `H1:J6` |
-| Use row 1 as headers | On |
-| Use column H as labels | On |
-| Data labels | On |
-| Category order | As listed in `H2:H6`, most to least severe |
-
-### Figure 3 Chart & Axis Titles
-
-- Chart title: "Molecular consequence: all ClinVar variants vs. CvC-flagged variants"
-- Category axis title: "Molecular consequence group"
-- Value axis title: "% of variants in group"
-
-### Figure 3 Alternative: Stacked Bars
-
-The sheet's `Figure 3 (stacked)` tab shows the same percentages as one 100% stacked horizontal bar per group, so each group's whole consequence mix can be read at a glance. The layout follows Figure 3C in the manuscript draft, but the values come from this view, not from the draft's image. Small groups such as in-frame indels are harder to compare here than in the clustered chart.
-
-Add this source block on the same sheet as the extract, below the first block. Chart labels come from these cells, so the release date and each group's n update on refresh.
-
-| Cell | Formula or value |
-|------|------------------|
-| `H9` | `Group` |
-| `H10` | `="All ClinVar variants"&CHAR(10)&"n="&TEXT(SUM($C$2:$C),"#,##0")&CHAR(10)&"ClinVar release "&TEXT(MAX($A$2:$A),"yyyy-mm-dd")` |
-| `H11` | `="CvC-flagged variants"&CHAR(10)&"n="&TEXT(SUM($D$2:$D),"#,##0")&CHAR(10)&"ClinVar release "&TEXT(MAX($A$2:$A),"yyyy-mm-dd")` |
-| `I9:M9` | `Missense`, `Predicted LoF`, `UTR/intronic`, `In-frame indels`, `Other` |
-| `I10:M10` | `=SUMIF($B$2:$B,"<group>",$E$2:$E)`, where `<group>` is `missense`, `predicted LOF`, `UTR/intronic`, `inframe indels` or `other` |
-| `I11:M11` | `=SUMIF($B$2:$B,"<group>",$F$2:$F)`, with the same groups |
-
-Select `H9:M11`, insert a chart, then apply these settings. Sheets turns on **Switch rows / columns** for this block, so turn it off.
-
-| Setting | Value |
-|---------|-------|
-| Chart type | 100% stacked bar chart |
-| Data range | `H9:M11` |
-| Switch rows / columns | Off |
-| Use column H as headers | On |
-| Use row 9 as labels | On |
-| Legend position | Bottom |
-| Series colors | Missense #4285F4 (blue), Predicted LoF #34A853 (green), UTR/intronic #FF6D01 (orange), In-frame indels #FBBC04 (yellow), Other #8E7CC3 (purple) |
-| Chart title | "Molecular consequence distribution: all ClinVar variants vs. CvC-flagged variants" |
-| Horizontal axis title | "% of variants in group" |
-| Vertical axis title | None |
-
-Use **Move to own sheet** from the chart menu to give it a full tab.
+Rows 23 to 26 hold the overall chi-square tests. Their p values use the closed forms for 4 and 3 degrees of freedom, because `CHISQ.DIST.RT` returns 0 for values this small.
 
 ### Consequence Groups
 
@@ -396,7 +357,7 @@ The per-source columns overlap when a variant or SCV has more than one source. `
 - **Source**: BigQuery `clinvar_ingest` dataset
 - **Refresh frequency**: After each ClinVar release (~monthly)
 - **To refresh**: Data > Data connectors > Refresh options
-- **Figure 3**: first run `CALL clinvar_ingest.refresh_flagged_scv_by_consequence(NULL)` in BigQuery, because its views read result tables rather than live ClinVar data
+- **Figure 3**: first run `CALL clinvar_ingest.refresh_flagged_scv_by_consequence(NULL)` in BigQuery, because its views read result tables rather than live ClinVar data. Its figures are static images, so also rerun `generate_figure3.py` and replace them, as the [README](README.md#refreshing-the-data) describes
 
 ---
 
