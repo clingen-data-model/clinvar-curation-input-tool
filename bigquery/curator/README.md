@@ -90,7 +90,7 @@ annotation source.
 ## Parameterization: `@@DATASET@@`, `@@ANNO_SOURCE@@`, `@@MV@@`, `@@ANNO_ID@@`
 
 The deployed core files (`0*-*.sql` in `bigquery/curator/` and
-`bigquery/curator/cvc-impact-analysis/`) are templated with four tokens so
+`[0-9]*-*.sql` in `bigquery/curator/cvc-impact-analysis/`) are templated with four tokens so
 the same SQL tree can deploy either the legacy `clinvar_curator` lineage or a
 parallel shadow lineage over a different annotation source, without forking
 the SQL:
@@ -125,7 +125,8 @@ deployed objects.
 
 `deploy.sh` substitutes the tokens and applies every numbered SQL file in
 apply order (`bigquery/curator/0*-*.sql` then
-`bigquery/curator/cvc-impact-analysis/0*-*.sql`) via `bq query`.
+`bigquery/curator/cvc-impact-analysis/[0-9]*-*.sql`, so the `10-*` reporting
+files deploy too) via `bq query`.
 
 Legacy lineage (the live `clinvar_curator` dataset, materialized view over
 the real native table):
@@ -180,14 +181,15 @@ DATASET=clinvar_curator ANNO_SOURCE=clinvar_curator.clinvar_annotations_native \
 ./bigquery/curator/deploy.sh --dry-run
 ```
 
-Note: `deploy.sh` only applies `0*-*.sql` files, so it never re-runs
+Note: `deploy.sh` only applies the numbered files (`0*-*.sql` at the top
+level, `[0-9]*-*.sql` in `cvc-impact-analysis/`), so it never re-runs
 `staging-tables.sql`'s `CREATE TABLE` statements (not
 `CREATE OR REPLACE TABLE`) for `cvc_clinvar_reviews` / `cvc_clinvar_submissions`
 / `cvc_clinvar_batches` — those are bootstrapped once, separately, for the
 legacy dataset only. A shadow deploy (e.g. a fresh `clinvar_curator_v4`)
 instead deploys passthrough VIEWS of the same names
 (`adapter/staging_passthrough_views.sql`) before running `deploy.sh`, so
-`--dry-run` and a real deploy of `0*-*.sql` both pass cleanly regardless of
+`--dry-run` and a real deploy of the numbered files both pass cleanly regardless of
 whether the dataset is fresh or already provisioned.
 
 ## Adapter: cross-region v4 capture → native table
