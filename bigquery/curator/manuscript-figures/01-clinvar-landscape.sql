@@ -340,14 +340,14 @@ UNION ALL SELECT 9, 'p_slash_lp_in_conflict', COUNTIF(top_mask >= 5 AND REGEXP_C
 
 -- Pinned views. Change these DATE literals to move the figure to a new release.
 CREATE OR REPLACE VIEW `clinvar_ingest.manuscript_figure1_variant_states_view` AS
-SELECT * FROM `clinvar_ingest.manuscript_figure1_variant_states`(DATE '2026-10-24');
+SELECT * FROM `clinvar_ingest.manuscript_figure1_variant_states`(DATE '2026-11-08');
 
 CREATE OR REPLACE VIEW `clinvar_ingest.manuscript_clinvar_landscape` AS
-SELECT * FROM `clinvar_ingest.manuscript_figure1b_gene_rates`(DATE '2026-10-24')
+SELECT * FROM `clinvar_ingest.manuscript_figure1b_gene_rates`(DATE '2026-11-08')
 ORDER BY clinsig_scv_count DESC;
 
 CREATE OR REPLACE VIEW `clinvar_ingest.manuscript_figure1_callouts_view` AS
-SELECT * FROM `clinvar_ingest.manuscript_figure1_callouts`(DATE '2026-10-24')
+SELECT * FROM `clinvar_ingest.manuscript_figure1_callouts`(DATE '2026-11-08')
 ORDER BY sort_order;
 
 CREATE OR REPLACE VIEW `clinvar_ingest.manuscript_figure1a_states_view` AS

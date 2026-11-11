@@ -11,7 +11,6 @@ Use the table below as a README sheet in your Google Sheets file. Replace `[Link
 | Figure | Name | View | Script | Chart Type | Link |
 | --- | --- | --- | --- | --- | --- |
 | 1A | Concordance Among ClinVar Submissions | `clinvar_ingest.manuscript_figure1a_final_classifications_view` | `01-clinvar-landscape.sql`, `generate_figure1.py` | Pie with a bar breakdown, pasted as a static image | [Figure 1 sheet](https://docs.google.com/spreadsheets/d/1-FDjXcju6jdWi05D0nvPKxj7f-xZQ80V4rPgLFKL3co/edit) |
-| 1A (pie) | Concordance Among ClinVar Submissions | `clinvar_ingest.manuscript_figure1a_final_classifications_view` | `01-clinvar-landscape.sql`, `generate_figure1.py` | Pie with a second pie, pasted as a static image | [Figure 1 sheet](https://docs.google.com/spreadsheets/d/1-FDjXcju6jdWi05D0nvPKxj7f-xZQ80V4rPgLFKL3co/edit) |
 | 1B | ClinVar Conflict Rate by Gene | `clinvar_ingest.manuscript_clinvar_landscape` | `01-clinvar-landscape.sql`, `generate_figure1.py` | Scatter, pasted as a static image | [Figure 1 sheet](https://docs.google.com/spreadsheets/d/1-FDjXcju6jdWi05D0nvPKxj7f-xZQ80V4rPgLFKL3co/edit) |
 | 2 | Submitter Landscape | `clinvar_ingest.manuscript_submitter_landscape` | `02-submitter-landscape.sql` | Bar Chart | [Link] |
 | 3 | Variants by Consequence Group: All ClinVar vs CvC Flagged | `clinvar_ingest.manuscript_cvc_vs_clinvar_consequence_bar_view` | `03-flagged-scv-by-consequence.sql`, `generate_figure3.py` | Paired bars and forest plot, pasted as a static image | [Figure 3 sheet](https://docs.google.com/spreadsheets/d/17wr65aFoU9xVD0eluNfLxOzbxpJbAv7jYoG4Ir4POyY/edit) |
@@ -52,7 +51,6 @@ Use the table below as a README sheet in your Google Sheets file. Replace `[Link
 | --- | --- |
 | `About Figure 1` | Question, call-outs, who is counted, exclusions, mappings and refresh steps |
 | `Figure 1A` | `figure1A.png`, extract of `manuscript_figure1a_final_classifications_view` |
-| `Figure 1A (pie)` | `figure1A_pie.png`, extract of `manuscript_figure1a_final_classifications_view` |
 | `Figure 1B` | `figure1B.png`, extract of `manuscript_clinvar_landscape` |
 | Data tabs | Connectors for those views, `manuscript_figure1a_states_view`, `manuscript_figure1a_conflict_types_view`, `manuscript_figure1_all_flagged_variants_view` and `manuscript_figure1_callouts_view`, with delegated access set to "Do not allow" |
 

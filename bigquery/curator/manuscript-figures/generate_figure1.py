@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Generate manuscript Figure 1 from 01-clinvar-landscape.sql.
 
-Panel A is the share of variants by the state of their top ranked group, with the
-medically significant conflicts broken out by type, as bars (figure1A) or as a
-second pie (figure1A_pie). Panel B is the % of variants
-in medically significant conflict per gene against the gene's pathogenicity SCVs.
+Panel A (figure1A) is the share of variants by the state of their top ranked group,
+with the medically significant conflicts broken out by type as bars. Panel B
+(figure1B) is the % of variants in medically significant conflict per gene against
+the gene's pathogenicity SCVs.
 
 Uses only the Python standard library and the bq CLI, and needs the table functions
 that 01-clinvar-landscape.sql creates. Writes SVG, plus PNG when Chrome is
@@ -29,7 +29,7 @@ from figure_style import COLORS, LAYOUT, TYPE, label_ink, legend, line, notes, r
 
 # The release the manuscript quotes. The pinned views in 01-clinvar-landscape.sql
 # use the same date, so change both together.
-FIGURE_RELEASE = "2026-10-24"
+FIGURE_RELEASE = "2026-11-08"
 
 QUERIES = {
     "figure1a_final_classifications.csv": """
@@ -67,12 +67,12 @@ CONFLICT_TYPES = [
     "LP vs B/LB",
     "P/LP vs VUS vs B/LB",
 ]
-# Slices of the inset pie in figure1A_pie. They are categories named by its legend,
-# so they take the category colors in order. Each slice is also labeled, because the
-# smallest are too thin to tell apart by color alone.
-CONFLICT_TYPE_FILLS = dict(zip(CONFLICT_TYPES, [
-    COLORS[k] for k in ("cat1_dark", "cat1", "cat1_mid", "cat1_light", "cat2_dark", "cat2_mid", "cat2")
-]))
+# The more red, the worse the conflict: P/LP against VUS, then against B/LB, then
+# against both. Steps of one family mark ordered levels of its meaning (STYLE.md).
+CONFLICT_TYPE_FILLS = {
+    t: COLORS["medsig_dark"] if t == "P/LP vs VUS vs B/LB" else COLORS["medsig"] if "B/LB" in t else COLORS["medsig_light"]
+    for t in CONFLICT_TYPES
+}
 
 # Labels on Panel B: genes readers look for, then the outliers by a stated rule.
 NOTABLE_GENES = ["BRCA1", "BRCA2", "TP53"]
@@ -136,9 +136,9 @@ def bar_path(x, y, width, height, radius=4):
 
 
 def heading(x, y, name, detail):
-    """A bar heading on one line: the name in bold, then detail in muted label type."""
+    """A bar heading on one line: the name in bold, then detail in muted type, both at label size."""
     return (
-        f'<text x="{x:.1f}" y="{y:.1f}" font-size="{TYPE["heading"]}" font-weight="bold" fill="{COLORS["ink"]}">'
+        f'<text x="{x:.1f}" y="{y:.1f}" font-size="{TYPE["label"]}" font-weight="bold" fill="{COLORS["ink"]}">'
         f'{html.escape(name)}<tspan font-size="{TYPE["label"]}" font-weight="normal" fill="{COLORS["ink_muted"]}" dx="8">'
         f'{html.escape(detail)}</tspan></text>'
     )
@@ -152,73 +152,28 @@ def inset_bars(types, medsig, x, y, row_h, right):
     for name in CONFLICT_TYPES:
         n = types[name]
         bar_w = max(bar_max * n / biggest, 2)
-        parts.append(heading(x, y + 15, name, f"{fmt(n)} ({pct(n, medsig)})"))
+        parts.append(heading(x, y + 14, name, f"{fmt(n)} ({pct(n, medsig)})"))
         parts.append(
-            f'<path d="{bar_path(x, y + 22, bar_w, 14)}" fill="{COLORS["medsig"]}">'
+            f'<path d="{bar_path(x, y + 20, bar_w, 12)}" fill="{CONFLICT_TYPE_FILLS[name]}">'
             f'<title>{html.escape(name)}: {fmt(n)} ({pct(n, medsig)})</title></path>'
         )
         y += row_h
     return parts
 
 
-def inset_pie(types, medsig, x, y, row_h, right):
-    """The smallest slices are centered on the right, beside their labels."""
-    r = 110
-    cx, cy = x + r + 4, y + row_h * len(CONFLICT_TYPES) / 2
-    small = [t for t in CONFLICT_TYPES if "B/LB" in t]
-    large = ["P + LP vs VUS", "P vs VUS", "LP vs VUS"]
-    small_sweep = sum(2 * math.pi * types[t] / medsig for t in small)
-    angle = math.pi / 2 - small_sweep / 2
-
-    parts = []
-    spans = {}
-    for name in small + large:
-        sweep = 2 * math.pi * types[name] / medsig
-        spans[name] = (angle, angle + sweep)
-        parts.append(wedge(cx, cy, r, angle, angle + sweep, CONFLICT_TYPE_FILLS[name], f"{name}: {fmt(types[name])} ({pct(types[name], medsig)})"))
-        angle += sweep
-
-    for name in large:
-        start, end = spans[name]
-        mid = (start + end) / 2
-        parts.append(text(
-            cx + r * 0.62 * math.sin(mid), cy - r * 0.62 * math.cos(mid) + 5, pct(types[name], medsig),
-            TYPE["label"], "bold", label_ink(CONFLICT_TYPE_FILLS[name]), "middle",
-        ))
-
-    # Labels run down the right side in clockwise order, so leaders do not cross.
-    # Large slices wrap behind the pie, so their leaders meet the rim on the right.
-    anchors = {"LP vs VUS": math.radians(40), "P + LP vs VUS": math.radians(125), "P vs VUS": math.radians(170)}
-    label_x = cx + r + 40
-    swatch = LAYOUT["legend_swatch"]
-    row_y = y
-    for name in ["LP vs VUS"] + small + ["P + LP vs VUS", "P vs VUS"]:
-        start, end = spans[name]
-        at = anchors.get(name, (start + end) / 2)
-        ex, ey = cx + (r + 1) * math.sin(at), cy - (r + 1) * math.cos(at)
-        ly = row_y + row_h / 2
-        parts.append(
-            f'<polyline points="{ex:.1f},{ey:.1f} {label_x - 22:.1f},{ly:.1f} {label_x - 6:.1f},{ly:.1f}" '
-            f'fill="none" stroke="{COLORS["rule"]}" stroke-width="1"/>'
-        )
-        parts.append(rect(label_x, ly - swatch / 2, swatch, swatch, CONFLICT_TYPE_FILLS[name], ' rx="2"'))
-        parts.append(text(label_x + swatch + 6, ly + 5, name))
-        parts.append(text(right, ly + 5, f"{fmt(types[name])} ({pct(types[name], medsig)})", fill=COLORS["ink_muted"], anchor="end"))
-        row_y += row_h
-    return parts
-
-
-def panel_a(states, types, callouts, release, title, inset="bars"):
+def panel_a(states, types, callouts, release, title):
     width = LAYOUT["width"]
     total = sum(states.values())
     medsig = states[MEDSIG]
 
-    # The inset box sets the height; the pie is centered beside it.
-    inset_x, row_h = 400, 40
-    rows_top = 66
-    inset_bottom = rows_top + row_h * len(CONFLICT_TYPES) + 6
-    r = 164
+    # The inset box sets the height; the pie is centered beside it, close enough for
+    # the zoom lines to stay short.
+    row_h = 34
+    rows_top = 56
+    inset_bottom = rows_top + row_h * len(CONFLICT_TYPES) + 4
+    r = 140
     cx, cy = r + 2, inset_bottom / 2
+    inset_x = cx + r + 36
 
     # Turn the pie so the medically significant slice points at the inset.
     before = 0.0
@@ -253,13 +208,12 @@ def panel_a(states, types, callouts, release, title, inset="bars"):
     parts.append(rect(inset_x, 0, width - inset_x, inset_bottom, "none", f' stroke="{COLORS["rule"]}" stroke-width="1" rx="4"'))
 
     pad = inset_x + 20
-    parts.append(heading(pad, 28, MEDSIG, f"{fmt(medsig)} variants ({pct(medsig, total)})"))
-    parts.append(text(pad, 50, "Exact classifications in the top ranked group", fill=COLORS["ink_muted"]))
-    draw_inset = inset_pie if inset == "pie" else inset_bars
-    parts.extend(draw_inset(types, medsig, pad, rows_top, row_h, width - 20))
+    parts.append(heading(pad, 24, MEDSIG, f"{fmt(medsig)} variants ({pct(medsig, total)})"))
+    parts.append(text(pad, 43, "Exact classifications in the top ranked group. Darker red is a wider disagreement.", fill=COLORS["ink_muted"]))
+    parts.extend(inset_bars(types, medsig, pad, rows_top, row_h, width - 20))
 
     # Legend beneath the plot, largest share first, with each state's count.
-    legend_y = inset_bottom + 24
+    legend_y = inset_bottom + 18
     entries = [(f"{label}, {fmt(states[name])}", color) for name, label, color in sorted(STATES, key=lambda s: -states[s[0]])]
     legend_body, legend_height = legend(0, legend_y, entries)
     parts.extend(legend_body)
@@ -433,9 +387,8 @@ def main():
     )
 
     a_svg = panel_a(states, types, callouts, release, "Figure 1A. Concordance among ClinVar submissions")
-    a_pie_svg = panel_a(states, types, callouts, release, "Figure 1A (pie). Concordance among ClinVar submissions", inset="pie")
     b_svg = panel_b(genes, labels, release, "Figure 1B. ClinVar conflict rate by gene")
-    outputs = {"figure1A.svg": a_svg, "figure1A_pie.svg": a_pie_svg, "figure1B.svg": b_svg}
+    outputs = {"figure1A.svg": a_svg, "figure1B.svg": b_svg}
     png_written = True
     for name, svg in outputs.items():
         path = os.path.join(args.out, name)

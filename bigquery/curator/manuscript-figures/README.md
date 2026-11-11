@@ -32,9 +32,9 @@ All scripts operate on the **Germline Variant Pathogenicity Classification Submi
 
 ## Figure 1: ClinVar Landscape
 
-Script `01-clinvar-landscape.sql` creates table functions and the views behind the sheet. `generate_figure1.py` calls the table functions and draws both panels. Figures are pasted into the sheet as static images, as Figures 3 and 4 are. Colors, type and sizes come from `figure_style.py`, as [STYLE.md](STYLE.md) assigns them to Figure 1. The seven slices of the pie version's inset use the category colors, `cat1` then `cat2`.
+Script `01-clinvar-landscape.sql` creates table functions and the views behind the sheet. `generate_figure1.py` calls the table functions and draws both panels. Figures are pasted into the sheet as static images, as Figures 3 and 4 are. Colors, type and sizes come from `figure_style.py`, as [STYLE.md](STYLE.md) assigns them to Figure 1. In the breakdown of medically significant conflicts, the more red, the worse the conflict: `medsig_light` for P/LP vs VUS, `medsig` for P/LP vs B/LB and `medsig_dark` for P/LP vs VUS vs B/LB.
 
-Figures and counts: [CvC Manuscript Figure 1 sheet](https://docs.google.com/spreadsheets/d/1-FDjXcju6jdWi05D0nvPKxj7f-xZQ80V4rPgLFKL3co/edit). The tab `About Figure 1` has the steps for refreshing the tables and re-pasting the images. Counts quoted below are for ClinVar release 2026-10-24.
+Figures and counts: [CvC Manuscript Figure 1 sheet](https://docs.google.com/spreadsheets/d/1-FDjXcju6jdWi05D0nvPKxj7f-xZQ80V4rPgLFKL3co/edit). The tab `About Figure 1` has the steps for refreshing the tables and re-pasting the images. Counts quoted below are for ClinVar release 2026-11-08, the latest loaded when the figure was last regenerated.
 
 ```bash
 # Only when the SQL changes: deploy the table functions and views
@@ -51,7 +51,6 @@ python3 generate_figure1.py --input output/figure1 --out output/figure1
 | Output | Contents |
 | --- | --- |
 | `figure1A.svg`, `figure1A.png` | Panel A, with the medically significant conflicts as bars |
-| `figure1A_pie.svg`, `figure1A_pie.png` | Panel A, with the same conflicts as a second pie |
 | `figure1B.svg`, `figure1B.png` | Panel B |
 | `figure1a_states.csv`, `figure1a_conflict_types.csv` | The counts behind Panel A and its breakdown |
 | `figure1a_final_classifications.csv` | One row per variant state, exact starting classifications and top rank, with variant and SCV counts |
@@ -66,39 +65,40 @@ ClinVar builds the aggregate from the highest ranked group of SCVs, so each vari
 
 | Variant state | Rule, using the top ranked group | Variants | Share |
 | --- | --- | ---: | ---: |
-| 1 submission | One SCV | 3,477,646 | 78.4% |
-| 2 or more concordant submissions | Two or more SCVs, one classification group | 645,920 | 14.6% |
-| Confidence conflict | P + LP, or B + LB, and no other tier | 128,793 | 2.9% |
-| VUS vs B/LB | VUS with B, LB or both | 151,097 | 3.4% |
-| P/LP vs VUS/B/LB | P or LP with VUS, B, LB or any of them | 31,141 | 0.7% |
-| **Total** | | **4,434,597** | |
+| 1 submission | One SCV | 3,490,066 | 78.3% |
+| 2 or more concordant submissions | Two or more SCVs, one classification group | 650,948 | 14.6% |
+| Confidence conflict | P + LP, or B + LB, and no other tier | 130,367 | 2.9% |
+| VUS vs B/LB | VUS with B, LB or both | 152,875 | 3.4% |
+| P/LP vs VUS/B/LB | P or LP with VUS, B, LB or any of them | 31,385 | 0.7% |
+| **Total** | | **4,455,641** | |
 
-| Medically significant conflict | Variants | Share of 31,141 |
+| Medically significant conflict | Variants | Share of 31,385 |
 | --- | ---: | ---: |
-| LP vs VUS | 18,986 | 61.0% |
-| P + LP vs VUS | 5,693 | 18.3% |
-| P vs VUS | 5,156 | 16.6% |
-| P/LP vs VUS vs B/LB | 927 | 3.0% |
-| LP vs B/LB | 226 | 0.7% |
-| P vs B/LB | 112 | 0.4% |
-| P + LP vs B/LB | 41 | 0.1% |
+| LP vs VUS | 19,172 | 61.1% |
+| P + LP vs VUS | 5,732 | 18.3% |
+| P vs VUS | 5,170 | 16.5% |
+| P/LP vs VUS vs B/LB | 934 | 3.0% |
+| LP vs B/LB | 227 | 0.7% |
+| P vs B/LB | 110 | 0.4% |
+| P + LP vs B/LB | 40 | 0.1% |
 
-Panel B plots 4,218 of the 4,311 genes in `gencc_dsm_genes`: those with at least one non-flagged P/LP SCV on a single-gene variant. They hold 3,147,187 variants and 30,674 of the 31,141 medically significant conflicts. Rates run from 0 to 14.29%, 1,214 genes have no such conflict, and 2,515 genes have 100 to 1,000 SCVs.
+Panel B plots 4,218 of the 4,311 genes in `gencc_dsm_genes`: those with at least one non-flagged P/LP SCV on a single-gene variant. They hold 3,165,169 variants and 30,918 of the 31,385 medically significant conflicts. Rates run from 0 to 14.29%, 1,210 genes have no such conflict, and 2,513 genes have 100 to 1,000 SCVs.
 
 ### How to Interpret It
 
-- **1 submission means one SCV in the top ranked group.** 73,119 of these variants also have lower ranked SCVs, such as a single expert panel SCV above other submissions.
-- **Lower ranked disagreements are left out of the conflict counts.** 10,692 variants have a medically significant disagreement across all their non-flagged SCVs but not in the top ranked group. 2,817 of them sit below an expert panel or practice guideline group, and 6,594 are also in the 73,119. Counting all SCVs would give 41,833 medically significant conflicts instead of 31,141. `all_scvs_mask` in `manuscript_figure1_variant_states_view` identifies them.
-- **Counts are after flags in this release.** 2,746 variants in the figure have a flagged SCV and are read from their other SCVs.
+- **1 submission means one SCV in the top ranked group.** 73,160 of these variants also have lower ranked SCVs, such as a single expert panel SCV above other submissions.
+- **Lower ranked disagreements are left out of the conflict counts.** 10,730 variants have a medically significant disagreement across all their non-flagged SCVs but not in the top ranked group. 2,865 of them sit below an expert panel or practice guideline group, and 6,639 are also in the 73,160. Counting all SCVs would give 42,115 medically significant conflicts instead of 31,385. `all_scvs_mask` in `manuscript_figure1_variant_states_view` identifies them.
+- **Counts are after flags in this release.** 2,739 variants in the figure have a flagged SCV and are read from their other SCVs.
 - **A slash means either or both of its labels. A plus means both together.** P vs VUS is split from LP vs VUS and P + LP vs VUS instead of using a +/- grouping, in the same conflict types as Figure 4B.
-- **Rates in small genes are unstable.** The two highest rates are ATP5MK (2 of 14 variants) and MICOS13 (3 of 33). The curved lower edge of Panel B is genes with exactly one conflict variant.
-- **Panel B labels follow a rule.** BRCA1, BRCA2 and TP53 are labeled as notable genes, then the 3 genes with the most conflict variants (TTN, NF1, MYH7), the 3 highest rates among genes with at least 1,000 SCVs (ALPL, KCNJ11, GALNS) and the 2 highest rates overall.
+- **Rates in small genes are unstable.** The two highest rates are ATP5MK (2 of 14 variants) and MICOS13 (3 of 34). The curved lower edge of Panel B is genes with exactly one conflict variant.
+- **Darker red is a wider disagreement.** In Panel A's breakdown, P/LP vs VUS is the lightest red, P/LP vs B/LB is the base red and P/LP vs VUS vs B/LB is the darkest.
+- **Panel B labels follow a rule.** BRCA1, BRCA2 and TP53 are labeled as notable genes, then the 3 genes with the most conflict variants (TTN, NF1, MYH7), the 3 highest rates among genes with at least 1,000 SCVs (ALPL, KCNJ11, BTD) and the 2 highest rates overall.
 - **Column names keep the older wording.** In `manuscript_clinvar_landscape`, `clinsig_conflict` means a medically significant conflict.
-- **Some classifications are counted together.** P includes pathogenic low penetrance (`p-lp`) and established risk allele (`era`). LP includes likely pathogenic low penetrance (`lp-lp`) and likely risk allele (`lra`). VUS includes VUS-high (`vus-h`), VUS-mid (`vus-m`), VUS-low (`vus-l`) and uncertain risk allele (`ura`). `classif_types` keeps the original codes. `p/lp` (8 SCVs) and `b/lb` (195 SCVs) are single SCVs submitted as both labels, so they count as both. Only [variation 32255](https://www.ncbi.nlm.nih.gov/clinvar/variation/32255/) is in a conflict because of this, counted as P + LP vs VUS.
+- **Some classifications are counted together.** P includes pathogenic low penetrance (`p-lp`) and established risk allele (`era`). LP includes likely pathogenic low penetrance (`lp-lp`) and likely risk allele (`lra`). VUS includes VUS-high (`vus-h`), VUS-mid (`vus-m`), VUS-low (`vus-l`) and uncertain risk allele (`ura`). `classif_types` keeps the original codes. `p/lp` (8 SCVs) and `b/lb` (194 SCVs) are single SCVs submitted as both labels, so they count as both. Only [variation 32255](https://www.ncbi.nlm.nih.gov/clinvar/variation/32255/) is in a conflict because of this, counted as P + LP vs VUS.
 
 ### Excluded Variants
 
-281 variants whose pathogenicity SCVs are all flagged have no aggregate, so they do not appear. This is why the total is 281 below the 4,434,878 in Figure 3. `manuscript_figure1_all_flagged_variants_view` lists them with links to their ClinVar pages.
+281 variants whose pathogenicity SCVs are all flagged have no aggregate, so they do not appear. Figure 3 still uses release 2026-10-24, so its variant total is not comparable with this one. `manuscript_figure1_all_flagged_variants_view` lists them with links to their ClinVar pages.
 
 ### Refreshing the Data
 
@@ -107,7 +107,7 @@ The views are pinned to one release, so the sheet's tables match the images unti
 1. In `01-clinvar-landscape.sql`, change the `DATE` literal in the three pinned views, and `FIGURE_RELEASE` in `generate_figure1.py`. Run the script with `bq query`.
 2. In the sheet, choose **Data > Data connectors > Refresh options > Refresh all**. Viewers need BigQuery access to `clingen-dev` to refresh the connected tabs.
 3. From this folder, run `python3 generate_figure1.py --out output/figure1`.
-4. On each figure tab, delete the old image and choose **Insert > Image > Insert image over cells**. Use `figure1A.png`, `figure1A_pie.png` and `figure1B.png`.
+4. On each figure tab, delete the old image and choose **Insert > Image > Insert image over cells**. Use `figure1A.png` and `figure1B.png`.
 5. Update the date in the row 1 formula of each figure tab, line 2 of the `About Figure 1` tab, the counts on that tab, row 2 and the labeled-gene counts on the figure tabs, and the counts in this section.
 
 ```sql
