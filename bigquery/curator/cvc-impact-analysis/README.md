@@ -187,8 +187,12 @@ ORDER BY batch_id;
 | `04-flagging-candidate-outcomes.sql` | Tracks outcomes of flagging candidates |
 | `05-version-bump-detection.sql` | Detects version bumps (4-field comparison) |
 | `06-version-bump-flagging-intersection.sql` | Analyzes version bumps on CVC-submitted SCVs |
+| `07-resubmission-candidates.sql` | Flagging candidates (all labs) needing resubmission |
+| `08-autoreflag-candidates.sql` | Auto-reflag candidates for the 7 target labs |
 | `full-record-version-bump-detection.sql` | Comprehensive 19-field version bump detection |
 | `09-refresh-cvc-impact-analysis.sql` | Stored procedure to rebuild all 11 materialized tables in dependency order |
+| `10-flagging-report-suppressions.sql` | Manually-maintained "hide list" table (`cvc_flagging_report_suppressions`) of flagging-candidate submissions to exclude from the report, keyed by scv_id + scv_ver + batch_id. Deploy before the report TVFs. |
+| `10-flagging-status-report.sql` | Parameterized table functions for the by-submitter flagging status report (flagged submissions + pending candidates) as of a passed-in release date, with aging |
 
 ### Apps Script / Automation
 
@@ -395,6 +399,119 @@ rejected-scvs.tsv        ─→ cvc_rejected_scvs (external table)
                     ↓                                            ↓
          03 - Impact Analytics                     06 - Version Bump Intersection
 ```
+
+## Flagging Status Report by Submitter (`10-flagging-status-report.sql`)
+
+A standalone, parameterized report (not part of the `refresh_cvc_impact_analysis`
+rebuild) that answers: **"For a given ClinVar release, what is the flagging status
+of every SCV CVC submitted, broken down by submitter?"**
+
+It reproduces the columns submitters receive in their post-processing email
+notification — `SCV | Reason | Notes | Curation date` — and adds submitter
+identity, the SCV state, the relevant anchor date, and aging.
+
+### States reported
+
+| State | Meaning | Anchor date used for aging |
+|-------|---------|----------------------------|
+| **flagged submission** | Flag applied (rank = -3) in the report release | First release the flag was applied (`first_flagged_date`) |
+| **removed flagged submission** | Was flagged (rank = -3) at some point but no longer flagged in the report release — the flag was removed | Release the flag was removed (`flag_removed_date`) |
+| **flagging candidate** | Submitted to and processed by ClinVar, never flagged (still pending or superseded by a newer submitter version) | Date ClinVar accepted/processed the batch (`batch_accepted_date`) |
+
+Only CVC's own (non-rejected) flagging candidates are included, so NCBI-originated
+flags are excluded. Rows are deduplicated to the most recent submission per SCV,
+and SCVs that no longer exist in the report release (submitter-deleted) are dropped.
+
+**Intentionally excluded ("resolved") categories** — these do not appear in any of
+the three functions:
+
+1. Flagging candidates **overridden by a newer submitter version** (the submitter
+   put out a higher SCV version than the one CVC submitted).
+2. Flagged submissions **intentionally removed via a CVC "remove flagged
+   submission" request** (`removal_requested_date` present). Flags removed for
+   other reasons (e.g. a submitter version bump with no CVC remove request) are
+   **retained** as `removed flagged submission` rows.
+
+**Manual hide list (`cvc_flagging_report_suppressions`):** individual
+flagging-candidate submissions can be suppressed from the report by adding a row
+to this table, keyed by `scv_id + scv_ver + batch_id` (see
+`10-flagging-report-suppressions.sql`). Suppression is scoped to that exact
+submission, so a **newer submission for the same SCV in a future batch is not
+hidden** and re-enters the report. Add a row to hide a submission, delete the row
+to un-hide it; deploy this table before the report table functions.
+
+**Candidate disposition ("never flagged"):** a `flagging candidate` row is always
+never-flagged (`was_ever_flagged` = FALSE, `first_flagged_date` IS NULL — a flag
+that was applied and later removed is its own `removed flagged submission` state).
+`candidate_disposition` classifies why it has not been flagged:
+
+| `candidate_disposition` | Meaning |
+|-------------------------|---------|
+| `pending flag (within grace period)` | Still legitimately awaiting the flag |
+| `never flagged — overridden by new submission version` | Submitter superseded our submitted version with a newer one — the dominant past-grace case |
+| `never flagged — past grace, no flag applied` | Past grace, still the submitted version, flag never applied |
+
+The by-submitter summary counts these as `never_flagged_overridden`,
+`never_flagged_past_grace`, `never_flagged_total`, and `pending_in_grace`.
+
+**Pending removal annotation:** a `flagged submission` row is flagged with
+`pending_removal = TRUE` (Sheets: `Pending removal`) when a non-rejected
+"remove flagged submission" request for the same SCV was submitted on or before
+the report date but the flag is still applied — i.e. the SCV is currently flagged
+yet already queued for removal. The removal request's date, batch, reason and
+notes are surfaced alongside, and the by-submitter summary counts these as
+`flagged_pending_removal`.
+
+### Aging representations (both emitted)
+
+- **Option A — Continuous** (`days_in_state`): days between the report release
+  and the state anchor date. Best for "oldest first" triage and trend lines.
+- **Option B — Buckets** (`aging_bucket`): `0-30 / 31-60 / 61-90 / 91-180 /
+  181-365 / 365+` days. Best for at-a-glance staleness and the by-submitter
+  aging matrix. For pending candidates, `grace_status` also states whether the
+  SCV is still within its 60-day grace window or past it (`days_past_grace`).
+
+### Objects produced (parameterized table functions)
+
+Packaged as **table functions** so a `report_release_date` can be passed in —
+ideal for a Looker Studio / Connected Sheets parameter + refresh workflow.
+
+| Table function | Description |
+|----------------|-------------|
+| `cvc_flagging_status_report_fn(report_release_date DATE)` | Detail — one row per SCV (analysis-friendly snake_case columns) |
+| `cvc_flagging_status_by_submitter_fn(report_release_date DATE)` | Summary — per submitter x state with an aging-bucket matrix |
+| `sheets_flagging_status_report_fn(report_release_date DATE)` | Email-style column names for Looker Studio / Sheets |
+
+`report_release_date` is snapped to the most recent **available** release on/before
+the date via `clinvar_ingest.schema_on()`. Pass `NULL` for the latest release.
+(Do not resolve releases via `clinvar_ingest.clinvar_releases` — it is a
+periodically-refreshed external-table copy that can lag the real data.)
+
+### Running the report
+
+```sql
+-- Latest release
+SELECT * FROM `clinvar_curator.cvc_flagging_status_report_fn`(NULL);
+
+-- Specific release (snaps to the most recent release on/before the date)
+SELECT * FROM `clinvar_curator.cvc_flagging_status_report_fn`(DATE '2026-06-27');
+
+-- Summary / email-style
+SELECT * FROM `clinvar_curator.cvc_flagging_status_by_submitter_fn`(DATE '2026-06-27');
+SELECT * FROM `clinvar_curator.sheets_flagging_status_report_fn`(DATE '2026-06-27');
+```
+
+### Looker Studio / Connected Sheets (parameter + refresh)
+
+Use a **Custom Query** and expose `@report_release_date` as a report parameter
+(type Date; default `CURRENT_DATE()` for latest):
+
+```sql
+SELECT * FROM `clinvar_curator.sheets_flagging_status_report_fn`(@report_release_date)
+```
+
+Changing the parameter control (or refreshing) re-runs the query against the
+chosen release — no procedure call or materialized table to maintain.
 
 ## Related Documentation
 
