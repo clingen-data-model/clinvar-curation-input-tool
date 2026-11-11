@@ -106,12 +106,22 @@ ON_DARK = COLORS["surface"]
 ON_LIGHT = COLORS["ink"]
 
 
-def label_ink(fill):
-    """Ink for a label drawn on a fill: white on dark fills, ink on light ones."""
-    r, g, b = (int(fill[i:i + 2], 16) / 255 for i in (1, 3, 5))
+def luminance(color):
+    """WCAG relative luminance of a #RRGGBB color."""
+    r, g, b = (int(color[i:i + 2], 16) / 255 for i in (1, 3, 5))
     lin = [c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4 for c in (r, g, b)]
-    luminance = 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2]
-    return ON_DARK if luminance < 0.36 else ON_LIGHT
+    return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2]
+
+
+def contrast(a, b):
+    """WCAG contrast ratio between two #RRGGBB colors."""
+    hi, lo = sorted((luminance(a), luminance(b)), reverse=True)
+    return (hi + 0.05) / (lo + 0.05)
+
+
+def label_ink(fill):
+    """Ink for a label drawn on a fill: white or ink, whichever contrasts more with it."""
+    return ON_DARK if contrast(fill, ON_DARK) > contrast(fill, ON_LIGHT) else ON_LIGHT
 
 
 # ---------------------------------------------------------------------------
