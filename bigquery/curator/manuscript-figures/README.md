@@ -221,7 +221,7 @@ SELECT * FROM `clinvar_ingest.manuscript_flagged_scv_by_consequence_view`;
 
 ## Figure 4: Outcomes of SCV Annotations
 
-Script `04-conflict-resolution-outcomes.sql` creates a table function that returns one row per reviewed variant, and the views behind the sheet. `generate_figure4.py` calls the table function and draws both panels. Google Sheets has no Sankey chart, so the figures are pasted into the sheet as static images.
+Script `04-conflict-resolution-outcomes.sql` creates a table function that returns one row per reviewed variant, and the views behind the sheet. `generate_figure4.py` calls the table function and draws each panel as its own titled image, using the shared palette, type and sizes in `figure_style.py` (see [STYLE.md](STYLE.md)). Google Sheets has no Sankey chart, so the figures are pasted into the sheet as static images.
 
 Figures and counts: [CvC Manuscript Figure 4 sheet](https://docs.google.com/spreadsheets/d/1qx6_90ZHtcu_xlVq0zU1DjkSnk0tHFJDA-GJMcvvkos/edit). The tab `About Figure 4` has the steps for refreshing the tables and re-pasting the images. Counts quoted below are for batches through 2026-10-24.
 
@@ -238,8 +238,8 @@ python3 generate_figure4.py --as-of 2026-05-31 --out figure4-may2026
 
 | Output | Contents |
 | --- | --- |
-| `figure4.svg`, `figure4a.svg`, `figure4b.svg` | Both panels, and each panel alone |
-| `figure4b_non_medically_significant.svg` | The same Sankey for VUS vs B/LB conflicts |
+| `figure4a.svg`, `figure4b.svg` | Each panel, with its title |
+| `figure4b_non_medically_significant.svg` | The same Sankey for VUS vs B/LB conflicts, titled "Figure 4, supporting" |
 | `figure4a_outcomes.csv`, `figure4a_outcome_detail.csv` | Panel A counts, and the finer outcomes behind each slice |
 | `figure4b_flows.csv`, `figure4b_final_classifications.csv` | Panel B flows, and one row for each exact starting conflict and result, with variant and flagged SCV counts |
 | `figure4b_conflict_combinations.csv` | Every medically significant label combination, its Panel B node and its state after flagging |

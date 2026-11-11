@@ -11,7 +11,8 @@
 --   Running this script creates a table function and the views behind the
 --   Figure 4 sheet. It reads ClinVar and CvC data and changes neither.
 --     bq query --use_legacy_sql=false < 04-conflict-resolution-outcomes.sql
---   generate_figure4.py then calls the table function and draws both panels.
+--   generate_figure4.py then calls the table function and draws each panel as its
+--   own titled image.
 --
 -- Table function:
 --   clinvar_ingest.manuscript_figure4_variant_outcomes(as_of_date DATE)
