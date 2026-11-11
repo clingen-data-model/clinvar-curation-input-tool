@@ -20,10 +20,10 @@ import csv
 import html
 import io
 import os
-import shutil
 import subprocess
 import sys
-import tempfile
+
+from figure_style import COLORS, LAYOUT, TYPE, label_ink, legend, line, notes, rect, text, wrap_svg, write_csv, write_png
 
 FLAGS_QUERY = """
 SELECT *
@@ -31,19 +31,17 @@ FROM `clinvar_ingest.manuscript_figure5_flags`(@as_of)
 ORDER BY scv_id
 """
 
-FONT = "Arial, Helvetica, sans-serif"
-INK = "#1f1f1f"
-INK_MUTED = "#52514e"
-SURFACE = "#ffffff"
-RULE = "#c9c8c3"
-
-# Not recorded is gray because it is missing information rather than a level.
+# Validity levels are legend-named categories, so they take category 1's steps,
+# darker for stronger evidence against the gene-disease relationship (STYLE.md).
+# No Known never reaches the figure on the current data; it takes the next unused
+# category color so it can't be mistaken for one of the three levels. Not recorded
+# is neutral because it is missing information rather than a level.
 LEVELS = [
-    ("Limited", "#2A6FD0"),
-    ("Disputed", "#E8921C"),
-    ("Refuted", "#8E1F3E"),
-    ("No Known", "#3E8E7E"),
-    ("Not recorded", "#8A8983"),
+    ("Limited", COLORS["cat1_light"]),
+    ("Disputed", COLORS["cat1"]),
+    ("Refuted", COLORS["cat1_dark"]),
+    ("No Known", COLORS["cat2"]),
+    ("Not recorded", COLORS["neutral"]),
 ]
 
 # All clinical domain working groups, so that a domain with no flags shows as 0.
@@ -89,21 +87,6 @@ def fmt(n):
     return f"{n:,}"
 
 
-def text(x, y, value, size=13, weight="normal", fill=INK, anchor="start"):
-    return (
-        f'<text x="{x:.1f}" y="{y:.1f}" font-size="{size}" font-weight="{weight}" '
-        f'fill="{fill}" text-anchor="{anchor}">{html.escape(value)}</text>'
-    )
-
-
-def wrap_svg(width, height, body):
-    return (
-        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" '
-        f'width="{width}" height="{height}" font-family="{FONT}">'
-        f'<rect width="{width}" height="{height}" fill="{SURFACE}"/>{body}</svg>\n'
-    )
-
-
 def domain_level_counts(rows):
     """Return flag counts per domain and level, for the rows in the figure."""
     counts = collections.defaultdict(collections.Counter)
@@ -123,59 +106,70 @@ def figure_svg(rows, as_of):
     total = sum(sum(counts[d].values()) for d in domains)
     max_count = max((sum(counts[d].values()) for d in domains), default=1) or 1
 
-    width, left, right = 980, 268, 60
-    plot_width = width - left - right
-    top, row_height, bar_height = 136, 30, 18
-    plot_height = row_height * len(domains)
-    height = top + plot_height + 62
-    scale = plot_width / max_count
-
-    body = [
-        text(24, 34, "Figure 5. CvC flags on P/LP submissions in genes with insufficient", 20, "bold"),
-        text(24, 60, "gene-disease evidence, by clinical domain", 20, "bold"),
-        text(
-            24, 86,
-            f"{fmt(total)} SCVs flagged in ClinVar on the {as_of} release, stacked by the "
-            "validity level that prompted the flag",
-            14, fill=INK_MUTED,
-        ),
-    ]
-
-    x = left
-    for name, color in levels:
-        body.append(f'<rect x="{x}" y="103" width="12" height="12" rx="2" fill="{color}"/>')
-        body.append(text(x + 18, 114, name, 13))
-        x += 18 + 8 * len(name) + 26
-
+    width = LAYOUT["width"]
     step = 10 if max_count > 20 else 5
-    for tick in range(0, max_count + 1, step):
-        tick_x = left + tick * scale
-        body.append(
-            f'<line x1="{tick_x:.1f}" y1="{top - 6}" x2="{tick_x:.1f}" y2="{top + plot_height}" '
-            f'stroke="{RULE}" stroke-width="1"/>'
-        )
-        body.append(text(tick_x, top + plot_height + 20, str(tick), 12, fill=INK_MUTED, anchor="middle"))
-    body.append(text(left + plot_width / 2, top + plot_height + 44, "Flagged SCVs", 13, fill=INK_MUTED, anchor="middle"))
+    axis_max = -(-max_count // step) * step
+    scale = width / axis_max
+    bar_height, heading_gap, row_gap = 20, 7, 12
+    gap = LAYOUT["bar_gap"]
 
-    for i, domain in enumerate(domains):
-        y = top + i * row_height
-        body.append(text(left - 12, y + 18, domain, 13, anchor="end"))
-        x = left
+    # Each domain's heading sits just above its bar, with n= to the right. A domain
+    # with no flags keeps its heading so all clinical domains are listed.
+    body, y = [], 0
+    for domain in domains:
         domain_total = sum(counts[domain].values())
+        y += TYPE["label"]
+        # n= is a tspan of the heading so it follows the name at a fixed gap.
+        heading = text(0, y, domain, TYPE["label"])
+        body.append(heading[:-len("</text>")]
+                    + f'<tspan dx="10" fill="{COLORS["ink_muted"]}">n={domain_total}</tspan></text>')
+        if not domain_total:
+            y += row_gap
+            continue
+        y += heading_gap
+        x = 0
         for name, color in levels:
             count = counts[domain][name]
             if not count:
                 continue
-            # A 2px surface gap keeps adjacent segments apart.
-            segment = max(count * scale - 2, 2)
-            body.append(
-                f'<rect x="{x:.1f}" y="{y + 4}" width="{segment:.1f}" height="{bar_height}" fill="{color}">'
-                f"<title>{html.escape(domain)}, {name}: {count} SCVs</title></rect>"
-            )
+            segment = max(count * scale - gap, gap)
+            tip = html.escape(f"{domain}, {name}: {count} SCVs")
+            body.append(rect(x, y, segment, bar_height, color)[:-2] + f"><title>{tip}</title></rect>")
+            # Light fills are below 3:1 on white, so wide segments carry their value.
+            if segment >= 30:
+                body.append(text(x + segment / 2, y + 15, count, TYPE["tick"], "bold",
+                                 label_ink(color), "middle"))
             x += count * scale
-        body.append(text(x + 6, y + 18, str(domain_total), 13, "bold" if domain_total else "normal"))
+        y += bar_height + row_gap
 
-    return wrap_svg(width, height, "".join(body))
+    # Value axis along the bottom, ticks only, so it doesn't cross the headings.
+    body.append(line(0, y, width, y, COLORS["rule"]))
+    for tick in range(0, axis_max + 1, step):
+        body.append(line(tick * scale, y, tick * scale, y + 5, COLORS["rule"]))
+        body.append(text(tick * scale, y + 20, tick, TYPE["tick"], fill=COLORS["ink_muted"],
+                         anchor="end" if tick == axis_max else "middle" if tick else "start"))
+    body.append(text(width / 2, y + 40, "Flagged SCVs", TYPE["tick"], fill=COLORS["ink_muted"], anchor="middle"))
+    y += 40 + 24
+
+    entries, legend_height = legend(0, y, levels)
+    body += entries
+    y += legend_height + LAYOUT["note_gap"] + TYPE["note"]
+
+    retracted = sum(r["flag_status"] == "retracted" for r in rows)
+    not_in_clinvar = sum(r["flag_status"] == "standing" and not is_true(r["flagged_in_clinvar"]) for r in rows)
+    note_body, note_height = notes(y, [
+        f"Counts {fmt(total)} of {fmt(len(rows))} CvC flags with this reason. Left out: {fmt(retracted)} that CvC "
+        f"later retracted and {fmt(not_in_clinvar)} not flagged in ClinVar on this release.",
+        "Level is the one named in the curator's note, or ClinGen's when the note names none. Not recorded: "
+        "neither gives one. Domain is the clinical domain of the ClinGen expert panel that curated the gene.",
+    ])
+    body += note_body
+    y += note_height - TYPE["note"]
+
+    title = "Figure 5. CvC flags for insufficient gene-disease evidence, by clinical domain"
+    subtitle = (f"{fmt(total)} P/LP SCVs flagged in ClinVar on the {as_of} release, stacked by the "
+                "validity level that prompted the flag")
+    return wrap_svg(y, title, body, subtitle=subtitle)
 
 
 def domain_level_rows(rows):
@@ -215,60 +209,6 @@ def gene_rows(rows):
         ])
     table.sort(key=lambda r: (-r[5], -r[8], r[0]))
     return table
-
-
-def find_chrome():
-    candidates = [
-        os.environ.get("CHROME"),
-        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-        shutil.which("google-chrome"),
-        shutil.which("chromium"),
-    ]
-    return next((c for c in candidates if c and os.path.exists(c)), None)
-
-
-def write_png(svg_path):
-    chrome = find_chrome()
-    if not chrome:
-        return False
-    with open(svg_path) as handle:
-        svg = handle.read()
-    head = svg[:svg.index(">")]
-    width = head.split('width="')[1].split('"')[0]
-    height = head.split('height="')[1].split('"')[0]
-    png_path = os.path.abspath(svg_path[:-4] + ".png")
-    # A failed render must not leave an older PNG beside the new SVG.
-    if os.path.exists(png_path):
-        os.remove(png_path)
-    # Headless Chrome occasionally hangs, so each try has a time limit.
-    for _ in range(2):
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
-            page = os.path.join(tmp, "page.html")
-            with open(page, "w") as handle:
-                handle.write(f'<!doctype html><html><body style="margin:0">{svg}</body></html>')
-            try:
-                subprocess.run(
-                    [
-                        chrome, "--headless=new", "--disable-gpu", "--hide-scrollbars",
-                        f"--user-data-dir={os.path.join(tmp, 'profile')}",
-                        "--force-device-scale-factor=3", f"--window-size={width},{height}",
-                        f"--screenshot={png_path}", f"file://{page}",
-                    ],
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                    check=True, timeout=45,
-                )
-            except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
-                continue
-        if os.path.exists(png_path):
-            return True
-    return False
-
-
-def write_csv(path, header, rows):
-    with open(path, "w", newline="") as handle:
-        writer = csv.writer(handle)
-        writer.writerow(header)
-        writer.writerows(rows)
 
 
 def main():
