@@ -10,6 +10,11 @@
 -- Scope:
 --   Germline Variant Pathogenicity Classification Submission Data subset
 --   (proposition_type = 'path' only).
+--   SCVs listed in clinvar_ingest.manuscript_excluded_scvs (00-excluded-scvs.sql)
+--   are not counted as CvC flags: the 321 SCVs whose gene-disease relationship
+--   flag CvC later retracted. They stay in the All ClinVar counts, because they
+--   are still ClinVar submissions. One was still flagged in release 2026-10-24,
+--   and counts as flagged with no CvC source. Run that script first.
 --
 -- Consequence Groups:
 --   - predicted LOF: nonsense, frameshift variant, splice donor variant, splice acceptor variant
@@ -208,7 +213,8 @@ BEGIN
           SELECT 1 FROM UNNEST(scv.comments) AS c
           WHERE c.type = 'FlaggedComment' AND c.source = 'ClinGen'
         ) AS has_clingen_comment,
-        (cvc.scv_id IS NOT NULL) AS cvc_submitted
+        (cvc.scv_id IS NOT NULL) AS cvc_submitted,
+        (excluded.scv_id IS NOT NULL) AS cvc_excluded
       FROM `%s.scv_summary` scv
       JOIN `%s.variation_identity` vi
         ON vi.variation_id = scv.variation_id
@@ -216,6 +222,8 @@ BEGIN
         ON vc.variation_id = scv.variation_id
       LEFT JOIN cvc_flagging_scvs cvc
         ON cvc.scv_id = scv.id
+      LEFT JOIN `clinvar_ingest.manuscript_excluded_scvs` excluded
+        ON excluded.scv_id = scv.id
       WHERE scv.proposition_type = 'path'
     )
 
@@ -226,7 +234,7 @@ BEGIN
       first_consq,
       consequence_group,
       is_flagged,
-      is_flagged AND has_clingen_comment AND cvc_submitted AS is_cvc,
+      is_flagged AND has_clingen_comment AND cvc_submitted AND NOT cvc_excluded AS is_cvc,
       is_flagged AND has_ncbi_comment AS is_ncbi,
       is_flagged AND has_clingen_comment AND NOT cvc_submitted AS is_clingen_non_cvc
     FROM scvs
