@@ -9,6 +9,11 @@ Uses only the Python standard library and the bq CLI, and needs the table functi
 that 05-gdr-flags-by-domain.sql creates. Writes SVG, plus PNG when Chrome is
 available, and the CSV tables behind the figure.
 
+The flags already leave out the annotations in
+clinvar_ingest.manuscript_excluded_annotations (00-excluded-scvs.sql). The counts
+for the footnote are read from clinvar_ingest.manuscript_excluded_scvs and saved as
+excluded.csv beside flags.csv, so --input can redraw without BigQuery.
+
     python3 generate_figure5.py --out output/figure5
     python3 generate_figure5.py --as-of 2026-05-31 --out output/figure5-may2026
     python3 generate_figure5.py --input output/figure5/flags.csv --out output/figure5
@@ -30,6 +35,19 @@ SELECT *
 FROM `clinvar_ingest.manuscript_figure5_flags`(@as_of)
 ORDER BY scv_id
 """
+
+# The SCVs every figure leaves out, by group, for the footnote.
+EXCLUDED_QUERY = """
+SELECT exclusion, COUNT(*) AS scvs, COUNT(DISTINCT variation_id) AS variants
+FROM `clinvar_ingest.manuscript_excluded_scvs`
+GROUP BY exclusion
+ORDER BY exclusion
+"""
+
+# How the footnote names each group in manuscript_excluded_scvs.
+EXCLUSION_PHRASES = {
+    "Discordance project retraction": "the discordance project retraction's flags and removals (batch 129)",
+}
 
 # Validity levels are legend-named categories, so they take category 1's steps,
 # darker for stronger evidence against the gene-disease relationship (STYLE.md).
@@ -65,12 +83,12 @@ DOMAINS = [
 ]
 
 
-def run_query(as_of):
-    param = f"as_of:DATE:{as_of or 'NULL'}"
+def run_query(query, as_of=None):
+    params = [f"--parameter=as_of:DATE:{as_of or 'NULL'}"] if "@as_of" in query else []
     result = subprocess.run(
         [
             "bq", "--quiet", "--project_id=clingen-dev", "query", "--use_legacy_sql=false",
-            "--format=csv", "--max_rows=1000000", f"--parameter={param}", FLAGS_QUERY,
+            "--format=csv", "--max_rows=1000000", *params, query,
         ],
         capture_output=True, text=True,
     )
@@ -96,7 +114,7 @@ def domain_level_counts(rows):
     return counts
 
 
-def figure_svg(rows, as_of):
+def figure_svg(rows, excluded, as_of):
     counts = domain_level_counts(rows)
     # A flag can only reach the figure with a domain, unless its gene is not in the
     # export. Such a flag gets its own row rather than disappearing.
@@ -157,9 +175,17 @@ def figure_svg(rows, as_of):
 
     retracted = sum(r["flag_status"] == "retracted" for r in rows)
     not_in_clinvar = sum(r["flag_status"] == "standing" and not is_true(r["flagged_in_clinvar"]) for r in rows)
+    not_counted = f"{fmt(not_in_clinvar)} not flagged in ClinVar on this release"
+    if retracted:
+        not_counted += f" and {fmt(retracted)} that CvC later retracted"
+    groups = [
+        f"{EXCLUSION_PHRASES.get(e['exclusion'], e['exclusion'])}, on {fmt(int(e['scvs']))} SCVs" for e in excluded
+    ]
+    left_out = "; ".join(groups)
     note_body, note_height = notes(y, [
-        f"Counts {fmt(total)} of {fmt(len(rows))} CvC flags with this reason. Left out: {fmt(retracted)} that CvC "
-        f"later retracted and {fmt(not_in_clinvar)} not flagged in ClinVar on this release.",
+        f"Counts {fmt(total)} of {fmt(len(rows))} CvC flags with this reason in batches released by {as_of}. "
+        f"Not counted: {not_counted}.",
+        f"Left out of every figure: {left_out}.",
         "Level is the one named in the curator's note, or ClinGen's when the note names none. Not recorded: "
         "neither gives one. Domain is the clinical domain of the ClinGen expert panel that curated the gene.",
     ])
@@ -221,17 +247,28 @@ def main():
     if args.input:
         with open(args.input, newline="") as handle:
             raw = handle.read()
+        excluded_path = os.path.join(os.path.dirname(args.input), "excluded.csv")
+        if not os.path.exists(excluded_path):
+            sys.exit(f"{excluded_path} not found; rerun without --input to save it")
+        with open(excluded_path, newline="") as handle:
+            raw_excluded = handle.read()
     else:
-        raw = run_query(args.as_of)
+        raw = run_query(FLAGS_QUERY, args.as_of)
+        raw_excluded = run_query(EXCLUDED_QUERY)
     rows = list(csv.DictReader(io.StringIO(raw)))
+    excluded = list(csv.DictReader(io.StringIO(raw_excluded)))
     if not rows:
         sys.exit("No flags returned")
+    if not excluded:
+        sys.exit("manuscript_excluded_scvs returned no rows; deploy 00-excluded-scvs.sql")
     as_of = rows[0]["as_of_batch_release_date"]
 
     os.makedirs(args.out, exist_ok=True)
     if not args.input:
         with open(os.path.join(args.out, "flags.csv"), "w", newline="") as handle:
             handle.write(raw)
+        with open(os.path.join(args.out, "excluded.csv"), "w", newline="") as handle:
+            handle.write(raw_excluded)
 
     write_csv(
         os.path.join(args.out, "figure5_domain_level.csv"),
@@ -248,7 +285,7 @@ def main():
 
     svg_path = os.path.join(args.out, "figure5.svg")
     with open(svg_path, "w") as handle:
-        handle.write(figure_svg(rows, as_of))
+        handle.write(figure_svg(rows, excluded, as_of))
     png = write_png(svg_path)
 
     shown = [r for r in rows if is_true(r["shown_in_figure"])]

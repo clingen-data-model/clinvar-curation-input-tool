@@ -9,7 +9,8 @@
 --   validity level.
 --
 --   Running this script creates the objects below. It reads ClinVar and CvC data
---   and changes neither.
+--   and changes neither. Deploy 00-excluded-scvs.sql first, because the table
+--   function reads clinvar_ingest.manuscript_excluded_annotations.
 --     bq query --use_legacy_sql=false < 05-gdr-flags-by-domain.sql
 --   On the first deploy, or to load a newer export of the ClinGen tab, also run:
 --     CALL `clinvar_ingest.refresh_manuscript_clingen_gene_validity`();
@@ -35,6 +36,14 @@
 --
 -- Method:
 --   Flags come from CvC's own submissions, on path SCVs, matched on accession.
+--   Every read of CvC submissions, for flags and for retractions, goes through
+--   the submissions CTE, which:
+--     - leaves out every annotation in clinvar_ingest.manuscript_excluded_annotations:
+--       the discordance project's flags and removals on 233 SCVs, matched on
+--       annotation_id. Other CvC annotations on those SCVs still count.
+--     - ignores reviews with status Archive, which were corrected before
+--       submission.
+--     - keeps only each batch's latest annotation of the SCV (is_latest).
 --
 --   figure_level is the level the curator recorded in the note, since that was
 --   the reason for the flag. ClinGen fills in a flag whose note has no level, when
@@ -48,11 +57,11 @@
 --   applied, and all_domains lists every domain the gene has in that set.
 --
 --   A flag is 'retracted' when CvC submitted a remove flagged submission for that
---   SCV in a later batch by as_of_date. Otherwise it is 'standing', meaning CvC has
+--   SCV in a later batch by as_of_date. The discordance project's removals are
+--   left out above, so this covers the other retractions, such as those made
+--   because the gene-disease classification changed. Otherwise it is 'standing', meaning CvC has
 --   not withdrawn it. clinvar_state says what ClinVar shows for the SCV on the
 --   as_of release. The figure counts shown_in_figure: standing and flagged there.
---   The 2026 retractions only covered flags that were live at the time, so standing
---   flags that a resubmission had already removed were never retracted.
 --
 -- Output Columns:
 --   as_of_batch_release_date, variation_id, scv_id, scv_ver, gene_symbol, hgnc_id
@@ -69,8 +78,8 @@
 --   gene_has_moderate_or_higher - The gene has a Moderate, Strong or Definitive
 --                          relationship in the ClinGen export
 --   flag_status          - standing or retracted
---   retraction_kind      - Discordance project retraction, Classification changed,
---                          Other, or NULL
+--   retraction_kind      - Classification changed, Other, or NULL. The
+--                          discordance project's removals are left out above.
 --   flagged_in_clinvar   - The SCV is a flagged submission on the as_of release
 --   clinvar_state        - flagged, newer SCV version, not in release, or not
 --                          flagged, same version
@@ -198,6 +207,19 @@ WITH cutoff AS (
   FROM `clinvar_curator.cvc_clinvar_batches`
 ),
 
+-- The only source of CvC submissions in this function. See Method above.
+submissions AS (
+  SELECT sa.*
+  FROM `clinvar_curator.cvc_submitted_annotations_view` sa
+  JOIN `clinvar_curator.cvc_annotations_view` av
+    ON av.annotation_id = sa.annotation_id
+  LEFT JOIN `clinvar_ingest.manuscript_excluded_annotations` x
+    ON x.annotation_id = sa.annotation_id
+  WHERE x.annotation_id IS NULL
+    AND av.is_latest
+    AND sa.review_status != 'Archive'
+),
+
 flags AS (
   SELECT
     sa.variation_id,
@@ -213,7 +235,7 @@ flags AS (
       WHEN LOWER(sa.notes) LIKE '%refut%' THEN 'Refuted'
       WHEN LOWER(sa.notes) LIKE '%no known%' THEN 'No Known'
     END AS note_level
-  FROM `clinvar_curator.cvc_submitted_annotations_view` sa
+  FROM submissions sa
   JOIN cutoff
     ON sa.batch_release_date <= cutoff.as_of
   JOIN `clinvar_ingest.clinvar_scvs` s
@@ -321,14 +343,13 @@ retractions AS (
     f.scv_id,
     ARRAY_AGG(
       CASE
-        WHEN LOWER(sa.notes) LIKE '%discordance%' THEN 'Discordance project retraction'
         WHEN sa.reason LIKE 'Gene-disease relationship%' THEN 'Classification changed'
         ELSE 'Other'
       END
       ORDER BY sa.batch_release_date DESC LIMIT 1
     )[OFFSET(0)] AS retraction_kind
   FROM flags f
-  JOIN `clinvar_curator.cvc_submitted_annotations_view` sa
+  JOIN submissions sa
     ON sa.scv_id = f.scv_id
     AND sa.action = 'remove flagged submission'
     AND sa.batch_release_date > f.batch_release_date
@@ -426,28 +447,36 @@ GROUP BY as_of_batch_release_date, gene_symbol;
 
 -- Every count quoted in a call-out, so they can be checked against the data.
 CREATE OR REPLACE VIEW `clinvar_ingest.manuscript_figure5_callouts_view` AS
+-- The flags are read once and fanned out to each call-out they belong to, because
+-- one UNION branch per call-out re-expands the table function past BigQuery's
+-- query planning limit.
 WITH f AS (SELECT * FROM `clinvar_ingest.manuscript_figure5_flags_view`),
 callout_rows AS (
-  SELECT 1 AS sort_order, 'Submitted flags' AS callout, scv_id, variation_id, gene_symbol FROM f
-  UNION ALL SELECT 2, 'In the figure: standing and flagged in ClinVar', scv_id, variation_id, gene_symbol FROM f WHERE shown_in_figure
-  UNION ALL SELECT 3, 'Retracted', scv_id, variation_id, gene_symbol FROM f WHERE flag_status = 'retracted'
-  UNION ALL SELECT 4, CONCAT('Retracted: ', retraction_kind), scv_id, variation_id, gene_symbol FROM f WHERE flag_status = 'retracted'
-  UNION ALL SELECT 5, 'Retracted, still flagged in ClinVar', scv_id, variation_id, gene_symbol FROM f WHERE flag_status = 'retracted' AND flagged_in_clinvar
-  UNION ALL SELECT 6, 'Standing, not flagged in ClinVar', scv_id, variation_id, gene_symbol FROM f WHERE flag_status = 'standing' AND NOT flagged_in_clinvar
-  UNION ALL SELECT 7, CONCAT('Standing, not flagged: ', clinvar_state), scv_id, variation_id, gene_symbol FROM f WHERE flag_status = 'standing' AND NOT flagged_in_clinvar
-  UNION ALL SELECT 8, 'Standing, not flagged: CAPN3, BRIP1, USH1C, PCDH15', scv_id, variation_id, gene_symbol FROM f WHERE flag_status = 'standing' AND NOT flagged_in_clinvar AND gene_symbol IN ('CAPN3', 'BRIP1', 'USH1C', 'PCDH15')
-  UNION ALL SELECT 9, 'In the figure, gene has a Moderate or higher relationship', scv_id, variation_id, gene_symbol FROM f WHERE shown_in_figure AND gene_has_moderate_or_higher
-  UNION ALL SELECT 10, 'In the figure, level filled in from ClinGen', scv_id, variation_id, gene_symbol FROM f WHERE shown_in_figure AND level_source = 'ClinGen'
-  UNION ALL SELECT 11, 'In the figure, level not recorded', scv_id, variation_id, gene_symbol FROM f WHERE shown_in_figure AND level_source = 'none'
-  UNION ALL SELECT 12, 'In the figure, note level not in ClinGen for the gene', scv_id, variation_id, gene_symbol FROM f WHERE shown_in_figure AND note_level IS NOT NULL AND NOT note_level_in_clingen
-  UNION ALL SELECT 13, 'In the figure, domain not from a matching-level relationship', scv_id, variation_id, gene_symbol FROM f WHERE shown_in_figure AND domain_source <> 'matching level'
-  UNION ALL SELECT 14, 'In the figure, gene has several domains in its set', scv_id, variation_id, gene_symbol FROM f WHERE shown_in_figure AND all_domains LIKE '%|%'
+  SELECT 0 AS sort_order, CONCAT('Left out of every figure: ', exclusion) AS callout, scv_id, variation_id, CAST(NULL AS STRING) AS gene_symbol
+  FROM `clinvar_ingest.manuscript_excluded_scvs`
   UNION ALL
-  SELECT 15, 'In the figure, domain mapping needs review', f.scv_id, f.variation_id, f.gene_symbol
+  SELECT c.sort_order, c.callout, f.scv_id, f.variation_id, f.gene_symbol
   FROM f
-  JOIN `clinvar_ingest.manuscript_figure5_panel_domain_view` pd
+  LEFT JOIN `clinvar_ingest.manuscript_figure5_panel_domain_view` pd
     ON pd.expert_panel = f.domain_expert_panel
-  WHERE f.shown_in_figure AND pd.needs_review
+  CROSS JOIN UNNEST([
+    STRUCT(1 AS sort_order, 'Submitted flags' AS callout, TRUE AS hit),
+    STRUCT(2, 'In the figure: standing and flagged in ClinVar', f.shown_in_figure),
+    STRUCT(3, 'Retracted', f.flag_status = 'retracted'),
+    STRUCT(4, CONCAT('Retracted: ', IFNULL(f.retraction_kind, '')), f.flag_status = 'retracted'),
+    STRUCT(5, 'Retracted, still flagged in ClinVar', f.flag_status = 'retracted' AND f.flagged_in_clinvar),
+    STRUCT(6, 'Standing, not flagged in ClinVar', f.flag_status = 'standing' AND NOT f.flagged_in_clinvar),
+    STRUCT(7, CONCAT('Standing, not flagged: ', f.clinvar_state), f.flag_status = 'standing' AND NOT f.flagged_in_clinvar),
+    STRUCT(8, 'Standing, not flagged: CAPN3, BRIP1, USH1C, PCDH15', f.flag_status = 'standing' AND NOT f.flagged_in_clinvar AND f.gene_symbol IN ('CAPN3', 'BRIP1', 'USH1C', 'PCDH15')),
+    STRUCT(9, 'In the figure, gene has a Moderate or higher relationship', f.shown_in_figure AND f.gene_has_moderate_or_higher),
+    STRUCT(10, 'In the figure, level filled in from ClinGen', f.shown_in_figure AND f.level_source = 'ClinGen'),
+    STRUCT(11, 'In the figure, level not recorded', f.shown_in_figure AND f.level_source = 'none'),
+    STRUCT(12, 'In the figure, note level not in ClinGen for the gene', f.shown_in_figure AND f.note_level IS NOT NULL AND NOT f.note_level_in_clingen),
+    STRUCT(13, 'In the figure, domain not from a matching-level relationship', f.shown_in_figure AND f.domain_source <> 'matching level'),
+    STRUCT(14, 'In the figure, gene has several domains in its set', f.shown_in_figure AND f.all_domains LIKE '%|%'),
+    STRUCT(15, 'In the figure, domain mapping needs review', f.shown_in_figure AND COALESCE(pd.needs_review, FALSE))
+  ]) c
+  WHERE c.hit
 )
 SELECT
   callout,
