@@ -31,20 +31,28 @@
 --   annotated version of the SCV, or from any version of the SCV when the
 --   annotated version is missing from ClinVar's history.
 --   SCVs listed in clinvar_ingest.manuscript_excluded_scvs (00-excluded-scvs.sql)
---   are also left out: the 321 SCVs whose gene-disease relationship flag CvC
---   later retracted. Run that script first.
+--   are also left out: the 321 SCVs whose flag CvC later retracted (233 in the
+--   batch 129 discordance project retraction and 88 other gene-disease
+--   relationship flags). Run that script first.
+--   Reviews with status Archive are ignored: an archived annotation was
+--   corrected before submission, so it is not a valid flagging candidate or
+--   no change decision. An SCV whose only reviews are archived is left out.
 --   Left-out SCVs have in_scope = FALSE, say why in exclusion, and are listed in
 --   the excluded view.
 --
 -- Method:
---   Everything is counted once per SCV accession across all batches.
+--   Everything is counted once per SCV accession across all batches. A batch's
+--   decision on an SCV is its latest annotation in that batch, and the SCV's
+--   final review is its latest batch decision that is not archived.
 --     Flagging candidate submitted - at least one valid flagging candidate
 --       submission to ClinVar. This stays true if the flag was later retracted or
 --       the SCV was later reviewed as no change, because the submission happened.
 --     No change - no valid submission, and the SCV's final reviewed action is no
 --       change. This includes SCVs first marked as candidates and then changed.
 --     Flagging candidate not submitted - no valid submission, and the SCV's final
---       reviewed action is flagging candidate.
+--       reviewed action is flagging candidate, approved as OK or Fixed. These
+--       should not exist once their batch is submitted, so each one is an issue
+--       to raise with the CvC team.
 --   A variant takes the first of these outcomes that any of its SCVs has, so
 --   variant counts add up to the number of distinct variants reviewed.
 --
@@ -66,7 +74,10 @@ release AS (
     ON s.start_release_date <= cutoff.as_of
 ),
 
--- The SCV's final decision in a finalized batch.
+-- The SCV's final decision in a finalized batch. Each batch decides with its
+-- latest annotation of the SCV. Archived decisions were corrected before
+-- submission, so the latest decision that is not archived wins. When every
+-- decision is archived, a row is kept only so the SCV can be listed as left out.
 final_review AS (
   SELECT
     av.scv_id,
@@ -76,14 +87,15 @@ final_review AS (
     av.action AS final_action,
     av.review_status AS final_review_status,
     av.batch_id AS final_batch_id,
-    av.annotation_release_date
+    av.annotation_release_date,
+    av.is_latest AND av.review_status != 'Archive' AS is_decision
   FROM `clinvar_curator.cvc_annotations_view` av
   JOIN cutoff
     ON av.batch_date <= cutoff.as_of
   WHERE av.is_reviewed
   QUALIFY ROW_NUMBER() OVER (
     PARTITION BY av.scv_id
-    ORDER BY av.batch_date DESC, av.is_latest DESC, av.annotated_on DESC, av.annotation_id DESC
+    ORDER BY av.is_latest AND av.review_status != 'Archive' DESC, av.batch_date DESC, av.is_latest DESC, av.annotated_on DESC, av.annotation_id DESC
   ) = 1
 ),
 
@@ -178,6 +190,7 @@ exclusions AS (
     s.scv_id,
     CASE
       WHEN IFNULL(s.proposition_type != 'path', TRUE) THEN 'Not a germline pathogenicity SCV'
+      WHEN NOT s.is_decision THEN 'Only archived reviews (corrected before submission)'
       ELSE x.exclusion
     END AS exclusion
   FROM scvs s
@@ -216,7 +229,7 @@ CROSS JOIN release
 
 CREATE OR REPLACE VIEW `clinvar_ingest.manuscript_figure3ab_scv_outcomes_view` AS
 SELECT *
-FROM `clinvar_ingest.manuscript_figure3ab_scv_outcomes`(DATE '2026-10-24');
+FROM `clinvar_ingest.manuscript_figure3ab_scv_outcomes`(DATE '2026-11-08');
 
 
 -- One row per outcome, with SCV and variant counts. Figure 3A plots these.

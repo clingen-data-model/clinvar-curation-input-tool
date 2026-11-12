@@ -11,9 +11,10 @@
 --   Germline Variant Pathogenicity Classification Submission Data subset
 --   (proposition_type = 'path' only).
 --   SCVs listed in clinvar_ingest.manuscript_excluded_scvs (00-excluded-scvs.sql)
---   are not counted as CvC flags: the 321 SCVs whose gene-disease relationship
---   flag CvC later retracted. They stay in the All ClinVar counts, because they
---   are still ClinVar submissions. One was still flagged in release 2026-10-24,
+--   are not counted as CvC flags: the 321 SCVs whose flag CvC later retracted
+--   (233 in the batch 129 discordance project retraction and 88 other
+--   gene-disease relationship flags). They stay in the All ClinVar counts, because they
+--   are still ClinVar submissions. One was still flagged in release 2026-11-08,
 --   and counts as flagged with no CvC source. Run that script first.
 --
 -- Consequence Groups:

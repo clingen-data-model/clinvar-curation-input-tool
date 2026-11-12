@@ -31,10 +31,12 @@ FROM `clinvar_ingest.manuscript_figure3ab_scv_outcomes`(@as_of)
 """
 
 # Matches Figure 3C, so all three panels read the same date.
-DEFAULT_AS_OF = "2026-10-24"
+DEFAULT_AS_OF = "2026-11-08"
 
 SUBMITTED = "Flagging candidate submitted"
 RETRACTED_GDR = "Retracted gene-disease relationship flag"
+DISCORDANCE = "Discordance project retraction"
+ARCHIVED_ONLY = "Only archived reviews (corrected before submission)"
 NO_CHANGE = "No change"
 NOT_SUBMITTED = "Flagging candidate not submitted"
 
@@ -92,9 +94,11 @@ def variant_outcomes(rows):
 
 
 def retracted_gdr_note(excluded):
-    """The footnote for SCVs left out because CvC retracted their gene-disease relationship flag."""
-    n = sum(r["exclusion"] == RETRACTED_GDR for r in excluded)
-    return f"Left out: {fmt(n)} SCVs whose gene-disease relationship flag CvC later retracted."
+    """The footnote for SCVs left out because CvC retracted their flag (00-excluded-scvs.sql)."""
+    discordance = sum(r["exclusion"] == DISCORDANCE for r in excluded)
+    gdr = sum(r["exclusion"] == RETRACTED_GDR for r in excluded)
+    return (f"Left out: {fmt(discordance + gdr)} SCVs whose flag CvC later retracted, "
+            f"{fmt(discordance)} in the discordance project retraction and {fmt(gdr)} other gene-disease relationship flags.")
 
 
 def figure3a(scv_counts, variant_counts, submitted_rows, excluded, as_of, release):
@@ -112,6 +116,9 @@ def figure3a(scv_counts, variant_counts, submitted_rows, excluded, as_of, releas
     def x_at(value):
         return bar_left + (bar_right - bar_left) * value / axis_max
 
+    # An outcome with no SCVs is left out of the bars and the legend; the notes say so.
+    shown = [(name, fill) for name, fill in OUTCOMES if scv_counts.get(name, 0) or variant_counts.get(name, 0)]
+
     body = []
     for tick in range(0, axis_max + 1, 5000):
         x = x_at(tick)
@@ -125,7 +132,7 @@ def figure3a(scv_counts, variant_counts, submitted_rows, excluded, as_of, releas
         y = top + row_height * i
         body.append(heading(bar_left, y - heading_gap, label, total))
         position = 0
-        for name, fill in OUTCOMES:
+        for name, fill in shown:
             n = counts.get(name, 0)
             left, right = x_at(position), x_at(position + n)
             body.append(rect(left, y, max(right - left - LAYOUT["bar_gap"], 1), bar_height, fill))
@@ -140,7 +147,7 @@ def figure3a(scv_counts, variant_counts, submitted_rows, excluded, as_of, releas
             position += n
 
     legend_y = plot_bottom + 44
-    legend_body, legend_height = legend(0, legend_y, [(name, fill) for name, fill in OUTCOMES])
+    legend_body, legend_height = legend(0, legend_y, shown)
     body += legend_body
 
     status = collections.Counter(r["status_in_release"] for r in submitted_rows)
@@ -151,7 +158,12 @@ def figure3a(scv_counts, variant_counts, submitted_rows, excluded, as_of, releas
         f"Submitted does not mean flagged now. In release {release}, of the {fmt(len(submitted_rows))} SCVs submitted: "
         f"{fmt(status['flagged'])} flagged, {fmt(status['not flagged'])} not flagged, "
         f"{fmt(status['not in ClinVar'])} no longer in ClinVar. {fmt(retracted)} were later retracted by CvC.",
+        "Archived reviews are ignored, because the annotation was corrected before submission. "
+        + ("Not submitted means approved as OK or Fixed but never included in a submission."
+           if scv_counts.get(NOT_SUBMITTED, 0) else
+           "Every flagging candidate approved as OK or Fixed was submitted."),
         retracted_gdr_note(excluded),
+        f"Also left out: {fmt(sum(r['exclusion'] == ARCHIVED_ONLY for r in excluded))} SCVs whose only reviews were archived.",
     ])
     body += note_body
     height = legend_y + legend_height + LAYOUT["note_gap"] + note_height
@@ -199,7 +211,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--as-of", default=DEFAULT_AS_OF, help=f"Last batch date to include, YYYY-MM-DD. Default: {DEFAULT_AS_OF}.")
     parser.add_argument("--input", help="Use a saved scv_outcomes.csv instead of querying BigQuery.")
-    parser.add_argument("--out", default="figure3-output", help="Output directory.")
+    parser.add_argument("--out", default="output/figure3", help="Output directory.")
     args = parser.parse_args()
 
     os.makedirs(args.out, exist_ok=True)
