@@ -11,6 +11,9 @@ Chrome is available, and the CSV tables behind the figures.
     python3 generate_figure3ab.py --out output/figure3
     python3 generate_figure3ab.py --as-of 2026-05-27 --out output/figure3-may
     python3 generate_figure3ab.py --input scv_outcomes.csv --out output/figure3
+
+With --input, the discordance project SCVs are read from discordance_scvs.csv in the
+same folder as the input, which an earlier run writes.
 """
 
 import argparse
@@ -30,11 +33,18 @@ SELECT *
 FROM `clinvar_ingest.manuscript_figure3ab_scv_outcomes`(@as_of)
 """
 
+# SCVs with a left-out discordance project annotation (00-excluded-scvs.sql). Their
+# flags and removals don't count; their other annotations do.
+DISCORDANCE_QUERY = """
+SELECT scv_id, variation_id, exclusion, excluded_annotations, clinvar_url
+FROM `clinvar_ingest.manuscript_excluded_scvs`
+ORDER BY scv_id
+"""
+
 # Matches Figure 3C, so all three panels read the same date.
 DEFAULT_AS_OF = "2026-11-08"
 
 SUBMITTED = "Flagging candidate submitted"
-RETRACTED_GDR = "Retracted gene-disease relationship flag"
 DISCORDANCE = "Discordance project retraction"
 ARCHIVED_ONLY = "Only archived reviews (corrected before submission)"
 NO_CHANGE = "No change"
@@ -49,11 +59,12 @@ OUTCOMES = [
 ]
 
 
-def run_query(as_of):
+def run_query(query, as_of=None):
+    parameters = [f"--parameter=as_of:DATE:{as_of}"] if as_of else []
     result = subprocess.run(
         [
             "bq", "--quiet", "--project_id=clingen-dev", "query", "--use_legacy_sql=false",
-            "--format=csv", "--max_rows=1000000", f"--parameter=as_of:DATE:{as_of}", OUTCOMES_QUERY,
+            "--format=csv", "--max_rows=1000000", *parameters, query,
         ],
         capture_output=True, text=True,
     )
@@ -93,15 +104,15 @@ def variant_outcomes(rows):
     return counts
 
 
-def retracted_gdr_note(excluded):
-    """The footnote for SCVs left out because CvC retracted their flag (00-excluded-scvs.sql)."""
-    discordance = sum(r["exclusion"] == DISCORDANCE for r in excluded)
-    gdr = sum(r["exclusion"] == RETRACTED_GDR for r in excluded)
-    return (f"Left out: {fmt(discordance + gdr)} SCVs whose flag CvC later retracted, "
-            f"{fmt(discordance)} in the discordance project retraction and {fmt(gdr)} other gene-disease relationship flags.")
+def discordance_note(discordance, rows):
+    """The footnote for the discordance project's left-out annotations (00-excluded-scvs.sql)."""
+    ids = {r["scv_id"] for r in discordance}
+    still = sum(r["scv_id"] in ids for r in rows)
+    return (f"Left out: the discordance project retraction's flags and removals (batch 129), on {fmt(len(ids))} SCVs. "
+            f"{fmt(still)} of those SCVs still count through their other annotations.")
 
 
-def figure3a(scv_counts, variant_counts, submitted_rows, excluded, as_of, release):
+def figure3a(scv_counts, variant_counts, submitted_rows, rows, excluded, discordance, as_of, release):
     """Stacked bars of SCVs and variants by outcome, on one count axis."""
     bar_left, bar_right = 0, 880
     bar_height = 64
@@ -152,6 +163,7 @@ def figure3a(scv_counts, variant_counts, submitted_rows, excluded, as_of, releas
 
     status = collections.Counter(r["status_in_release"] for r in submitted_rows)
     retracted = sum(r["later_retracted"] == "true" for r in submitted_rows)
+    discordance_ids = {r["scv_id"] for r in discordance}
     note_body, note_height = notes(legend_y + legend_height + LAYOUT["note_gap"] + TYPE["note"], [
         f"Germline pathogenicity SCVs in CvC batches submitted through {as_of}. Each SCV counts once. "
         "A variant counts as submitted if any of its SCVs was, so the variant counts add up to the distinct variants reviewed.",
@@ -162,15 +174,16 @@ def figure3a(scv_counts, variant_counts, submitted_rows, excluded, as_of, releas
         + ("Not submitted means approved as OK or Fixed but never included in a submission."
            if scv_counts.get(NOT_SUBMITTED, 0) else
            "Every flagging candidate approved as OK or Fixed was submitted."),
-        retracted_gdr_note(excluded),
-        f"Also left out: {fmt(sum(r['exclusion'] == ARCHIVED_ONLY for r in excluded))} SCVs whose only reviews were archived.",
+        discordance_note(discordance, rows),
+        f"Also left out: {fmt(sum(r['exclusion'] == ARCHIVED_ONLY and r['scv_id'] not in discordance_ids for r in excluded))} "
+        "other SCVs whose only reviews were archived.",
     ])
     body += note_body
     height = legend_y + legend_height + LAYOUT["note_gap"] + note_height
     return wrap_svg(height, "Figure 3A. CvC review outcomes for SCVs and variants", body)
 
 
-def figure3b(reasons, total, excluded, as_of):
+def figure3b(reasons, total, submitted_rows, rows, discordance, as_of):
     """One bar per flagging reason, largest first, with Other last."""
     label_width = 400
     bar_left, bar_right = label_width + 16, 880
@@ -200,8 +213,9 @@ def figure3b(reasons, total, excluded, as_of):
     note_top = plot_bottom + 42 + LAYOUT["note_gap"] + TYPE["note"]
     note_body, note_height = notes(note_top, [
         f"{fmt(total)} germline pathogenicity SCVs in CvC batches submitted through {as_of}. "
-        "Each SCV has the reason from its most recent valid submission.",
-        retracted_gdr_note(excluded),
+        "Each SCV has the reason from its most recent valid submission. "
+        f"{fmt(sum(r['later_retracted'] == 'true' for r in submitted_rows))} were later retracted by CvC and still count.",
+        discordance_note(discordance, rows),
     ])
     body += note_body
     return wrap_svg(note_top + note_height - TYPE["note"], "Figure 3B. SCVs submitted as flagging candidates, by reason", body)
@@ -216,14 +230,25 @@ def main():
 
     os.makedirs(args.out, exist_ok=True)
     outcomes_csv = os.path.join(args.out, "scv_outcomes.csv")
+    discordance_csv = os.path.join(args.out, "discordance_scvs.csv")
     if args.input:
-        if os.path.abspath(args.input) != os.path.abspath(outcomes_csv):
-            shutil.copyfile(args.input, outcomes_csv)
+        saved = os.path.join(os.path.dirname(os.path.abspath(args.input)), "discordance_scvs.csv")
+        if not os.path.exists(saved):
+            sys.exit(f"--input also needs {saved}, which a run without --input writes.")
+        for source, target in ((args.input, outcomes_csv), (saved, discordance_csv)):
+            if os.path.abspath(source) != os.path.abspath(target):
+                shutil.copyfile(source, target)
     else:
         with open(outcomes_csv, "w", encoding="utf-8") as handle:
-            handle.write(run_query(args.as_of))
+            handle.write(run_query(OUTCOMES_QUERY, args.as_of))
+        with open(discordance_csv, "w", encoding="utf-8") as handle:
+            handle.write(run_query(DISCORDANCE_QUERY))
     with open(outcomes_csv, newline="", encoding="utf-8") as handle:
         all_rows = list(csv.DictReader(handle))
+    with open(discordance_csv, newline="", encoding="utf-8") as handle:
+        discordance = list(csv.DictReader(handle))
+    if not discordance:
+        sys.exit("The discordance project query returned no rows; deploy 00-excluded-scvs.sql first.")
     if not all_rows:
         sys.exit("The query returned no rows.")
     as_of = all_rows[0]["as_of_date"]
@@ -256,15 +281,31 @@ def main():
         ["as_of_date", "release_date", "reason", "scvs", "scv_pct"],
         [[as_of, release, reason, n, f"{100 * n / submitted_total:.2f}"] for reason, n in reasons],
     )
+    # One row per SCV: discordance project SCVs first, with what happened to each,
+    # then the other reviewed SCVs left out of both figures.
+    by_scv = {r["scv_id"]: r for r in all_rows}
+    discordance_ids = {r["scv_id"] for r in discordance}
+
+    def effect(row):
+        if row is None:
+            return "Not in either figure: it has no other reviewed annotation"
+        if row["in_scope"] != "true":
+            return f"Not in either figure: {row['exclusion']}"
+        return f"Counts as {row['outcome']} from its other annotations"
+
     write_csv(
         os.path.join(args.out, "figure3ab_excluded_scvs.csv"),
-        ["as_of_date", "exclusion", "scv_id", "variation_id", "proposition_type", "final_action", "outcome"],
-        [[as_of, r["exclusion"], r["scv_id"], r["variation_id"], r["proposition_type"], r["final_action"], r["outcome"]] for r in excluded],
+        ["as_of_date", "exclusion", "scv_id", "variation_id", "proposition_type", "final_action", "outcome", "effect"],
+        [[as_of, d["exclusion"], d["scv_id"], d["variation_id"],
+          *([by_scv[d["scv_id"]][k] for k in ("proposition_type", "final_action", "outcome")] if d["scv_id"] in by_scv else ["", "", ""]),
+          effect(by_scv.get(d["scv_id"]))] for d in discordance]
+        + [[as_of, r["exclusion"], r["scv_id"], r["variation_id"], r["proposition_type"], r["final_action"], r["outcome"],
+            "Not in either figure"] for r in excluded if r["scv_id"] not in discordance_ids],
     )
 
     outputs = {
-        "figure3a.svg": figure3a(scv_counts, variant_counts, submitted_rows, excluded, as_of, release),
-        "figure3b.svg": figure3b(reasons, submitted_total, excluded, as_of),
+        "figure3a.svg": figure3a(scv_counts, variant_counts, submitted_rows, rows, excluded, discordance, as_of, release),
+        "figure3b.svg": figure3b(reasons, submitted_total, submitted_rows, rows, discordance, as_of),
     }
     png_written = True
     for name, svg in outputs.items():
@@ -273,7 +314,7 @@ def main():
             handle.write(svg)
         png_written = write_png(path) and png_written
 
-    print(f"Through {as_of}, release {release}: {fmt(len(rows))} SCVs and {fmt(sum(variant_counts.values()))} variants reviewed; {fmt(len(excluded))} SCVs excluded")
+    print(f"Through {as_of}, release {release}: {fmt(len(rows))} SCVs and {fmt(sum(variant_counts.values()))} variants reviewed; {fmt(len(excluded))} reviewed SCVs excluded; discordance project annotations left out on {fmt(len(discordance))} SCVs")
     for name, _ in OUTCOMES:
         print(f"  {name:34}{fmt(scv_counts[name]):>8} SCVs {fmt(variant_counts[name]):>8} variants")
     for reason, n in reasons:

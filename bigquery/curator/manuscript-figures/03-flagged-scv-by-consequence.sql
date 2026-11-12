@@ -10,12 +10,15 @@
 -- Scope:
 --   Germline Variant Pathogenicity Classification Submission Data subset
 --   (proposition_type = 'path' only).
---   SCVs listed in clinvar_ingest.manuscript_excluded_scvs (00-excluded-scvs.sql)
---   are not counted as CvC flags: the 321 SCVs whose flag CvC later retracted
---   (233 in the batch 129 discordance project retraction and 88 other
---   gene-disease relationship flags). They stay in the All ClinVar counts, because they
---   are still ClinVar submissions. One was still flagged in release 2026-11-08,
---   and counts as flagged with no CvC source. Run that script first.
+--   CvC annotations listed in clinvar_ingest.manuscript_excluded_annotations
+--   (00-excluded-scvs.sql) are not counted as CvC flagging candidates: the
+--   discordance project retraction's flags and removals (batch 129), 597
+--   annotations on 233 SCVs. An SCV still counts as CvC-flagged through any
+--   other CvC flagging candidate submission. All the SCVs stay in the All ClinVar
+--   counts, because they are still ClinVar submissions. A flagged SCV whose only
+--   CvC submissions are left out counts as flagged with no source, not as
+--   ClinGen non-CvC. Run that script first. Other retracted flags count as
+--   ordinary CvC submissions.
 --
 -- Consequence Groups:
 --   - predicted LOF: nonsense, frameshift variant, splice donor variant, splice acceptor variant
@@ -191,11 +194,25 @@ BEGIN
     ),
 
     -- SCVs the CvC project had submitted as flagging candidates by this release
+    -- (without the left-out annotations in manuscript_excluded_annotations)
     cvc_flagging_scvs AS (
-      SELECT DISTINCT scv_id
-      FROM `clinvar_curator.cvc_submitted_annotations_view`
-      WHERE action = 'flagging candidate'
-        AND submission_date <= DATE'%t'
+      SELECT DISTINCT sa.scv_id
+      FROM `clinvar_curator.cvc_submitted_annotations_view` sa
+      LEFT JOIN `clinvar_ingest.manuscript_excluded_annotations` xa
+        ON xa.annotation_id = sa.annotation_id
+      WHERE sa.action = 'flagging candidate'
+        AND sa.submission_date <= DATE'%t'
+        AND xa.annotation_id IS NULL
+    ),
+
+    -- SCVs with a left-out CvC flagging candidate submission by this release
+    cvc_excluded_scvs AS (
+      SELECT DISTINCT sa.scv_id
+      FROM `clinvar_curator.cvc_submitted_annotations_view` sa
+      JOIN `clinvar_ingest.manuscript_excluded_annotations` xa
+        ON xa.annotation_id = sa.annotation_id
+      WHERE sa.action = 'flagging candidate'
+        AND sa.submission_date <= DATE'%t'
     ),
 
     scvs AS (
@@ -215,7 +232,7 @@ BEGIN
           WHERE c.type = 'FlaggedComment' AND c.source = 'ClinGen'
         ) AS has_clingen_comment,
         (cvc.scv_id IS NOT NULL) AS cvc_submitted,
-        (excluded.scv_id IS NOT NULL) AS cvc_excluded
+        (excluded.scv_id IS NOT NULL AND cvc.scv_id IS NULL) AS cvc_excluded_only
       FROM `%s.scv_summary` scv
       JOIN `%s.variation_identity` vi
         ON vi.variation_id = scv.variation_id
@@ -223,7 +240,7 @@ BEGIN
         ON vc.variation_id = scv.variation_id
       LEFT JOIN cvc_flagging_scvs cvc
         ON cvc.scv_id = scv.id
-      LEFT JOIN `clinvar_ingest.manuscript_excluded_scvs` excluded
+      LEFT JOIN cvc_excluded_scvs excluded
         ON excluded.scv_id = scv.id
       WHERE scv.proposition_type = 'path'
     )
@@ -235,12 +252,13 @@ BEGIN
       first_consq,
       consequence_group,
       is_flagged,
-      is_flagged AND has_clingen_comment AND cvc_submitted AND NOT cvc_excluded AS is_cvc,
+      is_flagged AND has_clingen_comment AND cvc_submitted AS is_cvc,
       is_flagged AND has_ncbi_comment AS is_ncbi,
-      is_flagged AND has_clingen_comment AND NOT cvc_submitted AS is_clingen_non_cvc
+      is_flagged AND has_clingen_comment AND NOT cvc_submitted AND NOT cvc_excluded_only AS is_clingen_non_cvc
     FROM scvs
   """,
   rec.schema_name,
+  rec.release_date,
   rec.release_date,
   rec.schema_name,
   rec.schema_name
