@@ -27,7 +27,7 @@ import shutil
 import subprocess
 import sys
 
-from figure_style import COLORS, LAYOUT, TYPE, line, notes, rect, text, wrap_svg, write_csv, write_png
+from figure_style import COLORS, LAYOUT, TYPE, line, notes, rect, text, text_width, wrap_svg, write_csv, write_png
 
 OUTCOMES_QUERY = """
 SELECT *
@@ -36,13 +36,13 @@ ORDER BY variation_id
 """
 
 # CvC outcomes are steps of the CvC color, darkest for the largest effect on the
-# variant's aggregate classification. No change is neutral. See STYLE.md.
+# variant's aggregate classification. The unflagged slice is neutral. See STYLE.md.
 OUTCOMES = [
     ("Conflict resolved", COLORS["cvc_dark"]),
     ("Conflict reduced", COLORS["cvc_mid"]),
     ("Classification removed", COLORS["cvc"]),
-    ("Flagged, not resolved", COLORS["cvc_light"]),
-    ("No change", COLORS["neutral"]),
+    ("Classification unchanged (submission(s) flagged)", COLORS["cvc_light"]),
+    ("Classification unchanged (no submission(s) flagged)", COLORS["neutral"]),
 ]
 
 # What each outcome means, under its name in Panel A. Each is read from the
@@ -51,8 +51,8 @@ OUTCOME_DESCRIPTIONS = {
     "Conflict resolved": "A conflict becomes one tier: P/LP, VUS or B/LB",
     "Conflict reduced": "P/LP vs VUS or B/LB becomes VUS vs B/LB",
     "Classification removed": "No conflict, and every contributing SCV is flagged",
-    "Flagged, not resolved": "Not resolved or reduced, and a classification remains",
-    "No change": "Reviewed, with no flagging candidate submitted",
+    "Classification unchanged (submission(s) flagged)": "Not resolved or reduced, and the classification stays the same",
+    "Classification unchanged (no submission(s) flagged)": "Reviewed, with no flagging candidate submitted",
 }
 
 # Definitions for the terms in Panel B's headings and node names.
@@ -74,11 +74,16 @@ DESTINATIONS = [
 ]
 SOURCE_FILL = COLORS["neutral_dark"]
 
-# Sankey geometry: right edge of the source labels, left edge of the destination
-# nodes, and node width.
-SANKEY_LEFT = 230
-SANKEY_RIGHT = LAYOUT["width"] - 240
+# Sankey geometry: node width, and the space between a node and its labels. The
+# columns are placed from the measured labels, so the widest label on the left
+# starts at the panel's left edge and the widest on the right ends at its right
+# edge.
 SANKEY_NODE = 16
+SANKEY_LABEL_GAP = 8
+
+# Column headings, two lines each, over the source and destination labels.
+LEFT_HEADING = ["Top ranked group", "when flagged"]
+RIGHT_HEADING = ["Top ranked group", "after flagging"]
 
 MEDSIG_SOURCES = [
     "P + LP vs VUS",
@@ -138,7 +143,9 @@ def wedge(cx, cy, r, start, end, fill, title):
     )
 
 
-def panel_a(counts, total, flagged, as_of, title):
+def panel_a(counts, total, flagged, as_of, title, lower_rank_changes=0):
+    """lower_rank_changes counts the variants in the unchanged slice whose
+    classification did change, because a lower ranked group took over."""
     parts = []
     cx, cy, r = 160, 160, 150
     angle = 0.0
@@ -156,7 +163,7 @@ def panel_a(counts, total, flagged, as_of, title):
     y = cy - 128
     for name, color, n, mid in label_rows:
         ex, ey = cx + (r + 2) * math.sin(mid), cy - (r + 2) * math.cos(mid)
-        if name == "No change":
+        if name == OUTCOMES[-1][0]:
             # The middle of this wedge is on the far side of the pie, so the
             # leader meets the edge level with the label instead.
             y = max(y + 18, cy + 96)
@@ -174,11 +181,17 @@ def panel_a(counts, total, flagged, as_of, title):
         y += 62
 
     plot_bottom = max(2 * cy, bottom + 8)
-    note_parts, note_h = notes(plot_bottom + LAYOUT["note_gap"] + TYPE["note"], [
+    footnotes = [
         f"Each variant is counted once, by the outcome of its batch's flagging candidates at the point of submission. Batches through {as_of}.",
         "Each outcome is read from the variant's top ranked group, the highest ranked group of SCVs (practice guideline, "
         "expert panel, criteria provided, no criteria), which ClinVar uses for the aggregate classification.",
-    ])
+    ]
+    if lower_rank_changes:
+        footnotes.append(
+            f"Exception: in {fmt(lower_rank_changes)} variants counted as \"{OUTCOMES[3][0]}\", the whole top ranked group "
+            "was flagged and a lower ranked group with a different classification took over."
+        )
+    note_parts, note_h = notes(plot_bottom + LAYOUT["note_gap"] + TYPE["note"], footnotes)
     parts += note_parts
     subtitle = f"{fmt(total)} variants reviewed; {fmt(flagged)} with a flagging candidate submitted"
     return wrap_svg(plot_bottom + LAYOUT["note_gap"] + note_h, title, parts, subtitle=subtitle)
@@ -202,8 +215,9 @@ def sankey_section(flows, groups, top, plot_height):
     """One two column Sankey drawn from y=top, with its sources in groups.
 
     groups are (heading, sources), drawn top to bottom in the left column with
-    the heading above each group. Ribbons and nodes share one scale, so every
-    width in the diagram is comparable. Returns (svg list, bottom y)."""
+    the heading above each group; a heading of None draws no heading and leaves
+    no room for one. Ribbons and nodes share one scale, so every width in the
+    diagram is comparable. Returns (svg list, bottom y)."""
     groups = [(h, [s for s in names if any(k[0] == s for k in flows)]) for h, names in groups]
     groups = [(h, names) for h, names in groups if names]
     sources = [s for _, names in groups for s in names]
@@ -213,11 +227,20 @@ def sankey_section(flows, groups, top, plot_height):
     src_totals = {s: sum(v for k, v in flows.items() if k[0] == s) for s in sources}
     dst_totals = {d: sum(v for k, v in flows.items() if k[1] == d) for d in dests}
 
+    def label_width(name, n):
+        return max(
+            text_width(name, TYPE["label"], "bold"),
+            text_width(f"{fmt(n)} ({pct(n, total)})", TYPE["label"]),
+        )
+
+    left = max(label_width(s, src_totals[s]) for s in sources) + SANKEY_LABEL_GAP
+    right = LAYOUT["width"] - SANKEY_NODE - SANKEY_LABEL_GAP - max(label_width(d, dst_totals[d]) for d in dests)
+
     parts = []
     # Gaps need room for two lines of label, so small nodes do not collide, and
     # each group needs room for its heading.
     min_gap = 38
-    group_head = 48
+    group_head = 48 if any(h for h, _ in groups) else 16
     plot_top = top + group_head
     fixed = min_gap * (len(sources) - 1) + group_head * (len(groups) - 1)
     scale = (plot_height - group_head - fixed) / total
@@ -230,7 +253,8 @@ def sankey_section(flows, groups, top, plot_height):
             y += group_head
         # Above the node and above its label, which rises over a thin node.
         first_label = y + src_totals[names[0]] * scale / 2 - 3
-        parts.append(text(0, min(y - 14, first_label - 28), heading, TYPE["heading"], "bold"))
+        if heading:
+            parts.append(text(0, min(y - 14, first_label - 28), heading, TYPE["heading"], "bold"))
         for name in names:
             src_y[name] = y
             y += src_totals[name] * scale + gap
@@ -254,41 +278,44 @@ def sankey_section(flows, groups, top, plot_height):
             h = n * scale
             y0, y1 = src_cursor[src], dst_cursor[dst]
             parts.append(ribbon(
-                SANKEY_LEFT + SANKEY_NODE, SANKEY_RIGHT, y0, y0 + h, y1, y1 + h, dest_colors[dst],
+                left + SANKEY_NODE, right, y0, y0 + h, y1, y1 + h, dest_colors[dst],
                 f"{src} to {dst}: {fmt(n)} ({pct(n, total)})",
             ))
             if h >= 16:
-                parts.append(text(SANKEY_LEFT + SANKEY_NODE + 6, y0 + h / 2 + 5, fmt(n), TYPE["tick"]))
+                parts.append(text(left + SANKEY_NODE + 6, y0 + h / 2 + 5, fmt(n), TYPE["tick"]))
             src_cursor[src] += h
             dst_cursor[dst] += h
 
     for src in sources:
         h = max(src_totals[src] * scale, 1.5)
         y = src_y[src]
-        parts.append(node(SANKEY_LEFT, y, SANKEY_NODE, h, SOURCE_FILL, f"{src}: {fmt(src_totals[src])}"))
+        parts.append(node(left, y, SANKEY_NODE, h, SOURCE_FILL, f"{src}: {fmt(src_totals[src])}"))
         mid = y + h / 2
-        parts.append(text(SANKEY_LEFT - 8, mid - 3, src, TYPE["label"], "bold", anchor="end"))
-        parts.append(text(SANKEY_LEFT - 8, mid + 15, f"{fmt(src_totals[src])} ({pct(src_totals[src], total)})", TYPE["label"], fill=COLORS["ink_muted"], anchor="end"))
+        parts.append(text(left - SANKEY_LABEL_GAP, mid - 3, src, TYPE["label"], "bold", anchor="end"))
+        parts.append(text(left - SANKEY_LABEL_GAP, mid + 15, f"{fmt(src_totals[src])} ({pct(src_totals[src], total)})", TYPE["label"], fill=COLORS["ink_muted"], anchor="end"))
 
     for dst in dests:
         h = max(dst_totals[dst] * scale, 1.5)
         y = dst_y[dst]
-        parts.append(node(SANKEY_RIGHT, y, SANKEY_NODE, h, dest_colors[dst], f"{dst}: {fmt(dst_totals[dst])}"))
+        parts.append(node(right, y, SANKEY_NODE, h, dest_colors[dst], f"{dst}: {fmt(dst_totals[dst])}"))
         mid = y + h / 2
-        parts.append(text(SANKEY_RIGHT + SANKEY_NODE + 8, mid - 3, dst, TYPE["label"], "bold"))
-        parts.append(text(SANKEY_RIGHT + SANKEY_NODE + 8, mid + 15, f"{fmt(dst_totals[dst])} ({pct(dst_totals[dst], total)})", TYPE["label"], fill=COLORS["ink_muted"]))
+        parts.append(text(right + SANKEY_NODE + SANKEY_LABEL_GAP, mid - 3, dst, TYPE["label"], "bold"))
+        parts.append(text(right + SANKEY_NODE + SANKEY_LABEL_GAP, mid + 15, f"{fmt(dst_totals[dst])} ({pct(dst_totals[dst], total)})", TYPE["label"], fill=COLORS["ink_muted"]))
 
     return parts, top + plot_height + 8
 
 
 def panel_b(flows, groups, footnotes, plot_height, title):
     """One Sankey under a pair of column headings, its sources in groups."""
+    # The left heading starts at the left edge with the widest source label. The right heading ends where the widest destination
+    # label ends.
     head_y = TYPE["heading"]
-    parts = [
-        text(SANKEY_LEFT + SANKEY_NODE, head_y, "Top ranked group when flagged", TYPE["heading"], "bold", anchor="end"),
-        text(SANKEY_RIGHT, head_y, "Top ranked group after flagging", TYPE["heading"], "bold"),
-    ]
-    body, y = sankey_section(flows, groups, head_y + 16, plot_height)
+    line_h = TYPE["heading"] + 4
+    parts = []
+    for i, (left_line, right_line) in enumerate(zip(LEFT_HEADING, RIGHT_HEADING)):
+        parts.append(text(0, head_y + i * line_h, left_line, TYPE["heading"], "bold"))
+        parts.append(text(LAYOUT["width"], head_y + i * line_h, right_line, TYPE["heading"], "bold", anchor="end"))
+    body, y = sankey_section(flows, groups, head_y + (len(LEFT_HEADING) - 1) * line_h + 16, plot_height)
     parts += body
     note_parts, note_h = notes(y + LAYOUT["note_gap"] + TYPE["note"], footnotes)
     parts += note_parts
@@ -394,7 +421,11 @@ def main():
         [[as_of, *k, v] for k, v in sorted(groups.items(), key=lambda kv: (-kv[0][0], kv[0][1], -kv[1]))],
     )
 
-    panel_a_svg = panel_a(counts, total, flagged, as_of, "Figure 4A. Outcomes of SCV annotations")
+    lower_rank_changes = sum(
+        n for (outcome, detail), n in details.items()
+        if outcome == OUTCOMES[3][0] and detail in ("non-conflict, classification changed at lower rank", "conflict exposed at lower rank")
+    )
+    panel_a_svg = panel_a(counts, total, flagged, as_of, "Figure 4A. Outcomes of SCV annotations", lower_rank_changes)
 
     def not_shown(remained, none):
         parts = [f"{fmt(remained)} remained in conflict at that level"] if remained else []
@@ -403,14 +434,12 @@ def main():
         return "; ".join(parts) if parts else "none"
 
     # One Sankey at one scale: the non-medically significant conflicts are the
-    # lower group of sources and flow into the same results.
+    # lower sources and flow into the same results. No group headings; the
+    # footnote names both groups.
     medsig_shown, nonmed_shown = sum(medsig.values()), sum(nonmed.values())
     panel_b_svg = panel_b(
         medsig + nonmed,
-        [
-            ("Medically significant conflicts", MEDSIG_SOURCES),
-            ("Non-medically significant conflicts", NONMEDSIG_SOURCES),
-        ],
+        [(None, MEDSIG_SOURCES + NONMEDSIG_SOURCES)],
         [
             f"{fmt(medsig_shown)} of {fmt(medsig_n)} flagged medically significant conflicts (P/LP vs VUS or B/LB) "
             f"and {fmt(nonmed_shown)} of {fmt(nonmed_n)} flagged non-medically significant conflicts (VUS vs B/LB) "
