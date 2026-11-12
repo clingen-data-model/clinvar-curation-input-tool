@@ -238,8 +238,7 @@ python3 generate_figure4.py --as-of 2026-05-31 --out figure4-may2026
 
 | Output | Contents |
 | --- | --- |
-| `figure4a.svg`, `figure4b.svg` | Each panel, with its title |
-| `figure4b_non_medically_significant.svg` | The same Sankey for VUS vs B/LB conflicts, titled "Figure 4, supporting" |
+| `figure4a.svg`, `figure4b.svg` | Each panel, with its title. Panel B stacks the medically significant Sankey above the non-medically significant (VUS vs B/LB) one, each drawn to its own scale |
 | `figure4a_outcomes.csv`, `figure4a_outcome_detail.csv` | Panel A counts, and the finer outcomes behind each slice |
 | `figure4b_flows.csv`, `figure4b_final_classifications.csv` | Panel B flows, and one row for each exact starting conflict and result, with variant and flagged SCV counts |
 | `figure4b_conflict_combinations.csv` | Every medically significant label combination, its Panel B node and its state after flagging |

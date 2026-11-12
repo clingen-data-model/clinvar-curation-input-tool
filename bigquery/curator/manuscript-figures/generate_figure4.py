@@ -2,8 +2,8 @@
 """Generate manuscript Figure 4 from 04-conflict-resolution-outcomes.sql.
 
 Panel A is the share of reviewed variants by outcome. Panel B is a Sankey of the
-direction in which medically significant conflicts leave that state. A supporting
-Sankey covers non-medically significant conflicts. Each is its own titled image,
+direction in which conflicts leave that state: medically significant conflicts on
+top, non-medically significant conflicts below. Each panel is its own titled image,
 drawn with the shared palette, type and sizes in figure_style.py (see STYLE.md).
 
 Uses only the Python standard library and the bq CLI, and needs the table function
@@ -26,7 +26,7 @@ import shutil
 import subprocess
 import sys
 
-from figure_style import COLORS, LAYOUT, TYPE, notes, rect, text, wrap_svg, write_csv, write_png
+from figure_style import COLORS, LAYOUT, TYPE, line, notes, rect, text, wrap_svg, write_csv, write_png
 
 OUTCOMES_QUERY = """
 SELECT *
@@ -52,6 +52,12 @@ DESTINATIONS = [
     ("B/LB", COLORS["ok"]),
 ]
 SOURCE_FILL = COLORS["neutral_dark"]
+
+# Sankey geometry: right edge of the source labels, left edge of the destination
+# nodes, and node width.
+SANKEY_LEFT = 230
+SANKEY_RIGHT = LAYOUT["width"] - 240
+SANKEY_NODE = 16
 
 MEDSIG_SOURCES = [
     "P + LP vs VUS",
@@ -166,8 +172,9 @@ def node(x, y, width, height, fill, title):
     return rect(x, y, width, height, fill)[:-2] + f"><title>{html.escape(title)}</title></rect>"
 
 
-def sankey(flows, sources, resolved_label, footnotes, title, plot_height=380):
-    """Two column Sankey. Ribbons and nodes share one scale, so widths are true."""
+def sankey_section(flows, sources, top, plot_height):
+    """One two column Sankey drawn from y=top. Ribbons and nodes share one scale,
+    so widths are true within the section. Returns (svg list, bottom y)."""
     sources = [s for s in sources if any(k[0] == s for k in flows)]
     dest_colors = dict(DESTINATIONS)
     dests = [d for d, _ in DESTINATIONS if any(k[1] == d for k in flows)]
@@ -176,12 +183,6 @@ def sankey(flows, sources, resolved_label, footnotes, title, plot_height=380):
     dst_totals = {d: sum(v for k, v in flows.items() if k[1] == d) for d in dests}
 
     parts = []
-    head_y = TYPE["heading"]
-    left_x, right_x, node_w = 230, LAYOUT["width"] - 240, 16
-    parts.append(text(left_x + node_w, head_y, "Top ranked group when flagged", TYPE["heading"], "bold", anchor="end"))
-    parts.append(text(right_x, head_y, resolved_label, TYPE["heading"], "bold"))
-
-    plot_top = head_y + 20
     # Gaps need room for two lines of label, so small nodes do not collide.
     min_gap = 38
     scale = (plot_height - min_gap * (max(len(sources), len(dests)) - 1)) / total
@@ -189,7 +190,7 @@ def sankey(flows, sources, resolved_label, footnotes, title, plot_height=380):
     def place(names, totals):
         used = sum(totals[n] * scale for n in names)
         gap = (plot_height - used) / max(len(names) - 1, 1)
-        y = plot_top
+        y = top
         placed = {}
         for name in names:
             placed[name] = y
@@ -210,34 +211,59 @@ def sankey(flows, sources, resolved_label, footnotes, title, plot_height=380):
             h = n * scale
             y0, y1 = src_cursor[src], dst_cursor[dst]
             parts.append(ribbon(
-                left_x + node_w, right_x, y0, y0 + h, y1, y1 + h, dest_colors[dst],
+                SANKEY_LEFT + SANKEY_NODE, SANKEY_RIGHT, y0, y0 + h, y1, y1 + h, dest_colors[dst],
                 f"{src} to {dst}: {fmt(n)} ({pct(n, total)})",
             ))
             if h >= 16:
-                parts.append(text(left_x + node_w + 6, y0 + h / 2 + 5, fmt(n), TYPE["tick"]))
+                parts.append(text(SANKEY_LEFT + SANKEY_NODE + 6, y0 + h / 2 + 5, fmt(n), TYPE["tick"]))
             src_cursor[src] += h
             dst_cursor[dst] += h
 
     for src in sources:
         h = max(src_totals[src] * scale, 1.5)
         y = src_y[src]
-        parts.append(node(left_x, y, node_w, h, SOURCE_FILL, f"{src}: {fmt(src_totals[src])}"))
+        parts.append(node(SANKEY_LEFT, y, SANKEY_NODE, h, SOURCE_FILL, f"{src}: {fmt(src_totals[src])}"))
         mid = y + h / 2
-        parts.append(text(left_x - 8, mid - 3, src, TYPE["label"], "bold", anchor="end"))
-        parts.append(text(left_x - 8, mid + 15, f"{fmt(src_totals[src])} ({pct(src_totals[src], total)})", TYPE["label"], fill=COLORS["ink_muted"], anchor="end"))
+        parts.append(text(SANKEY_LEFT - 8, mid - 3, src, TYPE["label"], "bold", anchor="end"))
+        parts.append(text(SANKEY_LEFT - 8, mid + 15, f"{fmt(src_totals[src])} ({pct(src_totals[src], total)})", TYPE["label"], fill=COLORS["ink_muted"], anchor="end"))
 
     for dst in dests:
         h = max(dst_totals[dst] * scale, 1.5)
         y = dst_y[dst]
-        parts.append(node(right_x, y, node_w, h, dest_colors[dst], f"{dst}: {fmt(dst_totals[dst])}"))
+        parts.append(node(SANKEY_RIGHT, y, SANKEY_NODE, h, dest_colors[dst], f"{dst}: {fmt(dst_totals[dst])}"))
         mid = y + h / 2
-        parts.append(text(right_x + node_w + 8, mid - 3, dst, TYPE["label"], "bold"))
-        parts.append(text(right_x + node_w + 8, mid + 15, f"{fmt(dst_totals[dst])} ({pct(dst_totals[dst], total)})", TYPE["label"], fill=COLORS["ink_muted"]))
+        parts.append(text(SANKEY_RIGHT + SANKEY_NODE + 8, mid - 3, dst, TYPE["label"], "bold"))
+        parts.append(text(SANKEY_RIGHT + SANKEY_NODE + 8, mid + 15, f"{fmt(dst_totals[dst])} ({pct(dst_totals[dst], total)})", TYPE["label"], fill=COLORS["ink_muted"]))
 
-    plot_bottom = plot_top + plot_height + 8
-    note_parts, note_h = notes(plot_bottom + LAYOUT["note_gap"] + TYPE["note"], footnotes)
+    return parts, top + plot_height + 8
+
+
+def panel_b(sections, closing_notes, title):
+    """Sankeys stacked top to bottom under one pair of column headings.
+
+    sections are (heading, flows, sources, footnotes, plot_height). Each section
+    has its own scale, which closing_notes should say."""
+    head_y = TYPE["heading"]
+    parts = [
+        text(SANKEY_LEFT + SANKEY_NODE, head_y, "Top ranked group when flagged", TYPE["heading"], "bold", anchor="end"),
+        text(SANKEY_RIGHT, head_y, "Top ranked group after flagging", TYPE["heading"], "bold"),
+    ]
+    y = head_y + 12
+    for i, (heading, flows, sources, footnotes, plot_height) in enumerate(sections):
+        if i:
+            y += 26
+            parts.append(line(0, y, LAYOUT["width"], y, COLORS["rule"]))
+        y += 30
+        parts.append(text(0, y, heading, TYPE["heading"], "bold"))
+        body, y = sankey_section(flows, sources, y + 22, plot_height)
+        parts += body
+        note_parts, note_h = notes(y + LAYOUT["note_gap"] + TYPE["note"], footnotes)
+        parts += note_parts
+        y += LAYOUT["note_gap"] + note_h
+    y += 8
+    note_parts, note_h = notes(y + TYPE["note"], closing_notes)
     parts += note_parts
-    return wrap_svg(plot_bottom + LAYOUT["note_gap"] + note_h, title, parts)
+    return wrap_svg(y + note_h, title, parts)
 
 
 def main():
@@ -343,7 +369,7 @@ def main():
 
     def notes_for(n, remained, none, name):
         flow_total = n - remained - none
-        lines = [f"{fmt(flow_total)} of {fmt(n)} flagged {name} left that state at the point of submission. Batches through {as_of}."]
+        lines = [f"{fmt(flow_total)} of {fmt(n)} flagged {name} left that state at the point of submission."]
         extra = [f"{fmt(remained)} remained in conflict at that level"] if remained else []
         if none:
             extra.append(f"{fmt(none)} had no classification left")
@@ -351,23 +377,22 @@ def main():
             lines.append("Not shown: " + "; ".join(extra) + ".")
         return lines
 
-    panel_b_svg = sankey(
-        medsig, MEDSIG_SOURCES, "Top ranked group after flagging",
-        notes_for(medsig_n, medsig_remained, medsig_none, "medically significant conflicts"),
-        "Figure 4B. Direction of conflict resolution, medically significant conflicts",
-        plot_height=455,
-    )
-    nonmed_svg = sankey(
-        nonmed, NONMEDSIG_SOURCES, "Top ranked group after flagging",
-        notes_for(nonmed_n, nonmed_remained, nonmed_none, "non-medically significant conflicts"),
-        "Figure 4, supporting. Direction of conflict resolution, non-medically significant conflicts",
-        plot_height=240,
+    # Non-medically significant conflicts sit under the medically significant ones.
+    # The two are drawn to separate scales, so the small group stays readable.
+    panel_b_svg = panel_b(
+        [
+            ("Medically significant conflicts: P/LP vs VUS or B/LB", medsig, MEDSIG_SOURCES,
+             notes_for(medsig_n, medsig_remained, medsig_none, "medically significant conflicts"), 455),
+            ("Non-medically significant conflicts: VUS vs B/LB", nonmed, NONMEDSIG_SOURCES,
+             notes_for(nonmed_n, nonmed_remained, nonmed_none, "non-medically significant conflicts"), 240),
+        ],
+        [f"Batches through {as_of}. Ribbon widths are to scale within each section, not between them."],
+        "Figure 4B. Direction of conflict resolution",
     )
 
     outputs = {
         "figure4a.svg": panel_a_svg,
         "figure4b.svg": panel_b_svg,
-        "figure4b_non_medically_significant.svg": nonmed_svg,
     }
     png_written = True
     for name, svg in outputs.items():
