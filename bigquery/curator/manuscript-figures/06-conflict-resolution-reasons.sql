@@ -60,12 +60,17 @@
 --   submitted on or before that release, matched on accession. Flagged outside CvC
 --   means none did, such as flags from NCBI.
 --
--- Excluded SCVs:
---   SCVs listed in clinvar_ingest.manuscript_excluded_scvs (00-excluded-scvs.sql)
---   are left out: the 321 SCVs whose gene-disease relationship flag CvC later
---   retracted. They are not CvC flagging candidates here, and an event whose
---   reason SCVs are all excluded is dropped, because the retracted flag caused
---   it. Run that script first.
+-- Left-out annotations:
+--   Every annotation in clinvar_ingest.manuscript_excluded_annotations
+--   (00-excluded-scvs.sql) is left out, matched on annotation_id: the discordance
+--   project retraction's flags and removals (batch 129), on 233 SCVs. They are
+--   never CvC flagging candidates here, so they can't credit a flag to CvC or set
+--   cvc_candidate_before. Other CvC annotations on the same SCVs still count, and
+--   so do all other retracted flags. A flag resolution whose only CvC flagging
+--   candidate was a left-out annotation is dropped, because counting it as
+--   Flagged outside CvC would call a CvC flag a non-CvC one. The user chose this
+--   on 2026-11-12. Through release 2026-11-08 that drops 4 resolutions. Run that
+--   script first.
 --
 -- CvC candidates before a submitter's change:
 --   cvc_candidate_before and cvc_candidate_within_60_days apply to any reason.
@@ -98,6 +103,9 @@
 --   reason_scvs, changed_submitters (separated by " | ")
 --   cvc_candidate_before, cvc_candidate_within_60_days
 --   returned_by_cutoff, first_return_release, in_conflict_at_cutoff
+--   excluded_scvs          - SCVs in manuscript_excluded_scvs, for the footnote
+--   dropped_flag_resolutions - Flag resolutions in the series dropped because
+--                            only a left-out annotation credited them
 -- ============================================================================
 
 CREATE OR REPLACE TABLE FUNCTION `clinvar_ingest.manuscript_figure6_resolution_events`(as_of_date DATE)
@@ -176,24 +184,31 @@ AS (
   ),
 
   -- Valid flagging candidates, the same test Figure 4 uses.
+  -- Left-out annotations are dropped by annotation_id, so the SCV's other CvC
+  -- annotations still count.
   candidates AS (
     SELECT DISTINCT sa.scv_id, sa.submission_date
     FROM `clinvar_curator.cvc_submitted_annotations_view` sa
-    LEFT JOIN `clinvar_ingest.manuscript_excluded_scvs` x
-      ON x.scv_id = sa.scv_id
+    LEFT JOIN `clinvar_ingest.manuscript_excluded_annotations` x
+      ON x.annotation_id = sa.annotation_id
     WHERE sa.action = 'flagging candidate'
       AND sa.valid_submission
-      AND x.scv_id IS NULL
+      AND x.annotation_id IS NULL
   ),
 
-  -- Events caused only by excluded SCVs.
-  excluded_events AS (
+  -- Flag resolutions credited only by left-out annotations, to drop.
+  excluded_flag_events AS (
     SELECT e.snapshot_release_date, e.variation_id
     FROM with_scvs e, UNNEST(e.reason_scvs) AS scv
-    LEFT JOIN `clinvar_ingest.manuscript_excluded_scvs` x
-      ON x.scv_id = REGEXP_EXTRACT(scv, r'SCV\d+')
+    JOIN `clinvar_curator.cvc_submitted_annotations_view` sa
+      ON sa.scv_id = REGEXP_EXTRACT(scv, r'SCV\d+')
+    JOIN `clinvar_ingest.manuscript_excluded_annotations` x
+      ON x.annotation_id = sa.annotation_id
+    WHERE e.base_reason = 'flagged'
+      AND sa.action = 'flagging candidate'
+      AND sa.valid_submission
+      AND sa.submission_date <= e.snapshot_release_date
     GROUP BY e.snapshot_release_date, e.variation_id
-    HAVING LOGICAL_AND(x.scv_id IS NOT NULL)
   ),
 
   cvc_timing AS (
@@ -208,6 +223,17 @@ AS (
     FROM with_scvs e, UNNEST(e.reason_scvs) AS scv
     JOIN candidates c ON c.scv_id = REGEXP_EXTRACT(scv, r'SCV\d+')
     GROUP BY e.snapshot_release_date, e.variation_id
+  ),
+
+  dropped AS (
+    SELECT
+      (SELECT COUNT(*) FROM `clinvar_ingest.manuscript_excluded_scvs`) AS excluded_scvs,
+      (
+        SELECT COUNT(*)
+        FROM excluded_flag_events xf
+        LEFT JOIN cvc_timing t USING (snapshot_release_date, variation_id)
+        WHERE NOT COALESCE(t.cvc_candidate_before, FALSE)
+      ) AS dropped_flag_resolutions
   ),
 
   submitters AS (
@@ -317,14 +343,18 @@ AS (
     COALESCE(t.cvc_candidate_within_60_days, FALSE) AS cvc_candidate_within_60_days,
     b.first_return_release IS NOT NULL AS returned_by_cutoff,
     b.first_return_release,
-    COALESCE(b.in_conflict_at_cutoff, FALSE) AS in_conflict_at_cutoff
+    COALESCE(b.in_conflict_at_cutoff, FALSE) AS in_conflict_at_cutoff,
+    dr.excluded_scvs,
+    dr.dropped_flag_resolutions
   FROM with_scvs e
+  CROSS JOIN dropped dr
   LEFT JOIN cvc_timing t USING (snapshot_release_date, variation_id)
   LEFT JOIN submitters su USING (snapshot_release_date, variation_id)
   LEFT JOIN returned b USING (snapshot_release_date, variation_id)
   LEFT JOIN start_label l USING (snapshot_release_date, variation_id)
-  LEFT JOIN excluded_events x USING (snapshot_release_date, variation_id)
-  WHERE x.variation_id IS NULL
+  LEFT JOIN excluded_flag_events xf USING (snapshot_release_date, variation_id)
+  WHERE xf.variation_id IS NULL
+    OR COALESCE(t.cvc_candidate_before, FALSE)
 );
 
 CREATE OR REPLACE VIEW `clinvar_ingest.manuscript_figure6_resolution_events_view`

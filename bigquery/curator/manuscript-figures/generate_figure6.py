@@ -326,6 +326,8 @@ def main():
     common = [
         f"ClinVar monthly releases {first_month} to {as_of[:7]}. {fmt(total)} resolutions across {fmt(variants)} variants; a variant that resolves twice counts twice.",
         f"Each resolution is counted in the release where the conflict stopped, with one reason. {fmt(returned_flagged)} of {fmt(by_reason['Flagged through CvC'])} resolutions flagged through CvC were in conflict again later.",
+        f"Left out: the discordance project retraction's flags and removals (batch 129), on {fmt(int(rows[0]['excluded_scvs']))} SCVs. "
+        f"{fmt(int(rows[0]['dropped_flag_resolutions']))} flag resolutions credited only to those flags are dropped.",
     ]
 
     outputs = {

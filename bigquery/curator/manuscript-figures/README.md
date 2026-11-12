@@ -33,7 +33,7 @@ Each script in this folder generates a dataset that underpins a specific figure 
 - **Still counted on those SCVs:** no change annotations, and anything annotated after the removal, such as the batch 135 re-flag of SCV002318480 (ACTC1) for insufficient supporting evidence.
 - **Other retracted flags are not left out.** The user decided on 2026-11-12 that the 88 other retracted gene-disease relationship flags count as ordinary retracted flags: 87 on CAPN3, removed in batch 127 because the classification changed, and 1 on BAZ2B, removed in batch 135. Figures that count retractions say so in their own notes.
 
-Until Figures 3A, 3B, 3C, 4 and 6 are regenerated, their sections below, images and sheets still describe the earlier rule, which left out 321 whole SCVs. Their deployed SQL now reads the 233-SCV view, so their connector tabs show neither rule exactly until each switches to the annotations view.
+Until Figures 3A, 3B, 3C and 4 are regenerated, their sections below, images and sheets still describe the earlier rule, which left out 321 whole SCVs. Their deployed SQL now reads the 233-SCV view, so their connector tabs show neither rule exactly until each switches to the annotations view.
 
 How each figure applies it:
 
@@ -44,7 +44,7 @@ How each figure applies it:
 | 3C | Not counted as CvC flags. They stay in All ClinVar, because they are still ClinVar submissions. `03-flagged-scv-by-consequence.sql` must switch to the annotations view. |
 | 4 | Treated as never reviewed. `04-conflict-resolution-outcomes.sql` must switch to the annotations view. |
 | 5 | Left out of the submitted flags and retractions, by `annotation_id`. The footnote names the group, with counts read from `manuscript_excluded_scvs`. |
-| 6 | Resolution events caused only by these flags are left out. Their branch must switch to the annotations view. |
+| 6 | Never credit a flag to CvC or set `cvc_candidate_before`, matched on `annotation_id`. A flag resolution whose only CvC flagging candidate was one of them is dropped rather than shown as Flagged outside CvC: 4 through 2026-11-08. None reaches any other resolution. |
 
 ## Data Scope
 
@@ -576,7 +576,7 @@ The table under the figure is a connector extract of `manuscript_figure5_domain_
 
 Script `06-conflict-resolution-reasons.sql` creates a table function that returns one row per time a conflict resolved, and the views behind the sheet. `generate_figure6.py` calls the table function and writes Figure 6A and Figure 6B as separate titled images, which are pasted into the sheet as static images.
 
-Figures and counts: [CvC Manuscript Figure 6 sheet](https://docs.google.com/spreadsheets/d/1hx0aX859RjFrbtwWuIc7t4s1TkQd8wWhKOuQUU839bQ/edit). The tab `About Figure 6` has the steps for refreshing the tables and replacing the images. Counts quoted below are for monthly releases 2023-08 through 2026-10 (release 2026-10-04).
+Figures and counts: [CvC Manuscript Figure 6 sheet](https://docs.google.com/spreadsheets/d/1hx0aX859RjFrbtwWuIc7t4s1TkQd8wWhKOuQUU839bQ/edit). The tab `About Figure 6` has the steps for refreshing the tables and replacing the images. Counts quoted below are for monthly releases 2023-08 through 2026-11 (release 2026-11-08).
 
 ```bash
 # First pick up new releases. Nothing schedules this, and it replaces the shared
@@ -602,19 +602,30 @@ Why do conflicts in ClinVar stop being conflicts, and how often is a flag throug
 
 | Reason | All conflicts | Medically significant | Non-medically significant |
 | --- | --- | --- | --- |
-| Reclassified | 8,086 (42.2%) | 3,138 (38.9%) | 4,948 (44.7%) |
-| Rank lowered | 3,668 (19.2%) | 659 (8.2%) | 3,009 (27.2%) |
-| Removed | 3,003 (15.7%) | 742 (9.2%) | 2,261 (20.4%) |
-| Flagged through CvC | 2,368 (12.4%) | 2,291 (28.4%) | 77 (0.7%) |
-| Expert panel added | 1,740 (9.1%) | 1,026 (12.7%) | 714 (6.4%) |
+| Reclassified | 8,233 (42.2%) | 3,198 (38.5%) | 5,035 (44.9%) |
+| Rank lowered | 3,668 (18.8%) | 659 (7.9%) | 3,009 (26.9%) |
+| Removed | 3,006 (15.4%) | 744 (9.0%) | 2,262 (20.2%) |
+| Flagged through CvC | 2,480 (12.7%) | 2,403 (29.0%) | 77 (0.7%) |
+| Expert panel added | 1,836 (9.4%) | 1,076 (13.0%) | 760 (6.8%) |
 | 1 star added to 0 star conflict | 141 (0.7%) | 117 (1.4%) | 24 (0.2%) |
-| Flagged outside CvC | 87 (0.5%) | 53 (0.7%) | 34 (0.3%) |
-| Other | 48 (0.3%) | 43 (0.5%) | 5 (0.0%) |
-| **Total** | **19,141** | **8,069** | **11,072** |
+| Flagged outside CvC | 91 (0.5%) | 57 (0.7%) | 34 (0.3%) |
+| Other | 48 (0.2%) | 43 (0.5%) | 5 (0.0%) |
+| **Total** | **19,503** | **8,297** | **11,206** |
 
-The 19,141 resolutions cover 18,916 variants, because a variant that resolves twice counts twice.
+The 19,503 resolutions cover 19,261 variants, because a variant that resolves twice counts twice.
 
-10 resolutions caused only by flags CvC later retracted are left out, along with the rest of the 321 SCVs whose gene-disease relationship flag CvC retracted (`00-excluded-scvs.sql`). Those SCVs also don't count as CvC flagging candidates in `cvc_candidate_before`.
+**Left out: the discordance project retraction.** The 597 annotations in `clinvar_ingest.manuscript_excluded_annotations` (`00-excluded-scvs.sql`), the discordance project's flags and removals on 233 SCVs, never count as CvC flagging candidates. The 88 other retracted gene-disease relationship flags, and every other retraction, count as usual. Through 2026-11-08 the left-out annotations reach 4 resolutions and no others. In each, the SCV's only CvC flagging candidate was a discordance project gene-disease relationship flag, ClinVar flagged the SCV, and the conflict resolved. Counting them as Flagged outside CvC would call CvC flags non-CvC ones, so they are dropped, as the user chose on 2026-11-12. All 4 later returned to conflict, after the flags were withdrawn in batch 129.
+
+| Release | Variation | SCV | Flag batch |
+| --- | --- | --- | --- |
+| 2024-08-05 | [554676](https://www.ncbi.nlm.nih.gov/clinvar/variation/554676/) | SCV004207665 | 107 |
+| 2024-11-03 | [1728](https://www.ncbi.nlm.nih.gov/clinvar/variation/1728/) | SCV000021954 | 112 |
+| 2025-09-07 | [1008825](https://www.ncbi.nlm.nih.gov/clinvar/variation/1008825/) | SCV004020023 | 121 |
+| 2025-09-07 | [241635](https://www.ncbi.nlm.nih.gov/clinvar/variation/241635/) | SCV001140769 | 121 |
+
+How this was checked, at 2026-11-08: the table function's query run with no exclusion returns 19,507 resolutions. The deployed function returns the other 19,503 with every column identical, and none of the 597 annotations is on an SCV behind any of them. `excluded_scvs` and `dropped_flag_resolutions` carry the counts the footnote prints.
+
+Changes from the earlier rule, which left out 321 whole SCVs: through 2026-10-04 it gave 19,141 resolutions with 2,368 Flagged through CvC and 87 Flagged outside CvC. The annotation rule gives 19,147, 2,374 and 87 there: the 6 resolutions from the other retracted flags count again as Flagged through CvC, and the same 4 stay out.
 
 ### Outputs
 
@@ -630,19 +641,19 @@ The 19,141 resolutions cover 18,916 variants, because a variant that resolves tw
 
 ### How to Interpret It
 
-- **Later returns stay counted.** 781 of the 2,368 resolutions flagged through CvC were in conflict again in a later release, and 690 were in conflict at 2026-10-04. So were 893 of 3,668 Rank lowered, 915 of 8,086 Reclassified, 140 of 3,003 Removed and none of the 1,740 Expert panel added. The figure does not show how many stayed resolved, and recent resolutions have had less time to return. Filter `returned_by_cutoff` and `in_conflict_at_cutoff`.
-- **A few submitters drive some bars.** 3,664 of the 3,668 Rank lowered resolutions come from two submitters in one release each: PreventionGenetics, 2,864 in 2024-10, and Counsyl, 800 in 2025-07. Illumina accounts for 2,655 of the 3,003 Removed across 24 releases, and 1,694 Removed from all submitters fall in the 2026-04 release. `manuscript_figure6_submitter_concentration_view` has every submitter.
-- **Flags come from CvC's own submissions.** Flagged through CvC means a flagged SCV had a valid CvC flagging candidate submitted on or before that release, matched on accession. All 87 Flagged outside CvC carry NCBI flag comments, in three releases: 51 in 2023-12, 11 in 2024-08 and 25 in 2026-02.
-- **A candidate before a submitter's own change is timing only.** 514 Reclassified resolutions had a valid candidate on the changed SCV before that release (420 within about 60 days), as did 244 Removed (236) and 19 Rank lowered (17). They stay in those bars, because this does not show that CvC caused the change. Filter `cvc_candidate_before` and `cvc_candidate_within_60_days`.
-- **Each resolution has one reason.** 558 had more than one SCV change. The order is expert panel, 1 star added, flagged, removed, rank lowered, reclassified. `all_scv_reasons` lists every change. Three source reasons that describe context (`single_submitter_withdrawn`, `vcv_rank_changed`, `outlier_reclassified`) map to the SCV change behind them, or to Other, and `source_primary_reason` keeps the original.
+- **Later returns stay counted.** 794 of the 2,480 resolutions flagged through CvC were in conflict again in a later release, and 694 were in conflict at 2026-11-08. So were 906 of 3,668 Rank lowered, 932 of 8,233 Reclassified, 146 of 3,006 Removed and 1 of the 1,836 Expert panel added. The figure does not show how many stayed resolved, and recent resolutions have had less time to return. Filter `returned_by_cutoff` and `in_conflict_at_cutoff`.
+- **A few submitters drive some bars.** 3,664 of the 3,668 Rank lowered resolutions come from two submitters in one release each: PreventionGenetics, 2,864 in 2024-10, and Counsyl, 800 in 2025-07. Illumina accounts for 2,655 of the 3,006 Removed across 24 releases, and 1,694 Removed from all submitters fall in the 2026-04 release. `manuscript_figure6_submitter_concentration_view` has every submitter.
+- **Flags come from CvC's own submissions.** Flagged through CvC means a flagged SCV had a valid CvC flagging candidate submitted on or before that release, matched on accession. Of the 91 Flagged outside CvC, 87 carry NCBI flag comments, in three releases: 51 in 2023-12, 11 in 2024-08 and 25 in 2026-02. The other 4, in 2026-11, are ClinGen flags with the reason "Conflict with ClinGen Gene Dosage Map" on SCVs CvC never annotated.
+- **A candidate before a submitter's own change is timing only.** 522 Reclassified resolutions had a valid candidate on the changed SCV before that release (422 within about 60 days), as did 244 Removed (236) and 19 Rank lowered (17). They stay in those bars, because this does not show that CvC caused the change. Filter `cvc_candidate_before` and `cvc_candidate_within_60_days`.
+- **Each resolution has one reason.** 573 had more than one SCV change. The order is expert panel, 1 star added, flagged, removed, rank lowered, reclassified. `all_scv_reasons` lists every change. Three source reasons that describe context (`single_submitter_withdrawn`, `vcv_rank_changed`, `outlier_reclassified`) map to the SCV change behind them, or to Other, and `source_primary_reason` keeps the original.
 - **Other is small and specific.** Of the 48, 45 had an existing SCV raised from 0 star to 1 star, 34 of them in the 2026-10 release. 2 had only a new SCV listed, and 1 had no SCV change recorded.
 - **Selection applies.** CvC chooses what it reviews, so its flags are selected rather than sampled, and a difference between conflict types describes what was flagged. A resolution means the top ranked group no longer disagrees. It does not show that the remaining classification is correct. The figure compares no sampled groups, so it has no statistical tests.
 - **Some classifications are counted together.** P includes pathogenic low penetrance (`p-lp`) and established risk allele (`era`). LP includes likely pathogenic low penetrance (`lp-lp`) and likely risk allele (`lra`). VUS includes `vus-h`, `vus-m`, `vus-l` and uncertain risk allele (`ura`). `source_agg_classif` keeps the original codes. 8 resolutions start with `cdfs` (conflicting data from submitters), which sits in the VUS tier and keeps its own label because it has no agreed group.
-- **The cutoff differs from Figures 3 and 4.** This series uses the first release of each month, so it ends at 2026-10-04, while they use 2026-10-24.
+- **The cutoff matches Figures 1, 3, 4 and 5.** This series uses the first release of each month, and 2026-11-08 is both the first November release and the latest loaded.
 
 ### Exclusions
 
-Resolutions before the August 2023 start of the series are left out: 2,852 in the six monthly releases from 2023-02 to 2023-07. No resolution inside the series is excluded.
+Resolutions before the August 2023 start of the series are left out: 2,852 in the six monthly releases from 2023-02 to 2023-07. Inside the series, only the 4 flag resolutions credited solely to the discordance project's flags are left out (see above).
 
 ---
 
