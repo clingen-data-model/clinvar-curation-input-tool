@@ -11,7 +11,10 @@ cd "$(git rev-parse --show-toplevel)"    # run from repo root regardless of invo
 : "${ANNO_ID:=CAST(UNIX_MILLIS(a.annotation_date) AS STRING)}"   # legacy default (recomputed); shadow passes ANNO_ID="a.annotation_id" to read the stored id
 DRY=""; [ "${1:-}" = "--dry-run" ] && DRY="--dry_run"
 # Numbered apply order: base tables/views/funcs first, then impact-analysis.
-FILES=$(ls bigquery/curator/0*-*.sql | sort; ls bigquery/curator/cvc-impact-analysis/0*-*.sql | sort)
+# cvc-impact-analysis glob is [0-9]*-*.sql (not 0*) so 10-* reporting files deploy too;
+# lexical sort keeps 09 < 10-flagging-report-suppressions < 10-flagging-status-report,
+# so the suppressions table exists before the report TVFs that read it.
+FILES=$(ls bigquery/curator/0*-*.sql | sort; ls bigquery/curator/cvc-impact-analysis/[0-9]*-*.sql | sort)
 for f in $FILES; do
   echo ">> $f"
   sed -e "s/@@DATASET@@/${DATASET}/g" -e "s#@@ANNO_SOURCE@@#${ANNO_SOURCE}#g" -e "s/@@MV@@/${MV}/g" -e "s#@@ANNO_ID@@#${ANNO_ID}#g" "$f" \
