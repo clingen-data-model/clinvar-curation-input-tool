@@ -28,6 +28,20 @@
 --   clinvar_ingest.manuscript_figure4b_conflict_combinations_view
 --   clinvar_ingest.manuscript_figure4_rank_group_transitions_view
 --
+-- Excluded SCVs:
+--   Every read of CvC annotations, reviews and submissions anti-joins
+--   clinvar_ingest.manuscript_excluded_scvs (00-excluded-scvs.sql; run it first)
+--   on scv_id. For those 321 SCVs (233 Discordance project retraction, 88
+--   Retracted gene-disease relationship flag), neither the flagging candidate
+--   submissions nor the remove flagged submissions count, and a variant reviewed
+--   only through them is not counted. Where they are in ClinVar on a batch
+--   release, they still count as unflagged contributing SCVs.
+--
+-- Reviews:
+--   A batch's decision on an SCV is its latest annotation in that batch
+--   (is_latest). Archive reviews never count. A submission counts only when the
+--   batch's decision on that SCV is the same action.
+--
 -- Method:
 --   "Before" is the path SCVs in ClinVar on the batch release. "After" removes
 --   the variant's flagging candidates from that same set. Nothing later than the
@@ -37,7 +51,7 @@
 --   ClinVar builds the aggregate from the highest ranked group of SCVs, so before
 --   and after are each read from their own top ranked group. When every SCV in
 --   the top group is flagged, the after state comes from the next group down and
---   rank_lowered is TRUE. rank_groups records every group for reporting on the
+--   rank_lowered is TRUE. rank_groups lists every group for reporting on the
 --   lower groups, which can change while the aggregate does not.
 --
 --   Rank -3 (already flagged) is excluded. Ranks in path SCVs are 4 (practice
@@ -67,8 +81,8 @@
 --
 -- Output Columns:
 --   variation_id, as_of_batch_release_date
---   figure_4a_outcome      - Conflict resolved, Conflict reduced, Incorrect record
---                            flagged, Record modified, No change
+--   figure_4a_outcome      - Conflict resolved, Conflict reduced, Classification
+--                            removed, Flagged, not resolved, No change
 --   outcome_detail         - Finer outcome that rolls up to figure_4a_outcome
 --   batch_id, batch_release_date - Batch that gave the reported outcome
 --   before_mask/state/classif/top_rank - Top ranked group before flagging
@@ -100,24 +114,41 @@ WITH cutoff AS (
   FROM `clinvar_curator.cvc_clinvar_batches`
 ),
 
--- Reviewed variants: the denominator. Any final annotation in a batch counts.
-reviewed AS (
-  SELECT DISTINCT av.variation_id
-  FROM `clinvar_curator.cvc_batch_scv_max_annotation_view` bsa
+-- Each batch's decision on an SCV: its latest annotation in that batch. Archive
+-- reviews were corrected before submission and never count, and superseded
+-- annotations in the same batch don't either. Excluded SCVs are left out.
+batch_decisions AS (
+  SELECT
+    av.batch_id,
+    av.scv_id,
+    av.variation_id,
+    av.action,
+    av.annotation_release_date
+  FROM `clinvar_curator.cvc_annotations_view` av
   JOIN `clinvar_curator.cvc_clinvar_batches` b
-    ON b.batch_id = bsa.batch_id
+    ON b.batch_id = av.batch_id
   JOIN cutoff
     ON b.batch_release_date <= cutoff.as_of
-  JOIN `clinvar_curator.cvc_annotations_view` av
-    ON av.annotation_id = bsa.annotation_id
-  JOIN `clinvar_ingest.clinvar_scvs` s
-    ON s.id = av.scv_id
-    AND s.proposition_type = 'path'
-    AND av.annotation_release_date BETWEEN s.start_release_date AND s.end_release_date
-  WHERE av.variation_id IS NOT NULL
+  LEFT JOIN `clinvar_ingest.manuscript_excluded_scvs` x
+    ON x.scv_id = av.scv_id
+  WHERE av.is_latest
+    AND av.review_status IS DISTINCT FROM 'Archive'
+    AND x.scv_id IS NULL
 ),
 
--- Flagging candidates accepted into a batch for a path SCV.
+-- Reviewed variants: the denominator. Any batch decision on a path SCV counts.
+reviewed AS (
+  SELECT DISTINCT bd.variation_id
+  FROM batch_decisions bd
+  JOIN `clinvar_ingest.clinvar_scvs` s
+    ON s.id = bd.scv_id
+    AND s.proposition_type = 'path'
+    AND bd.annotation_release_date BETWEEN s.start_release_date AND s.end_release_date
+  WHERE bd.variation_id IS NOT NULL
+),
+
+-- Flagging candidates accepted into a batch for a path SCV, where the batch's
+-- decision on the SCV is still a flagging candidate.
 flagging_candidates AS (
   SELECT DISTINCT
     sa.variation_id,
@@ -129,20 +160,37 @@ flagging_candidates AS (
   FROM `clinvar_curator.cvc_submitted_annotations_view` sa
   JOIN cutoff
     ON sa.batch_release_date <= cutoff.as_of
+  JOIN batch_decisions bd
+    ON bd.batch_id = sa.batch_id
+    AND bd.scv_id = sa.scv_id
+    AND bd.action = 'flagging candidate'
+  LEFT JOIN `clinvar_ingest.manuscript_excluded_scvs` x
+    ON x.scv_id = sa.scv_id
   JOIN `clinvar_ingest.clinvar_scvs` s
     ON s.id = sa.scv_id
     AND s.proposition_type = 'path'
     AND sa.batch_release_date BETWEEN s.start_release_date AND s.end_release_date
   WHERE sa.action = 'flagging candidate'
     AND sa.valid_submission
+    AND sa.review_status IS DISTINCT FROM 'Archive'
+    AND x.scv_id IS NULL
 ),
 
+-- Remove flagged submissions, judged the same way.
 retractions AS (
   SELECT DISTINCT sa.scv_id, sa.batch_release_date
   FROM `clinvar_curator.cvc_submitted_annotations_view` sa
   JOIN cutoff
     ON sa.batch_release_date <= cutoff.as_of
+  JOIN batch_decisions bd
+    ON bd.batch_id = sa.batch_id
+    AND bd.scv_id = sa.scv_id
+    AND bd.action = 'remove flagged submission'
+  LEFT JOIN `clinvar_ingest.manuscript_excluded_scvs` x
+    ON x.scv_id = sa.scv_id
   WHERE sa.action = 'remove flagged submission'
+    AND sa.review_status IS DISTINCT FROM 'Archive'
+    AND x.scv_id IS NULL
 ),
 
 events AS (
@@ -321,8 +369,8 @@ SELECT
     WHEN vo.variation_id IS NULL THEN 'No change'
     WHEN vo.outcome_priority = 1 THEN 'Conflict resolved'
     WHEN vo.outcome_priority = 2 THEN 'Conflict reduced'
-    WHEN vo.outcome_priority = 3 THEN 'Incorrect record flagged'
-    ELSE 'Record modified'
+    WHEN vo.outcome_priority = 3 THEN 'Classification removed'
+    ELSE 'Flagged, not resolved'
   END AS figure_4a_outcome,
   COALESCE(vo.outcome_detail, 'no flagging candidate submitted') AS outcome_detail,
   vo.batch_id,
@@ -399,8 +447,8 @@ WITH slices AS (
   SELECT * FROM UNNEST([
     STRUCT(1 AS chart_order, 'Conflict resolved' AS outcome),
     (2, 'Conflict reduced'),
-    (3, 'Incorrect record flagged'),
-    (4, 'Record modified'),
+    (3, 'Classification removed'),
+    (4, 'Flagged, not resolved'),
     (5, 'No change')
   ])
 ),

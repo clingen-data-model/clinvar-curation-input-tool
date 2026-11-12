@@ -12,6 +12,7 @@ Each script in this folder generates a dataset that underpins a specific figure 
 
 | Script | View | Description |
 | --- | --- | --- |
+| `00-excluded-scvs.sql` | `clinvar_ingest.manuscript_excluded_scvs` | SCVs left out of every figure: 321 SCVs whose flag CvC later retracted, 233 in the discordance project retraction (batch 129) and 88 other gene-disease relationship flags. Run it before any figure script. |
 | `01-clinvar-landscape.sql` | `clinvar_ingest.manuscript_clinvar_landscape` | Per-gene summary of the ClinVar Germline Variant Pathogenicity Classification landscape for genes in the GenCC Definitive/Strong/Moderate (DSM) gene list. Produces total SCV and variant counts, clinically significant (P/LP) variant counts, and a breakdown of aggregate classification categories (concordant P/LP, P/LP vs B/LB, P/LP vs VUS, and three-way conflicts). |
 | `02-submitter-landscape.sql` | `clinvar_ingest.manuscript_submitter_landscape` | Per-institution-type summary of ClinVar submitter organizations and their Germline Variant Pathogenicity Classification contributions. Shows submitter counts, SCV counts, and variant counts grouped by institution type (clinical testing, research, expert panel, etc.). |
 | `03-flagged-scv-by-consequence.sql` | `clinvar_ingest.manuscript_cvc_vs_clinvar_consequence_bar_view`, `clinvar_ingest.manuscript_flag_source_combo_by_consequence_view`, `clinvar_ingest.manuscript_flagged_scv_by_consequence_view` | Molecular consequence of pathogenicity-assessed variants in ClinVar versus variants flagged through the CvC project, with flagged variant and SCV counts by flag source (ClinGen CvC, ClinGen non-CvC, NCBI) and their combinations. `generate_figure3.py` reads the first view, calculates the statistics and draws the figures. |
@@ -223,10 +224,11 @@ SELECT * FROM `clinvar_ingest.manuscript_flagged_scv_by_consequence_view`;
 
 Script `04-conflict-resolution-outcomes.sql` creates a table function that returns one row per reviewed variant, and the views behind the sheet. `generate_figure4.py` calls the table function and draws each panel as its own titled image, using the shared palette, type and sizes in `figure_style.py` (see [STYLE.md](STYLE.md)). Google Sheets has no Sankey chart, so the figures are pasted into the sheet as static images.
 
-Figures and counts: [CvC Manuscript Figure 4 sheet](https://docs.google.com/spreadsheets/d/1qx6_90ZHtcu_xlVq0zU1DjkSnk0tHFJDA-GJMcvvkos/edit). The tab `About Figure 4` has the steps for refreshing the tables and re-pasting the images. Counts quoted below are for batches through 2026-10-24.
+Figures and counts: [CvC Manuscript Figure 4 sheet](https://docs.google.com/spreadsheets/d/1qx6_90ZHtcu_xlVq0zU1DjkSnk0tHFJDA-GJMcvvkos/edit). The tab `About Figure 4` has the steps for refreshing the tables and re-pasting the images. Counts quoted below are for batches through 2026-11-08, the latest ClinVar release.
 
 ```bash
-# Only when the SQL changes: deploy the table function and views
+# Only when the SQL changes: deploy the excluded SCVs view, then the table function and views
+bq query --project_id=clingen-dev --use_legacy_sql=false < 00-excluded-scvs.sql
 bq query --project_id=clingen-dev --use_legacy_sql=false < 04-conflict-resolution-outcomes.sql
 
 # All batches. Requires the bq CLI; PNGs also require Chrome.
@@ -238,7 +240,7 @@ python3 generate_figure4.py --as-of 2026-05-31 --out figure4-may2026
 
 | Output | Contents |
 | --- | --- |
-| `figure4a.svg`, `figure4b.svg` | Each panel, with its title. Panel B stacks the medically significant Sankey above the non-medically significant (VUS vs B/LB) one, each drawn to its own scale |
+| `figure4a.svg`, `figure4b.svg` | Each panel, with its title. Panel B is one Sankey at one scale: medically significant conflicts are the upper group of starting conflicts, non-medically significant (VUS vs B/LB) conflicts the lower group, and both flow into the same results |
 | `figure4a_outcomes.csv`, `figure4a_outcome_detail.csv` | Panel A counts, and the finer outcomes behind each slice |
 | `figure4b_flows.csv`, `figure4b_final_classifications.csv` | Panel B flows, and one row for each exact starting conflict and result, with variant and flagged SCV counts |
 | `figure4b_conflict_combinations.csv` | Every medically significant label combination, its Panel B node and its state after flagging |
@@ -258,8 +260,8 @@ ClinVar builds the aggregate from the highest ranked group of SCVs, so before an
 | Conflict resolved | `conflict resolved` | Any conflict becomes a single tier |
 | | `conflict resolved, no classification left` | Any conflict loses all of its SCVs |
 | Conflict reduced | `significant conflict reduced` | P/LP vs VUS/B/LB becomes VUS vs B/LB |
-| Incorrect record flagged | `non-conflict removed` | No conflict, and no contributing SCVs are left |
-| Record modified | `other conflict modified` | Top group flagged, and the conflict remains at a level that is not reduced |
+| Classification removed | `non-conflict removed` | No conflict, and no contributing SCVs are left |
+| Flagged, not resolved | `other conflict modified` | Top group flagged, and the conflict remains at a level that is not reduced |
 | | `non-conflict modified` | Top group flagged, no conflict before or after |
 | | `non-conflict, classification changed at lower rank` | Top group fully flagged, and a lower group with a different tier takes over |
 | | `conflict exposed at lower rank` | Top group fully flagged, and a lower group in conflict takes over |
@@ -267,18 +269,27 @@ ClinVar builds the aggregate from the highest ranked group of SCVs, so before an
 | | `non-conflict, top rank not flagged` | Only lower groups flagged, and the top group is not in conflict |
 | No change | `no flagging candidate submitted` | Reviewed, with no valid flagging candidate in a batch |
 
-The denominator is distinct variants with a final annotation in a batch on a path SCV.
+The denominator is distinct variants with a batch decision on a path SCV.
+
+### Who Is Counted
+
+- **321 SCVs are left out of every count.** These are the SCVs in `clinvar_ingest.manuscript_excluded_scvs` (`00-excluded-scvs.sql`) whose flag CvC later retracted: 233 in the discordance project retraction (batch 129) and 88 other gene-disease relationship flags. Every read of CvC reviews and submissions anti-joins the view on `scv_id`, so neither their flagging candidate submissions nor their remove flagged submissions count, and a variant reviewed only through them is not counted. Where they are in ClinVar on a batch release, they still count as unflagged contributing SCVs, because they are ClinVar submissions.
+- **A batch's decision on an SCV is its latest annotation in that batch.** Superseded annotations in the same batch don't count, and a submitted flagging candidate counts only when the batch's latest annotation on that SCV is still a flagging candidate.
+- **Archive reviews never count.** They were corrected before submission, so they are not a flagging candidate or a no change decision.
+
+At 2026-11-08 the last two rules leave out 41 variants whose only batch decisions are Archive reviews, all of which were No change, and move 3 variants to No change: 2 from "Flagged, not resolved" and 1 from "Classification removed". Each of the 3 had a submitted flagging candidate that a later no change annotation in the same batch superseded.
 
 ### How to Interpret It
 
 - **Direction describes what CvC flagged.** CvC selects outlier submissions, so a flow toward P/LP means VUS or B/LB outliers were flagged. It does not show which classification is correct.
 - **Panel B reads the top ranked group only.** `lower_rank_conflict_resolved` and `rank_group_transitions.csv` report conflicts resolved in lower groups, including when the aggregate does not change.
 - **A slash means either or both of its labels.** Panel B splits P vs LP in every two-tier starting conflict. B/LB in those node names means B, LB or both, and P/LP vs VUS vs B/LB groups every three-tier conflict. `figure4b_conflict_combinations.csv` has every combination, with related labels such as VUS-high counted with VUS.
-- **P/LP after flagging means P, LP or both.** Of the 2,921 variants that move to P/LP, 1,988 are left with both P and LP, 551 with only P and 382 with only LP.
-- **The most granular counts are in one view.** `clinvar_ingest.manuscript_figure4b_final_classifications_view` has one row for each `classification_to_start` and result after flagging, shown as a table under each Sankey in the sheet. For example, of the P + LP vs VUS variants, 1,931 ended as P + LP and 3 as VUS. Variants that stayed in conflict are not in this view. `conflict_combination` and `after_classif_group` have the same labels per variant. Its `flagged_scvs` column counts the flagging candidates of the variant's reported batch in the top ranked group, and in any lower group down to the one that takes over.
-- **Variants flagged in several batches appear once.** 280 variants are in this group. Each batch is evaluated on its own flags, and the variant keeps its strongest outcome. An earlier flag that ClinVar has applied is rank -3 and already out of the batch release. An earlier flag that it has not applied still counts as a contributing SCV.
-- **Retracted flags are still counted.** The figure reflects the point of submission, so 329 variants with a flag that was later retracted stay in their outcome: 185 Record modified, 121 Incorrect record flagged, 21 Conflict resolved and 2 Conflict reduced. `any_flag_retracted` identifies these variants.
-- **Record modified includes lower ranked flags.** For 441 of the 915 variants, only lower ranked groups were flagged, so the top ranked group did not change: 115 are in conflict and 326 are not. `outcome_detail` identifies them as `conflict, top rank not flagged` and `non-conflict, top rank not flagged`. They are not in Panel B. 11 variants are in both this group and the retracted group.
+- **P/LP after flagging means P, LP or both.** Of the 2,953 medically significant conflicts that move to P/LP, 2,016 are left with both P and LP, 554 with only P and 383 with only LP.
+- **The most granular counts are in one view.** `clinvar_ingest.manuscript_figure4b_final_classifications_view` has one row for each `classification_to_start` and result after flagging, shown as a table under the Sankey in the sheet. For example, of the P + LP vs VUS variants, 1,959 ended as P + LP and 3 as VUS. Variants that stayed in conflict are not in this view. `conflict_combination` and `after_classif_group` have the same labels per variant. Its `flagged_scvs` column counts the flagging candidates of the variant's reported batch in the top ranked group, and in any lower group down to the one that takes over.
+- **Variants flagged in several batches appear once.** 269 variants are in this group. Each batch is evaluated on its own flags, and the variant keeps its strongest outcome. An earlier flag that ClinVar has applied is rank -3 and already out of the batch release. An earlier flag that it has not applied still counts as a contributing SCV.
+- **Retracted flags are still counted.** The figure reflects the point of submission, so 8 variants with another flag that was later retracted stay in their outcome: 5 Conflict resolved, 2 Conflict reduced and 1 "Flagged, not resolved". 7 of them are in Panel B. `any_flag_retracted` identifies these variants. The retracted flags of the 321 left-out SCVs are not among them.
+- **"Flagged, not resolved" includes lower ranked flags.** For 471 of the 791 variants, only lower ranked groups were flagged, so the top ranked group did not change: 115 are in conflict and 356 are not. `outcome_detail` identifies them as `conflict, top rank not flagged` and `non-conflict, top rank not flagged`. They are not in Panel B. None of them is in the retracted group.
+- **"Flagged, not resolved" is the rest of the flagged variants.** A flagging candidate was submitted, but the conflict was not resolved or reduced and a classification remains. Of its 791 variants, 691 keep the same state (the 471 above, and 220 whose top ranked group lost some SCVs), 96 three-tier conflicts narrow to two tiers but stay medically significant (92 to P/LP vs VUS, 4 to P/LP vs B/LB), and 4 non-conflicts change tier when a lower group takes over.
 - **Some classifications are counted together.** P includes pathogenic low penetrance (`p-lp`) and established risk allele (`era`). LP includes likely pathogenic low penetrance (`lp-lp`) and likely risk allele (`lra`). VUS includes VUS-high (`vus-h`), VUS-mid (`vus-m`), VUS-low (`vus-l`) and uncertain risk allele (`ura`). `after_classif` keeps the original labels.
 
 ### Excluded Non-Pathogenicity Flagging Candidates
