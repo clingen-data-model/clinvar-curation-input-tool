@@ -12,33 +12,38 @@ Each script in this folder generates a dataset that underpins a specific figure 
 
 | Script | View | Description |
 | --- | --- | --- |
-| `00-excluded-scvs.sql` | `clinvar_ingest.manuscript_excluded_scvs` | SCVs every figure leaves out of its counts: the 321 SCVs (319 variants) whose flag CvC later retracted, 233 of them in the batch 129 discordance project retraction. Run it before any figure script, because their SQL reads this view. |
+| `00-excluded-scvs.sql` | `clinvar_ingest.manuscript_excluded_annotations`, `clinvar_ingest.manuscript_excluded_scvs` | CvC annotations every figure leaves out of its counts: the discordance project's flags and removals (batch 129 retraction) on 233 SCVs. Figures anti-join the annotations view on `annotation_id`; the SCV view is for notes and lists. Run it before any figure script, because their SQL reads these views. |
 | `01-clinvar-landscape.sql` | `clinvar_ingest.manuscript_clinvar_landscape` | Per-gene summary of the ClinVar Germline Variant Pathogenicity Classification landscape for genes in the GenCC Definitive/Strong/Moderate (DSM) gene list. Produces total SCV and variant counts, clinically significant (P/LP) variant counts, and a breakdown of aggregate classification categories (concordant P/LP, P/LP vs B/LB, P/LP vs VUS, and three-way conflicts). |
 | `02-submitter-landscape.sql` | `clinvar_ingest.manuscript_submitter_landscape` | Per-institution-type summary of ClinVar submitter organizations and their Germline Variant Pathogenicity Classification contributions. Shows submitter counts, SCV counts, and variant counts grouped by institution type (clinical testing, research, expert panel, etc.). |
 | `03-flagged-scv-by-consequence.sql` | `clinvar_ingest.manuscript_cvc_vs_clinvar_consequence_bar_view`, `clinvar_ingest.manuscript_flag_source_combo_by_consequence_view`, `clinvar_ingest.manuscript_flagged_scv_by_consequence_view` | Molecular consequence of pathogenicity-assessed variants in ClinVar versus variants flagged through the CvC project, with flagged variant and SCV counts by flag source (ClinGen CvC, ClinGen non-CvC, NCBI) and their combinations. `generate_figure3.py` reads the first view, calculates the statistics and draws the figures. |
 | `03ab-review-outcomes-and-reasons.sql` | `clinvar_ingest.manuscript_figure3ab_scv_outcomes(as_of_date)`, `clinvar_ingest.manuscript_figure3ab_scv_outcomes_view`, `clinvar_ingest.manuscript_figure3a_outcomes_view`, `clinvar_ingest.manuscript_figure3a_detail_view`, `clinvar_ingest.manuscript_figure3b_reasons_view`, `clinvar_ingest.manuscript_figure3ab_excluded_scvs_view` | One row per SCV reviewed by CvC, with its outcome, its reason if submitted, and its state in the release at the cutoff. `generate_figure3ab.py` calls the table function and draws Figures 3A and 3B. |
 | `figure_style.py`, `STYLE.md` | none | The palette, type sizes, layout values and drawing helpers every generator imports. STYLE.md says what each color means and which colors each figure uses. Change a color there, never in a generator. |
 | `04-conflict-resolution-outcomes.sql` | `clinvar_ingest.manuscript_figure4_variant_outcomes(as_of_date)`, `clinvar_ingest.manuscript_figure4_variant_outcomes_view`, `clinvar_ingest.manuscript_figure4a_outcomes_view`, `clinvar_ingest.manuscript_figure4a_outcome_detail_view`, `clinvar_ingest.manuscript_figure4b_flows_view`, `clinvar_ingest.manuscript_figure4b_final_classifications_view`, `clinvar_ingest.manuscript_figure4b_conflict_combinations_view`, `clinvar_ingest.manuscript_figure4_rank_group_transitions_view` | One row per variant reviewed by CvC, with its outcome and the top ranked group's state before and after flagging, at the point of submission to ClinVar. `generate_figure4.py` calls the table function and draws both panels. |
+| `05-gdr-flags-by-domain.sql` | `clinvar_ingest.manuscript_clingen_gene_validity`, `clinvar_ingest.manuscript_figure5_flags(as_of_date)`, `clinvar_ingest.manuscript_figure5_flags_view`, `clinvar_ingest.manuscript_figure5_domain_level_view`, `clinvar_ingest.manuscript_figure5_gene_view`, `clinvar_ingest.manuscript_figure5_callouts_view`, `clinvar_ingest.manuscript_figure5_panel_domain_view` | One row per SCV that CvC submitted as a flagging candidate for insufficient gene-disease evidence, with its validity level, clinical domain, retraction status and state in ClinVar. `generate_figure5.py` calls the table function and draws the figure. |
 
-## SCVs Left Out of Every Figure
+## Annotations Left Out of Every Figure
 
-`clinvar_ingest.manuscript_excluded_scvs` lists SCVs that no figure counts. Each figure's SQL anti-joins on the SCV accession, so every version is left out, along with every CvC flagging candidate submission and remove flagged submission for it. Neither the flag nor its removal counts in any figure or statistic. The `exclusion` column says which rule applies; an SCV that meets both gets the first.
+`clinvar_ingest.manuscript_excluded_annotations` lists CvC annotations that no figure counts. Each figure's SQL anti-joins on `annotation_id` wherever it reads CvC annotations, reviews or submissions, so only these annotations drop out and other CvC work on the same SCVs still counts. `clinvar_ingest.manuscript_excluded_scvs` has one row per affected SCV, for notes, call-outs and lists; don't anti-join figures on it.
 
-- **Discordance project retraction** (set by the user on 2026-11-12). CvC submitted a remove flagged submission for the SCV in batch 129, annotated 2026-02-15 with the note "Discordance project retraction" and submitted 2026-02-20. There are 233 SCVs on 231 variants. Their original flags were submitted in batches 107 to 125 (2024-05-06 to 2025-09-30), all for the gene-disease relationship reason.
-- **Retracted gene-disease relationship flag** (set by the user on 2026-11-09). CvC's most recent valid flagging candidate for the SCV gave the reason "P/LP classification for a variant in a gene with insufficient evidence for a gene-disease relationship", and CvC later submitted a remove flagged submission. 321 SCVs on 319 variants meet this rule: the 233 above, plus 88 more (87 retracted in batch 127 on 2025-12-18, 1 in batch 135 on 2026-08-04).
+- **Discordance project retraction** (set by the user on 2026-11-12). CvC submitted a remove flagged submission for 233 SCVs on 231 variants in batch 129, annotated 2026-02-15 with the note "Discordance project retraction" and submitted 2026-02-20. All are on genes in the discordancy gene list. For each SCV, every flagging candidate and every remove flagged submission annotated on or before that removal is left out, whatever its review status or batch: 597 annotations in all.
+  - 237 withdrawn flags: the gene-disease relationship flags (submitted in batches 107 to 125), and one earlier flag on SCV002507280 with a gene evidence note.
+  - The 233 batch 129 removals.
+  - 124 removals approved in May 2025 (batches 120 and 121, note "The GDR needs to be re-curated by the ClinGen VCEP/GCEP") that were never submitted, and 3 archived duplicates of the batch 129 removal.
+- **Still counted on those SCVs:** no change annotations, and anything annotated after the removal, such as the batch 135 re-flag of SCV002318480 (ACTC1) for insufficient supporting evidence.
+- **Other retracted flags are not left out.** The user decided on 2026-11-12 that the 88 other retracted gene-disease relationship flags count as ordinary retracted flags: 87 on CAPN3, removed in batch 127 because the classification changed, and 1 on BAZ2B, removed in batch 135. Figures that count retractions say so in their own notes.
 
-Together they leave out 321 SCVs on 319 variants. Other retracted flags are not in this list.
+Until Figures 3A, 3B, 3C, 4 and 6 are regenerated, their sections below, images and sheets still describe the earlier rule, which left out 321 whole SCVs. Their deployed SQL now reads the 233-SCV view, so their connector tabs show neither rule exactly until each switches to the annotations view.
 
 How each figure applies it:
 
 | Figure | Effect |
 | --- | --- |
 | 1 | None. Figure 1 uses no CvC data. |
-| 3A, 3B | Left out of the reviewed SCVs, and listed on the `Figure 3A-B excluded SCVs` tab with `exclusion` saying why. |
-| 3C | Not counted as CvC flags. They stay in All ClinVar, because they are still ClinVar submissions. One was still flagged in release 2026-11-08 and counts as flagged with no CvC source. |
-| 4 | Treated as never reviewed: not reviewed SCVs and not flagging candidates. |
-| 5 | Not applied yet. Figure 5 (PR #180) uses its own retracted-flag rule and must switch to this list. |
-| 6 | Resolution events caused only by these flags are left out. |
+| 3A, 3B | Left out of the reviewed SCVs' decisions. `03ab-review-outcomes-and-reasons.sql` still anti-joins `manuscript_excluded_scvs` on `scv_id` and must switch to the annotations view. |
+| 3C | Not counted as CvC flags. They stay in All ClinVar, because they are still ClinVar submissions. `03-flagged-scv-by-consequence.sql` must switch to the annotations view. |
+| 4 | Treated as never reviewed. `04-conflict-resolution-outcomes.sql` must switch to the annotations view. |
+| 5 | Left out of the submitted flags and retractions, by `annotation_id`. The footnote names the group, with counts read from `manuscript_excluded_scvs`. |
+| 6 | Resolution events caused only by these flags are left out. Their branch must switch to the annotations view. |
 
 ## Data Scope
 
@@ -385,6 +390,92 @@ CvC submitted flagging candidates on non-pathogenicity SCVs for 5 variants. Thos
 | [9393](https://www.ncbi.nlm.nih.gov/clinvar/variation/9393/) | risk factor | SCV000987620 | |
 | [203643](https://www.ncbi.nlm.nih.gov/clinvar/variation/203643/) | other | SCV000700738 | SCV000676997 |
 | [67509](https://www.ncbi.nlm.nih.gov/clinvar/variation/67509/) | risk factor | SCV000206987, SCV000987628 | SCV000696033 |
+
+---
+
+## Figure 5: CvC Flags in Genes with Insufficient Gene-Disease Evidence
+
+Script `05-gdr-flags-by-domain.sql` creates a copy of the ClinGen gene-disease validity export, a table function that returns one row per flag, and the views behind the sheet. `generate_figure5.py` calls the table function and draws the figure, which replaces the draft's donut chart. It is pasted into the sheet as a static image, like Figures 3 and 4.
+
+Figure and counts: [CvC Manuscript Figure 5 sheet](https://docs.google.com/spreadsheets/d/1nWyrtCqaoaXcYWC1gyfAjuFaukn55zdKSYiEioncApk/edit). The tab `About Figure 5` has every choice and the steps for refreshing the data and re-pasting the image. Counts quoted below are for batches through 2026-11-08 and ClinVar release 2026-11-08. The ClinGen export has no date; its latest evaluation date is 2026-02-05.
+
+```bash
+# Only when the SQL changes: deploy the objects, after 00-excluded-scvs.sql
+bq query --project_id=clingen-dev --use_legacy_sql=false < 00-excluded-scvs.sql
+bq query --project_id=clingen-dev --use_legacy_sql=false < 05-gdr-flags-by-domain.sql
+
+# On the first deploy, or to load a newer export of the ClinGen tab
+bq query --project_id=clingen-dev --use_legacy_sql=false 'CALL `clinvar_ingest.refresh_manuscript_clingen_gene_validity`()'
+
+# All batches. Requires the bq CLI; PNGs also require Chrome.
+python3 generate_figure5.py --out output/figure5
+
+# Limit to batches released by a date, or redraw from a saved query result
+# (--input also reads excluded.csv from the same folder)
+python3 generate_figure5.py --as-of 2026-05-31 --out output/figure5-may2026
+python3 generate_figure5.py --input output/figure5/flags.csv --out output/figure5
+```
+
+| Output | Contents |
+| --- | --- |
+| `figure5.svg`, `figure5.png` | One bar per clinical domain, stacked by validity level, with its title inside the image |
+| `figure5_domain_level.csv` | One row per domain and level: SCVs, variants and genes in the figure, and the flags left out |
+| `figure5_genes.csv` | The same counts per gene |
+| `flags.csv` | The query result |
+| `excluded.csv` | Counts by group from `manuscript_excluded_scvs`, for the footnote |
+
+### What the Figure Represents
+
+Figure 5 asks: **in which clinical domains, and at what gene-disease validity level, are the SCVs that CvC has flagged for insufficient gene-disease evidence?** It is a snapshot of one ClinVar release, counted in SCVs.
+
+### Choices Made
+
+| Decision | Choice | Alternatives considered | Effect |
+| --- | --- | --- | --- |
+| Chart | Bars by clinical domain, stacked by level, following the suggestion in the draft's comments | Bars by level only; level and domain panels together | Focuses on flagging and needs a domain for each flag |
+| Time basis | Snapshot of one release, as in Figure 3 | Point of submission, as in Figure 4 | Shows what is flagged in ClinVar now, not everything CvC requested |
+| Who is counted | Flags CvC has not retracted that are flagged in ClinVar: 153 | All not retracted: 363. Not retracted, on genes with no Moderate or higher relationship: 185. All 363, split by state | 363 would be 42% CAPN3, BRIP1, USH1C and PCDH15, none of them flagged now |
+| Discordance project | Its flags and removals on 233 SCVs are left out, as in every figure | Counted as retracted flags | They were withdrawn as a group and are not part of CvC's flagging results |
+| Other retracted flags | Kept in the counts but left out of the bars: 88 | Counted, shown as a lighter segment or in the same bars | Counting them in the bars would overstate flags on genes later judged out of scope |
+| Review statuses | Archive reviews are ignored, and each batch counts only its latest annotation of an SCV | Every annotation | Archive reviews were corrected before submission. No flag with this reason was Archive or superseded, so this changes no count |
+| No change | Left out | Shown as its own bar, as in the donut | Figure 5 no longer shows a share reviewed; see below |
+| Validity level | The curator's note, then ClinGen when the note has none | ClinGen only; the note only | Reflects the reason given for the flag, even if ClinGen has changed since |
+| ClinGen data | The export in the `Copy of Table 1` tab of the older figures sheet | A new download from ClinGen | Matches what the team used. It is held in a table, so editing that sheet can't change the figure unnoticed |
+| Clinical domain | Drafted from each relationship's expert panel, and still to be confirmed | A mapping from ClinGen or the team | ClinGen's export has no domain column |
+| Unit | SCVs, with variants and genes in the table | Variants | Flags are placed on SCVs, and the draft's figure counted SCVs |
+| Statistics | None | Tests between domains | The figure describes counts and does not compare groups |
+| Domains shown | All 16, including those with 0 | Only domains with flags | Hereditary Cancer, RASopathy, Rheumatologic Autoimmune Disease, Skeletal Disorders and Somatic Cancer show 0 |
+
+### How to Interpret It
+
+- **Only flags in ClinVar on this release are counted.** CvC submitted 451 flags with this reason, on 429 variants in 115 genes, not counting the discordance project. 153 are in the figure, on 147 variants in 83 genes. `shown_in_figure` identifies them, and all 153 carry a ClinGen flag comment on this release. No submitted flag with this reason was on a non-pathogenicity SCV.
+- **The discordance project's flags and removals are left out**, as in every figure (`00-excluded-scvs.sql`): 233 SCVs whose gene-disease flag CvC withdrew in batch 129. The figure's footnote names the group, and `manuscript_figure5_callouts_view` reads its count from `manuscript_excluded_scvs`.
+- **88 other flags were retracted, and they stay out of the bars.** 87 are on CAPN3, removed in batch 127 because the gene-disease classification changed, and 1 is on BAZ2B. `flag_status` and `retraction_kind` identify them. The BAZ2B removal, [SCV004105932](https://www.ncbi.nlm.nih.gov/clinvar/variation/2505364/), was sent in batch 135 alongside new flags, and ClinVar hasn't applied it, so the SCV is still flagged on this release. It is not counted; a removal-only resubmission is in progress.
+- **Archive reviews and superseded annotations don't count.** Each batch counts only its latest annotation of an SCV, and Archive reviews were corrected before submission. No counted flag was Archive or superseded, and every counted flag was submitted.
+- **210 flags were not retracted but are not flagged in ClinVar, and they stay out of the bars.** 164 are on a newer SCV version, so a resubmission removed the flag. 33 are no longer in the release. 13 are on the same SCV version but not flagged. 6 of those come from batches submitted on 2026-09-09 (4) and 2026-10-30 (2), 60 days or less before this release, so ClinVar may still be processing them. `clinvar_state` identifies them. 152 of the 210 are on CAPN3, BRIP1, USH1C and PCDH15.
+- **12 SCVs in the figure are on genes with a Moderate or higher relationship**, which the draft's Sources section says this effort left out: ALG8 (5), GLIS2 (2), CD164 (2), ZNF423, IL10 and TTN. They are kept because they are flagged in ClinVar. `gene_has_moderate_or_higher` identifies them. The export is later than most of these flags, so a gene's level may have changed after it was flagged.
+- **The level is the reason given when the flag was made.** 147 SCVs in the figure take it from the curator's note and 4 from ClinGen. 2 have no level, because the note gives none and the gene doesn't have just one low-evidence level: IL10 and TTN, shown as Not recorded. For 10 SCVs, on ALG8, GLIS2, CD164 and ZNF423, the note's level isn't in the export for that gene. `level_source` and `note_level_in_clingen` identify these.
+- **The domain mapping is a draft.** 23 SCVs in the figure come from panels marked `needs_review` in `manuscript_figure5_panel_domain_view`: Motile Ciliopathy (12, Pulmonary), Syndromic Disorders (10, Neurodevelopmental Disorders) and Monogenic Diabetes (1, Other). General, Prenatal, Neurovascular, Craniofacial Malformations and Monogenic Autoinflammatory Diseases are marked too but have no SCVs in the figure. Changing the mapping can move bars.
+- **Each flag has one domain.** It comes from a relationship at the flag's level, then another low-evidence relationship, then any relationship, and the most recent evaluation wins. `domain_source` identifies these: 12 SCVs in the figure don't come from a relationship at the flag's level. No SCV in the figure has more than one domain in that set. One flag outside the figure, in NARS2, could fall in either Hearing Loss or Inborn Errors of Metabolism; `all_domains` shows that.
+- **These are counts, not rates.** A taller bar can reflect how much of that domain CvC reviewed and how many low-evidence relationships it has. CvC chooses what it reviews, so its variants are selected, not sampled. A difference between bars describes what was flagged. It does not show that a domain has more errors.
+
+### What Changed from the Draft's Donut
+
+The donut's counts were typed by hand from the May 2026 data capture, so they can't be rerun. It shows No change 584, Limited 567, Disputed 134 and Refuted 23. Counts below are for batches through 2026-11-08, without the discordance project's annotations, Archive reviews or superseded annotations.
+
+- **CvC's flags with this reason are 451:** Limited 382, Refuted 39, Disputed 17 and no level in the note 13, by the level named in the curator's note. Every one was submitted.
+- **Disputed and Refuted may be swapped in the donut.** It has more Disputed than Refuted, but the notes have more Refuted than Disputed. ClinGen agrees with the notes for the largest genes: BRIP1 (31, Refuted) and MED25 (5, Disputed).
+- **The draft's 1,308 is not a count of flags.** Its flag count included the discordance project's flags.
+- **584 no change is a subset.** 6,496 SCVs have a latest no change annotation that mentions the discordance project, multiple disease assertions or the gene-disease relationship. 6,021 of them are on genes with a Moderate or higher relationship in the export, and 475 are not.
+
+### Refreshing the Data
+
+The table under the figure is a connector extract of `manuscript_figure5_domain_level_view`. The views cover all batches, so new batches appear on the next connector refresh. The image and typed counts do not update themselves.
+
+1. If `00-excluded-scvs.sql` or `05-gdr-flags-by-domain.sql` changed, deploy them, in that order. Then, in the sheet, choose **Data > Data connectors > Refresh options > Refresh all**.
+2. From this folder, run `python3 generate_figure5.py --out output/figure5`.
+3. On the `Figure 5` tab, delete the old image and choose **Insert > Image > Insert image over cells** with `figure5.png`.
+4. Update the cutoff and counts on the `About Figure 5` and `Figure 5` tabs, checking them against `manuscript_figure5_callouts_view`, and in this section. The call-out view names four genes directly, so update those if the largest genes change.
 
 ---
 
