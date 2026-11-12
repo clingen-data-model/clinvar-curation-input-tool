@@ -43,7 +43,9 @@
 --   A batch's decision on an SCV is its latest annotation in that batch, after
 --   leaving out the excluded annotations. Archive reviews never count. A
 --   submission counts only when the batch's decision on that SCV is the same
---   action.
+--   action. A no change annotated after a flagging candidate that the same batch
+--   submitted was a manual submission error and is ignored, so the submitted
+--   flag is the decision.
 --
 -- Method:
 --   "Before" is the path SCVs in ClinVar on the batch release. "After" removes
@@ -118,11 +120,27 @@ WITH cutoff AS (
   FROM `clinvar_curator.cvc_clinvar_batches`
 ),
 
+-- Flagging candidates each batch sent to ClinVar, earliest per SCV. A no change
+-- annotated after one of these in the same batch was a manual submission error
+-- (the flag should not have been sent), so it is ignored below; the user set
+-- this on 2026-11-12, as those flags will be removed once the errors are fixed.
+submitted_flags AS (
+  SELECT sa.batch_id, sa.scv_id, MIN(sa.annotation_id) AS annotation_id
+  FROM `clinvar_curator.cvc_submitted_annotations_view` sa
+  LEFT JOIN `clinvar_ingest.manuscript_excluded_annotations` x
+    ON x.annotation_id = sa.annotation_id
+  WHERE sa.action = 'flagging candidate'
+    AND sa.review_status IS DISTINCT FROM 'Archive'
+    AND x.annotation_id IS NULL
+  GROUP BY sa.batch_id, sa.scv_id
+),
+
 -- Each batch's decision on an SCV: its latest annotation in that batch. Excluded
 -- annotations count as never annotated, so the latest is chosen without them
--- (the same ranking as is_latest otherwise). Archive reviews were corrected
--- before submission and never count, and superseded annotations in the same
--- batch don't either.
+-- (the same ranking as is_latest otherwise), and so does a no change annotated
+-- after a submitted flagging candidate in the same batch. Archive reviews were
+-- corrected before submission and never count, and superseded annotations in
+-- the same batch don't either.
 batch_latest AS (
   SELECT
     av.annotation_id,
@@ -139,8 +157,12 @@ batch_latest AS (
     ON b.batch_release_date <= cutoff.as_of
   LEFT JOIN `clinvar_ingest.manuscript_excluded_annotations` x
     ON x.annotation_id = av.annotation_id
+  LEFT JOIN submitted_flags sf
+    ON sf.batch_id = av.batch_id
+    AND sf.scv_id = av.scv_id
   WHERE x.annotation_id IS NULL
     AND av.annotated_date IS NOT NULL
+    AND NOT (av.action = 'no change' AND sf.annotation_id IS NOT NULL AND av.annotation_id > sf.annotation_id)
   QUALIFY ROW_NUMBER() OVER (PARTITION BY av.batch_id, av.scv_id ORDER BY av.annotation_id DESC) = 1
 ),
 
