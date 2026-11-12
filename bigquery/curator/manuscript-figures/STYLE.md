@@ -85,6 +85,7 @@ One family: `Arial, Helvetica, sans-serif`. Sizes are in SVG px at the standard 
 | 4B | P/LP, VUS, VUS vs B/LB, B/LB | `medsig`, `uncertain`, `uncertain_light`, `ok` |
 | 5 | Limited, Disputed, Refuted | `cat1_light`, `cat1`, `cat1_dark` |
 | 5 | Not recorded | `neutral` |
+| 5 | No Known (not drawn on current data) | `cat2` |
 | 6 | Flagged through CvC | `cvc` |
 | 6 | Flagged outside CvC, Other | `neutral_dark`, `neutral` |
 | 6 | Reclassified, Rank lowered, Removed | `cat1_dark`, `cat1`, `cat1_light` |

@@ -21,7 +21,7 @@
 --   clinvar_ingest.manuscript_figure1a_final_classifications(release DATE)
 --   clinvar_ingest.manuscript_figure1b_gene_rates(release DATE)
 --   clinvar_ingest.manuscript_figure1_callouts(release DATE)
---   clinvar_ingest.manuscript_figure1_retracted_flag_scvs(release DATE)
+--   clinvar_ingest.manuscript_figure1_discordance_scvs(release DATE)
 --
 -- Views, pinned to the figure's release because a view cannot take a parameter.
 -- To move the figure to a new release, change the DATE literal in the four
@@ -29,7 +29,7 @@
 --   clinvar_ingest.manuscript_figure1_variant_states_view (pinned)
 --   clinvar_ingest.manuscript_clinvar_landscape (pinned)
 --   clinvar_ingest.manuscript_figure1_callouts_view (pinned)
---   clinvar_ingest.manuscript_figure1_retracted_flag_scvs_view (pinned)
+--   clinvar_ingest.manuscript_figure1_discordance_scvs_view (pinned)
 --   clinvar_ingest.manuscript_figure1a_states_view
 --   clinvar_ingest.manuscript_figure1a_conflict_types_view
 --   clinvar_ingest.manuscript_figure1a_final_classifications_view
@@ -66,15 +66,17 @@
 --   LB = lb. B = b.
 --   p/lp and b/lb are single SCVs submitted as both labels, so they count as both.
 --
--- SCVs whose flag CvC later retracted (clinvar_ingest.manuscript_excluded_scvs):
+-- The discordance project retraction (00-excluded-scvs.sql):
 --   Figure 1 counts ClinVar submissions, not CvC work, and reads no CvC
---   annotations, reviews or submissions. Those 321 SCVs (233 "Discordance project
---   retraction", 88 "Retracted gene-disease relationship flag") are live ClinVar
---   submissions again once the flag is removed, so they stay in Figure 1 as part
---   of ClinVar, as in the All ClinVar baseline of Figure 3C. The user chose this
---   on 2026-11-12. manuscript_figure1_retracted_flag_scvs lists each one with its
---   variant's state as counted, and its state with all 321 left out, so analysts
---   can assess the effect. It is the only Figure 1 object that reads CvC data.
+--   annotations, reviews or submissions, so the project's left-out flags and
+--   removals (clinvar_ingest.manuscript_excluded_annotations) never reach it.
+--   Its 233 SCVs are live ClinVar submissions again once the flag was removed,
+--   so they stay in Figure 1 as part of ClinVar, as in the All ClinVar baseline
+--   of Figure 3C. The user chose this on 2026-11-12.
+--   manuscript_figure1_discordance_scvs lists each SCV in manuscript_excluded_scvs
+--   with its variant's state as counted, and its state with those SCVs left out
+--   too, so analysts can assess the effect. It is the only Figure 1 object that
+--   reads CvC data.
 --
 -- Gene filter (Figure 1B only):
 --   Single-gene variants only, via clinvar_single_gene_variations, to avoid
@@ -113,8 +115,8 @@
 -- ============================================================================
 
 -- left_out lists SCV accessions to drop before reading each variant's state. The
--- figure passes an empty list; manuscript_figure1_retracted_flag_scvs passes the
--- retracted-flag SCVs to measure what they change.
+-- figure passes an empty list; manuscript_figure1_discordance_scvs passes the
+-- discordance project's SCVs to measure what they change.
 CREATE OR REPLACE TABLE FUNCTION `clinvar_ingest.manuscript_figure1_variant_states_core`(release DATE, left_out ARRAY<STRING>) AS (
 
 WITH cutoff AS (
@@ -361,10 +363,10 @@ UNION ALL SELECT 9, 'p_slash_lp_in_conflict', COUNTIF(top_mask >= 5 AND REGEXP_C
 );
 
 -- One row per SCV in manuscript_excluded_scvs: where it sits in this release, the
--- state its variant is counted in, and that variant's state if all 321 SCVs were
+-- state its variant is counted in, and that variant's state if all those SCVs were
 -- left out (NULL variant_state_left_out means the variant would leave the figure).
 -- in_figure_1b marks variants in a Figure 1B gene.
-CREATE OR REPLACE TABLE FUNCTION `clinvar_ingest.manuscript_figure1_retracted_flag_scvs`(release DATE) AS (
+CREATE OR REPLACE TABLE FUNCTION `clinvar_ingest.manuscript_figure1_discordance_scvs`(release DATE) AS (
 
 WITH cutoff AS (
   SELECT COALESCE(release, MAX(release_date)) AS release_date
@@ -447,8 +449,8 @@ CREATE OR REPLACE VIEW `clinvar_ingest.manuscript_figure1_callouts_view` AS
 SELECT * FROM `clinvar_ingest.manuscript_figure1_callouts`(DATE '2026-11-08')
 ORDER BY sort_order;
 
-CREATE OR REPLACE VIEW `clinvar_ingest.manuscript_figure1_retracted_flag_scvs_view` AS
-SELECT * FROM `clinvar_ingest.manuscript_figure1_retracted_flag_scvs`(DATE '2026-11-08')
+CREATE OR REPLACE VIEW `clinvar_ingest.manuscript_figure1_discordance_scvs_view` AS
+SELECT * FROM `clinvar_ingest.manuscript_figure1_discordance_scvs`(DATE '2026-11-08')
 ORDER BY exclusion, variation_id, scv_id;
 
 CREATE OR REPLACE VIEW `clinvar_ingest.manuscript_figure1a_states_view` AS

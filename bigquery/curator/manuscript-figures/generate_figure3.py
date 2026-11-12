@@ -22,32 +22,27 @@ import os
 import shutil
 import subprocess
 import sys
-import tempfile
+
+from figure_style import COLORS, LAYOUT, TYPE, label_ink, legend, line, notes, rect, text, wrap_svg, write_csv, write_png
 
 COUNTS_QUERY = """
 SELECT *
 FROM `clinvar_ingest.manuscript_cvc_vs_clinvar_consequence_bar_view`
 """
 
-FONT = "Arial, Helvetica, sans-serif"
-INK = "#1f1f1f"
-INK_MUTED = "#52514e"
-SURFACE = "#ffffff"
-RULE = "#c9c8c3"
-RULE_LIGHT = "#e8e7e3"
-
-ALL_FILL = "#2A6FD0"
-FLAGGED_FILL = "#C8341E"
+# Colors by meaning, from STYLE.md: all ClinVar is the neutral comparison, CvC is teal-green.
+ALL_FILL = COLORS["neutral"]
+FLAGGED_FILL = COLORS["cvc"]
 
 # Most to least severe, the same order the SQL uses to place a variant. Each entry
-# is the view's group name, its label, its fill and the text color on that fill.
-# The fills stay distinct under the common forms of color blindness.
+# is the view's group name, its label and its fill. The consequence groups have no
+# clinical meaning, so they take the category 1 steps; Other is neutral.
 GROUPS = [
-    ("predicted LOF", "Predicted LoF", "#D55E00", "#ffffff"),
-    ("missense", "Missense", "#0072B2", "#ffffff"),
-    ("inframe indels", "In-frame indels", "#CC79A7", INK),
-    ("UTR/intronic", "UTR/intronic", "#56B4E9", INK),
-    ("other", "Other", "#A3A29C", INK),
+    ("predicted LOF", "Predicted LoF", COLORS["cat1_dark"]),
+    ("missense", "Missense", COLORS["cat1"]),
+    ("inframe indels", "In-frame indels", COLORS["cat1_mid"]),
+    ("UTR/intronic", "UTR/intronic", COLORS["cat1_light"]),
+    ("other", "Other", COLORS["neutral"]),
 ]
 Z_95 = 1.959964
 
@@ -202,36 +197,8 @@ def test_label(test):
     return f"χ² = {x:.1f}, df = {df}, {p_label(p)}"
 
 
-def text(x, y, value, size=13, weight="normal", fill=INK, anchor="start"):
-    return (
-        f'<text x="{x:.1f}" y="{y:.1f}" font-size="{size}" font-weight="{weight}" '
-        f'fill="{fill}" text-anchor="{anchor}">{html.escape(value)}</text>'
-    )
-
-
-def rect(x, y, width, height, fill):
-    return f'<rect x="{x:.1f}" y="{y:.1f}" width="{width:.1f}" height="{height:.1f}" fill="{fill}"/>'
-
-
-def line(x1, y1, x2, y2, stroke=RULE, width=1, dash=None):
-    extra = f' stroke-dasharray="{dash}"' if dash else ""
-    return f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" stroke="{stroke}" stroke-width="{width}"{extra}/>'
-
-
-def wrap_svg(width, height, body):
-    margin = 20
-    return (
-        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{-margin} {-margin} {width + 2 * margin} {height + 2 * margin}" '
-        f'width="{width + 2 * margin}" height="{height + 2 * margin}" font-family="{FONT}">'
-        f'<rect x="{-margin}" y="{-margin}" width="{width + 2 * margin}" height="{height + 2 * margin}" fill="{SURFACE}"/>{body}</svg>\n'
-    )
-
-
-def notes(y, lines):
-    return [text(0, y + i * 19, value, 13, fill=INK_MUTED) for i, value in enumerate(lines)]
-
-
 def bars_figure(stats, tests, release):
+    """Not drawn: the user chose the stacked version as Figure 3C on 2026-11-09. Kept for reference."""
     """Paired bars of the percentages beside a forest plot of the odds ratios."""
     width = 1180
     flagged_total = sum(s["flagged"] for s in stats)
@@ -262,50 +229,61 @@ def bars_figure(stats, tests, release):
     ]
     for tick in range(0, axis_max + 1, 20):
         x = bar_x(tick)
-        body.append(line(x, top, x, plot_bottom, RULE_LIGHT if tick else RULE))
-        body.append(text(x, plot_bottom + 19, f"{tick}%", 13, fill=INK_MUTED, anchor="middle"))
+        body.append(line(x, top, x, plot_bottom, COLORS["rule_light"] if tick else COLORS["rule"]))
+        body.append(text(x, plot_bottom + 19, f"{tick}%", 13, fill=COLORS["ink_muted"], anchor="middle"))
     for exp in range(low_exp, high_exp + 1):
         x = forest_x(2.0 ** exp)
-        body.append(line(x, top, x, plot_bottom, RULE_LIGHT))
-        body.append(text(x, plot_bottom + 19, f"{2.0 ** exp:g}", 13, fill=INK_MUTED, anchor="middle"))
+        body.append(line(x, top, x, plot_bottom, COLORS["rule_light"]))
+        body.append(text(x, plot_bottom + 19, f"{2.0 ** exp:g}", 13, fill=COLORS["ink_muted"], anchor="middle"))
     no_difference = forest_x(1)
-    body.append(line(no_difference, top, no_difference, plot_bottom, INK_MUTED, 1, "4 3"))
-    body.append(text(no_difference - 8, plot_bottom + 39, "← Less common in flagged", 13, fill=INK_MUTED, anchor="end"))
-    body.append(text(no_difference + 8, plot_bottom + 39, "More common in flagged →", 13, fill=INK_MUTED))
+    body.append(line(no_difference, top, no_difference, plot_bottom, COLORS["ink_muted"], 1, "4 3"))
+    body.append(text(no_difference - 8, plot_bottom + 39, "← Less common in flagged", 13, fill=COLORS["ink_muted"], anchor="end"))
+    body.append(text(no_difference + 8, plot_bottom + 39, "More common in flagged →", 13, fill=COLORS["ink_muted"]))
 
     for i, s in enumerate(stats):
         y = top + row_height * i
         center = y + row_height / 2
         if i:
-            body.append(line(0, y, width, y, RULE_LIGHT))
+            body.append(line(0, y, width, y, COLORS["rule_light"]))
         body.append(text(0, center + 5, s["label"], 15, "bold"))
         for offset, value, fill in ((center - 29, s["all_pct"], ALL_FILL), (center + 3, s["flagged_pct"], FLAGGED_FILL)):
             body.append(rect(bars_left, offset, bar_x(value) - bars_left, 26, fill))
             body.append(text(bar_x(value) + 6, offset + 18, f"{value:.1f}%", 14))
-        body.append(line(forest_x(s["or_low"]), center, forest_x(s["or_high"]), center, INK, 2))
+        body.append(line(forest_x(s["or_low"]), center, forest_x(s["or_high"]), center, COLORS["ink"], 2))
         marker = forest_x(s["odds_ratio"])
         for edge in (s["or_low"], s["or_high"]):
-            body.append(line(forest_x(edge), center - 6, forest_x(edge), center + 6, INK, 2))
-        body.append(rect(marker - 4, center - 4, 8, 8, INK))
+            body.append(line(forest_x(edge), center - 6, forest_x(edge), center + 6, COLORS["ink"], 2))
+        body.append(rect(marker - 4, center - 4, 8, 8, COLORS["ink"]))
         body.append(text(forest_right + 22, center - 2, f"{s['odds_ratio']:.2f} ({s['or_low']:.2f}–{s['or_high']:.2f})", 14, "bold"))
-        body.append(text(forest_right + 22, center + 17, p_label(s["fisher_holm"]), 13, fill=INK_MUTED))
+        body.append(text(forest_right + 22, center + 17, p_label(s["fisher_holm"]), 13, fill=COLORS["ink_muted"]))
 
     body += notes(plot_bottom + 70, [
         f"ClinVar release {release}. Overall difference, flagged vs. not flagged: {test_label(tests['independence'])} (test of independence).",
         "Per-group p values: two-sided Fisher's exact test, Holm-adjusted across the groups. Odds ratio CIs are Wald intervals.",
-    ])
-    return wrap_svg(width, plot_bottom + 100, "".join(body))
+    ], width)[0]
+    return wrap_svg(plot_bottom + 100, "Figure 3C. Molecular consequence of CvC-flagged variants compared with all ClinVar variants", body, width=width)
+
+
+def heading(x, y, name, detail):
+    """A heading on one line: the name in bold, then detail (such as n=) in muted label type."""
+    return (
+        f'<text x="{x:.1f}" y="{y:.1f}" font-size="{TYPE["heading"]}" font-weight="bold" fill="{COLORS["ink"]}">'
+        f'{html.escape(name)}<tspan font-size="{TYPE["label"]}" font-weight="normal" fill="{COLORS["ink_muted"]}" dx="8">'
+        f'{html.escape(detail)}</tspan></text>'
+    )
 
 
 def stacked_figure(stats, tests, release):
-    """Two 100% stacked bars joined by bands, above each group's change from the baseline."""
-    width = 1180
+    """Two 100% stacked bars joined by bands, with each group's change from the baseline to their right."""
+    width = LAYOUT["width"]
     flagged_total = sum(s["flagged"] for s in stats)
     all_total = sum(s["all"] for s in stats)
-    bar_left, bar_right = 190, 1160
+    bar_left, bar_right = 0, 600
     bar_height = 62
-    upper_y, lower_y = 26, 158
-    min_inside = 50
+    upper_y, lower_y = 26, 178
+    heading_gap = 9      # baseline of each heading, above its bar
+    band_gap = 30        # space above the lower bar kept clear of the bands for its heading
+    min_inside = 38
 
     def bar_x(percent):
         return bar_left + (bar_right - bar_left) * percent / 100
@@ -322,131 +300,84 @@ def stacked_figure(stats, tests, release):
         c, d = lower_edges[s["group"]]
         points = (
             f"{bar_x(a):.1f},{upper_y + bar_height} {bar_x(b):.1f},{upper_y + bar_height} "
-            f"{bar_x(d):.1f},{lower_y} {bar_x(c):.1f},{lower_y}"
+            f"{bar_x(d):.1f},{lower_y - band_gap} {bar_x(c):.1f},{lower_y - band_gap}"
         )
         body.append(f'<polygon points="{points}" fill="{s["fill"]}" fill-opacity="0.22"/>')
     for y, key, name, total, outside_above in (
         (upper_y, "all_pct", "All ClinVar variants", all_total, True),
         (lower_y, "flagged_pct", "CvC-flagged variants", flagged_total, False),
     ):
-        body.append(text(0, y + 27, name, 15, "bold"))
-        body.append(text(0, y + 47, f"n={fmt(total)}", 14, fill=INK_MUTED))
+        body.append(heading(bar_left, y - heading_gap, name, f"n={fmt(total)}"))
         for s, a, b in segments(key):
             body.append(rect(bar_x(a), y, bar_x(b) - bar_x(a), bar_height, s["fill"]))
-            body.append(line(bar_x(b), y, bar_x(b), y + bar_height, SURFACE, 1.5))
+            body.append(line(bar_x(b), y, bar_x(b), y + bar_height, COLORS["surface"], LAYOUT["bar_gap"]))
             label = f"{s[key]:.1f}%"
             middle = (bar_x(a) + bar_x(b)) / 2
             if bar_x(b) - bar_x(a) >= min_inside:
-                body.append(text(middle, y + bar_height / 2 + 5, label, 14, "bold", s["on_fill"], "middle"))
+                body.append(text(middle, y + bar_height / 2 + 5, label, TYPE["label"], "bold", label_ink(s["fill"]), "middle"))
             elif outside_above:
-                body.append(line(middle, y - 5, middle, y, INK_MUTED))
-                body.append(text(middle, y - 9, label, 14, "bold", anchor="middle"))
+                body.append(line(middle, y - 5, middle, y, COLORS["ink_muted"]))
+                body.append(text(middle, y - 9, label, TYPE["label"], "bold", anchor="middle"))
             else:
-                body.append(line(middle, y + bar_height, middle, y + bar_height + 5, INK_MUTED))
-                body.append(text(middle, y + bar_height + 20, label, 14, "bold", anchor="middle"))
+                body.append(line(middle, y + bar_height, middle, y + bar_height + 5, COLORS["ink_muted"]))
+                body.append(text(middle, y + bar_height + 20, label, TYPE["label"], "bold", anchor="middle"))
     axis_y = lower_y + bar_height + 26
-    body.append(line(bar_left, axis_y, bar_right, axis_y, RULE))
+    body.append(line(bar_left, axis_y, bar_right, axis_y))
     for tick in (0, 25, 50, 75, 100):
-        body.append(line(bar_x(tick), axis_y, bar_x(tick), axis_y + 5, RULE))
-        body.append(text(bar_x(tick), axis_y + 21, f"{tick}%", 13, fill=INK_MUTED, anchor="middle"))
+        body.append(line(bar_x(tick), axis_y, bar_x(tick), axis_y + 5))
+        body.append(text(bar_x(tick), axis_y + 21, f"{tick}%", TYPE["tick"], fill=COLORS["ink_muted"], anchor="middle"))
 
-    header_y = axis_y + 62
-    row_height = 34
-    change_left, change_right = 490, 810
-    limit = max(abs(v) for s in stats for v in (s["change_low"], s["change_high"]))
-    limit = math.ceil(limit / 5) * 5
+    # Change from the All ClinVar baseline, one row per group, beside the bars.
+    label_left = bar_right + 36
+    change_left, change_right = label_left + 112, width - 8
+    largest = max(abs(v) for s in stats for v in (s["change_low"], s["change_high"]))
+    limit = math.ceil(largest * 1.35 / 5) * 5  # room for the value label past each CI
 
     def change_x(value):
         return change_left + (change_right - change_left) * (value + limit) / (2 * limit)
 
-    columns = [(0, "Consequence", "start"), (260, "All ClinVar", "end"), (360, "Flagged", "end"),
-               (change_right + 150, "Change, pts (95% CI)", "end"), (change_right + 225, "Ratio", "end"),
-               (bar_right, "p", "end")]
-    for x, name, anchor in columns:
-        body.append(text(x, header_y, name, 14, "bold", anchor=anchor))
-    body.append(text((change_left + change_right) / 2, header_y, "Change from baseline", 14, "bold", anchor="middle"))
-    first_row = header_y + 12
-    last_row = first_row + row_height * len(stats)
-    body.append(line(0, first_row, bar_right, first_row, RULE))
+    body.append(heading(label_left, upper_y - heading_gap, "Change from baseline", "points, 95% CI"))
+    rows_top, rows_bottom = upper_y, lower_y + bar_height
+    row_height = (rows_bottom - rows_top) / len(stats)
     zero = change_x(0)
-    for tick in range(-limit, limit + 1, 10 if limit > 10 else 5):
+    step = 10 if limit > 15 else 5
+    for tick in range(-(limit // step) * step, limit + 1, step):
         x = change_x(tick)
-        body.append(line(x, first_row, x, last_row, RULE_LIGHT))
-        body.append(text(x, last_row + 18, signed(tick, 0) if tick else "0", 13, fill=INK_MUTED, anchor="middle"))
-    body.append(line(zero, first_row, zero, last_row, INK_MUTED))
+        body.append(line(x, rows_top, x, rows_bottom, COLORS["rule_light"]))
+        body.append(line(x, axis_y, x, axis_y + 5))
+        body.append(text(x, axis_y + 21, signed(tick, 0) if tick else "0", TYPE["tick"], fill=COLORS["ink_muted"], anchor="middle"))
+    body.append(line(change_left, axis_y, change_right, axis_y))
+    body.append(line(zero, rows_top, zero, rows_bottom, COLORS["ink_muted"]))
     for i, s in enumerate(stats):
-        y = first_row + row_height * i
-        center = y + row_height / 2
-        body.append(rect(0, center - 7, 14, 14, s["fill"]))
-        body.append(text(21, center + 5, s["label"], 14, "bold"))
-        body.append(text(260, center + 5, f"{s['all_pct']:.1f}%", 14, anchor="end"))
-        body.append(text(360, center + 5, f"{s['flagged_pct']:.1f}%", 14, anchor="end"))
+        center = rows_top + row_height * (i + 0.5)
+        body.append(text(label_left, center + 5, s["label"], TYPE["label"]))
         x = change_x(s["change"])
-        body.append(rect(min(x, zero), center - 9, abs(x - zero), 18, s["fill"]))
-        body.append(line(change_x(s["change_low"]), center, change_x(s["change_high"]), center, INK, 2))
-        body.append(text(change_right + 150, center + 5, f"{signed(s['change'])} ({signed(s['change_low'])} to {signed(s['change_high'])})", 14, anchor="end"))
-        body.append(text(change_right + 225, center + 5, f"{s['ratio']:.2f}×", 14, anchor="end"))
-        body.append(text(bar_right, center + 5, p_label(s["binomial_holm"]).replace("p ", ""), 14, anchor="end"))
-    body += notes(last_row + 46, [
-        f"ClinVar release {release}. Overall difference from the baseline: {test_label(tests['goodness_of_fit'])} (goodness of fit).",
-        "Change is the flagged percentage minus the All ClinVar percentage, with Wilson 95% CIs. Ratio is flagged % divided by All ClinVar %.",
-        "p values: two-sided exact binomial test against the All ClinVar percentage, Holm-adjusted across the groups.",
+        body.append(rect(min(x, zero), center - 10, abs(x - zero), 20, s["fill"]))
+        low, high = change_x(s["change_low"]), change_x(s["change_high"])
+        body.append(line(low, center, high, center, COLORS["ink"], 2))
+        if s["change"] >= 0:
+            body.append(text(high + 6, center + 5, signed(s["change"]), TYPE["tick"], "bold"))
+        else:
+            body.append(text(low - 6, center + 5, signed(s["change"]), TYPE["tick"], "bold", anchor="end"))
+
+    # Horizontal legend for the consequence groups, beneath the bars.
+    legend_y = axis_y + 44
+    legend_body, legend_height = legend(bar_left, legend_y, [(s["label"], s["fill"]) for s in stats])
+    body += legend_body
+
+    if all(s["binomial_holm"] < 0.001 for s in stats):
+        per_group = "every group p < 0.001"
+    else:
+        per_group = "; ".join(f"{s['label']} {p_label(s['binomial_holm'])}" for s in stats)
+    note_top = legend_y + legend_height + LAYOUT["note_gap"] + TYPE["note"]
+    note_body, note_height = notes(note_top, [
+        f"ClinVar release {release}. Change is the flagged percentage minus the All ClinVar percentage, in points, with Wilson 95% CIs.",
+        f"Two-sided exact binomial tests against the All ClinVar percentage, Holm-adjusted: {per_group}.",
+        f"Overall difference from the baseline: {test_label(tests['goodness_of_fit'])} (goodness of fit).",
     ])
-    return wrap_svg(width, last_row + 88, "".join(body))
-
-
-def find_chrome():
-    candidates = [
-        os.environ.get("CHROME"),
-        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-        shutil.which("google-chrome"),
-        shutil.which("chromium"),
-    ]
-    return next((c for c in candidates if c and os.path.exists(c)), None)
-
-
-def write_png(svg_path):
-    chrome = find_chrome()
-    if not chrome:
-        return False
-    with open(svg_path, encoding="utf-8") as handle:
-        svg = handle.read()
-    head = svg[:svg.index(">")]
-    width = head.split(' width="')[1].split('"')[0]
-    height = head.split(' height="')[1].split('"')[0]
-    png_path = os.path.abspath(svg_path[:-4] + ".png")
-    # A failed render must not leave an older PNG beside the new SVG.
-    if os.path.exists(png_path):
-        os.remove(png_path)
-    # Headless Chrome occasionally hangs, so each try has a time limit.
-    for _ in range(2):
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
-            page = os.path.join(tmp, "page.html")
-            with open(page, "w", encoding="utf-8") as handle:
-                handle.write(f'<!doctype html><html><head><meta charset="utf-8"></head><body style="margin:0">{svg}</body></html>')
-            try:
-                subprocess.run(
-                    [
-                        chrome, "--headless=new", "--disable-gpu", "--hide-scrollbars",
-                        f"--user-data-dir={os.path.join(tmp, 'profile')}",
-                        "--force-device-scale-factor=3", f"--window-size={width},{height}",
-                        f"--screenshot={png_path}", f"file://{page}",
-                    ],
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                    check=True, timeout=45,
-                )
-            except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
-                continue
-        if os.path.exists(png_path):
-            return True
-    return False
-
-
-def write_csv(path, header, rows):
-    with open(path, "w", newline="", encoding="utf-8") as handle:
-        writer = csv.writer(handle)
-        writer.writerow(header)
-        writer.writerows(rows)
+    body += note_body
+    return wrap_svg(note_top + note_height - TYPE["note"],
+                    "Figure 3C. Molecular consequence mix of CvC-flagged variants compared with all ClinVar variants", body)
 
 
 def main():
@@ -475,11 +406,11 @@ def main():
 
     counts = [
         {
-            "group": name, "label": label, "fill": fill, "on_fill": on_fill,
+            "group": name, "label": label, "fill": fill,
             "flagged": int(rows[name]["cvc_flagged_variant_count"]),
             "all": int(rows[name]["all_variant_count"]),
         }
-        for name, label, fill, on_fill in GROUPS
+        for name, label, fill in GROUPS
     ]
     if any(c["flagged"] == 0 for c in counts):
         sys.exit("A group has no flagged variants, so its odds ratio is undefined.")
@@ -508,7 +439,6 @@ def main():
     )
 
     outputs = {
-        "figure3_bars.svg": bars_figure(stats, tests, release),
         "figure3_stacked.svg": stacked_figure(stats, tests, release),
     }
     png_written = True
