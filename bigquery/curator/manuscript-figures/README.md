@@ -13,7 +13,7 @@ Each script in this folder generates a dataset that underpins a specific figure 
 | Script | View | Description |
 | --- | --- | --- |
 | `00-excluded-scvs.sql` | `clinvar_ingest.manuscript_excluded_annotations`, `clinvar_ingest.manuscript_excluded_scvs` | CvC annotations every figure leaves out of its counts: the discordance project's flags and removals (batch 129 retraction) on 233 SCVs. Figures anti-join the annotations view on `annotation_id`; the SCV view is for notes and lists. Run it before any figure script, because their SQL reads these views. |
-| `01-clinvar-landscape.sql` | `clinvar_ingest.manuscript_clinvar_landscape` | Per-gene summary of the ClinVar Germline Variant Pathogenicity Classification landscape for genes in the GenCC Definitive/Strong/Moderate (DSM) gene list. Produces total SCV and variant counts, clinically significant (P/LP) variant counts, and a breakdown of aggregate classification categories (concordant P/LP, P/LP vs B/LB, P/LP vs VUS, and three-way conflicts). |
+| `01-clinvar-landscape.sql` | `clinvar_ingest.manuscript_figure1_variant_states_core(release, left_out)`, `clinvar_ingest.manuscript_figure1_variant_states(release)`, `clinvar_ingest.manuscript_figure1a_final_classifications(release)`, `clinvar_ingest.manuscript_figure1b_gene_rates(release)`, `clinvar_ingest.manuscript_figure1_callouts(release)`, `clinvar_ingest.manuscript_figure1_variant_states_view`, `clinvar_ingest.manuscript_figure1a_states_view`, `clinvar_ingest.manuscript_figure1a_conflict_types_view`, `clinvar_ingest.manuscript_figure1a_final_classifications_view`, `clinvar_ingest.manuscript_clinvar_landscape`, `clinvar_ingest.manuscript_figure1_callouts_view`, `clinvar_ingest.manuscript_figure1_all_flagged_variants_view`, `clinvar_ingest.manuscript_figure1_discordance_scvs(release)`, `clinvar_ingest.manuscript_figure1_discordance_scvs_view` | The state of ClinVar's pathogenicity-classified variants in one release, read from each variant's top ranked group, and the per-gene rate of medically significant conflicts in GenCC Definitive/Strong/Moderate genes. `generate_figure1.py` calls the table functions and draws both panels. |
 | `02-submitter-landscape.sql` | `clinvar_ingest.manuscript_submitter_landscape` | Per-institution-type summary of ClinVar submitter organizations and their Germline Variant Pathogenicity Classification contributions. Shows submitter counts, SCV counts, and variant counts grouped by institution type (clinical testing, research, expert panel, etc.). |
 | `03-flagged-scv-by-consequence.sql` | `clinvar_ingest.manuscript_cvc_vs_clinvar_consequence_bar_view`, `clinvar_ingest.manuscript_flag_source_combo_by_consequence_view`, `clinvar_ingest.manuscript_flagged_scv_by_consequence_view` | Molecular consequence of pathogenicity-assessed variants in ClinVar versus variants flagged through the CvC project, with flagged variant and SCV counts by flag source (ClinGen CvC, ClinGen non-CvC, NCBI) and their combinations. `generate_figure3.py` reads the first view, calculates the statistics and draws the figures. |
 | `03ab-review-outcomes-and-reasons.sql` | `clinvar_ingest.manuscript_figure3ab_scv_outcomes(as_of_date)`, `clinvar_ingest.manuscript_figure3ab_scv_outcomes_view`, `clinvar_ingest.manuscript_figure3a_outcomes_view`, `clinvar_ingest.manuscript_figure3a_detail_view`, `clinvar_ingest.manuscript_figure3b_reasons_view`, `clinvar_ingest.manuscript_figure3ab_excluded_scvs_view` | One row per SCV reviewed by CvC, with its outcome, its reason if submitted, and its state in the release at the cutoff. `generate_figure3ab.py` calls the table function and draws Figures 3A and 3B. |
@@ -61,23 +61,115 @@ All scripts operate on the **Germline Variant Pathogenicity Classification Submi
 
 ## Figure 1: ClinVar Landscape
 
-Script `01-clinvar-landscape.sql` produces data for two scatter plots:
+Script `01-clinvar-landscape.sql` creates table functions and the views behind the sheet. `generate_figure1.py` calls the table functions and draws both panels. Figures are pasted into the sheet as static images, as Figures 3 and 4 are. Colors, type and sizes come from `figure_style.py`, as [STYLE.md](STYLE.md) assigns them to Figure 1. Panel A's breakdown bars are all `medsig`, the red of the slice they break down.
 
-- **Figure 1a**: Conflict count - absolute number of clinically significant conflict variants per gene
-- **Figure 1b**: Conflict rate - percentage of variants in clinically significant conflict per gene
+Figures and counts: [CvC Manuscript Figure 1 sheet](https://docs.google.com/spreadsheets/d/1-FDjXcju6jdWi05D0nvPKxj7f-xZQ80V4rPgLFKL3co/edit). The tab `About Figure 1` has the steps for refreshing the tables and re-pasting the images. Counts quoted below are for ClinVar release 2026-11-08, the latest loaded when the figure was last regenerated.
 
-| Column | Description |
+```bash
+# Only when the SQL changes: deploy the table functions and views
+bq query --project_id=clingen-dev --use_legacy_sql=false < 01-clinvar-landscape.sql
+
+# Requires the bq CLI; PNGs also require Chrome.
+python3 generate_figure1.py --out output/figure1
+
+# Another release, or redraw from saved query results
+python3 generate_figure1.py --as-of 2026-10-31 --out output/figure1-oct31
+python3 generate_figure1.py --input output/figure1 --out output/figure1
+```
+
+| Output | Contents |
 | --- | --- |
-| `gene_symbol` | Gene symbol (e.g., BRCA1) |
-| `total_scvs` | All pathogenicity SCVs for this gene |
-| `total_variants` | Distinct variants with pathogenicity SCVs |
-| `total_clinsig_variants` | Variants with P/LP classifications |
-| `total_clinsig_conflict_variants` | Variants with agg_sig_type >= 5 (clinically significant conflicts) |
-| `concordant_clinsig_variants` | P/LP variants with concordant classifications |
-| `clinsig_conflict_pct` | Percentage of variants in clinically significant conflict |
+| `figure1A.svg`, `figure1A.png` | Panel A, with the medically significant conflicts as bars |
+| `figure1B.svg`, `figure1B.png` | Panel B |
+| `figure1a_states.csv`, `figure1a_conflict_types.csv` | The counts behind Panel A and its breakdown |
+| `figure1a_final_classifications.csv` | One row per variant state, exact starting classifications and top rank, with variant and SCV counts |
+| `figure1b_gene_rates.csv`, `figure1b_labeled_genes.csv` | One row per gene, and the labeled genes with why each is labeled |
+| `figure1_callouts.csv` | The counts quoted as call-outs |
+| `figure1_discordance_scvs.csv` | One row per discordance project retraction SCV: where it sits in the release, its variant's state as counted, and that state if all 233 were left out |
+
+### What the Figure Represents
+
+Panel A asks: **what share of ClinVar's variants with a germline pathogenicity classification has one submission, concordant submissions or each kind of conflict?** Panel B asks: **across GenCC Definitive/Strong/Moderate genes, what percentage of a gene's variants is in medically significant conflict, compared with the number of pathogenicity SCVs in that gene?** Both are a snapshot of one release, counted in variants. No groups are compared, so there are no statistics.
+
+ClinVar builds the aggregate from the highest ranked group of SCVs, so each variant is read from its top ranked group. Flagged SCVs (rank -3) do not contribute.
+
+| Variant state | Rule, using the top ranked group | Variants | Share |
+| --- | --- | ---: | ---: |
+| 1 submission | One SCV | 3,490,066 | 78.3% |
+| 2 or more concordant submissions | Two or more SCVs, one classification group | 650,948 | 14.6% |
+| Confidence conflict | P + LP, or B + LB, and no other tier | 130,367 | 2.9% |
+| VUS vs B/LB | VUS with B, LB or both | 152,875 | 3.4% |
+| P/LP vs VUS/B/LB | P or LP with VUS, B, LB or any of them | 31,385 | 0.7% |
+| **Total** | | **4,455,641** | |
+
+| Medically significant conflict | Variants | Share of 31,385 |
+| --- | ---: | ---: |
+| LP vs VUS | 19,172 | 61.1% |
+| P + LP vs VUS | 5,732 | 18.3% |
+| P vs VUS | 5,170 | 16.5% |
+| P/LP vs VUS vs B/LB | 934 | 3.0% |
+| LP vs B/LB | 227 | 0.7% |
+| P vs B/LB | 110 | 0.4% |
+| P + LP vs B/LB | 40 | 0.1% |
+
+Panel B plots 4,218 of the 4,311 genes in `gencc_dsm_genes`: those with at least one non-flagged P/LP SCV on a single-gene variant. They hold 3,165,169 variants and 30,918 of the 31,385 medically significant conflicts. Rates run from 0 to 14.29%, 1,210 genes have no such conflict, and 2,513 genes have 100 to 1,000 SCVs.
+
+### How to Interpret It
+
+- **1 submission means one SCV in the top ranked group.** 73,160 of these variants also have lower ranked SCVs, such as a single expert panel SCV above other submissions.
+- **Lower ranked disagreements are left out of the conflict counts.** 10,730 variants have a medically significant disagreement across all their non-flagged SCVs but not in the top ranked group. 2,865 of them sit below an expert panel or practice guideline group, and 6,639 are also in the 73,160. Counting all SCVs would give 42,115 medically significant conflicts instead of 31,385. `all_scvs_mask` in `manuscript_figure1_variant_states_view` identifies them.
+- **Counts are after flags in this release.** 2,739 variants in the figure have a flagged SCV and are read from their other SCVs.
+- **A slash means either or both of its labels. A plus means both together.** P vs VUS is split from LP vs VUS and P + LP vs VUS instead of using a +/- grouping, in the same conflict types as Figure 4B.
+- **Rates in small genes are unstable.** The two highest rates are ATP5MK (2 of 14 variants) and MICOS13 (3 of 34). The curved lower edge of Panel B is genes with exactly one conflict variant.
+- **Panel B labels follow a rule.** BRCA1, BRCA2 and TP53 are labeled as notable genes, then the 3 genes with the most conflict variants (TTN, NF1, MYH7), the 3 highest rates among genes with at least 1,000 SCVs (ALPL, KCNJ11, BTD) and the 2 highest rates overall.
+- **Column names keep the older wording.** In `manuscript_clinvar_landscape`, `clinsig_conflict` means a medically significant conflict.
+- **Some classifications are counted together.** P includes pathogenic low penetrance (`p-lp`) and established risk allele (`era`). LP includes likely pathogenic low penetrance (`lp-lp`) and likely risk allele (`lra`). VUS includes VUS-high (`vus-h`), VUS-mid (`vus-m`), VUS-low (`vus-l`) and uncertain risk allele (`ura`). `classif_types` keeps the original codes. `p/lp` (8 SCVs) and `b/lb` (194 SCVs) are single SCVs submitted as both labels, so they count as both. Only [variation 32255](https://www.ncbi.nlm.nih.gov/clinvar/variation/32255/) is in a conflict because of this, counted as P + LP vs VUS.
+
+### Excluded Variants
+
+281 variants whose pathogenicity SCVs are all flagged have no aggregate, so they do not appear. `manuscript_figure1_all_flagged_variants_view` lists them with links to their ClinVar pages.
+
+### The Discordance Project Retraction
+
+Figure 1 counts ClinVar submissions, not CvC work. Every view behind it reads only ClinVar tables (`clinvar_scvs`, `clinvar_genes`, `clinvar_single_gene_variations`, `gencc_dsm_genes`) and no CvC annotations, reviews or submissions, so the discordance project's left-out flags and removals (`manuscript_excluded_annotations`) never reach it. Its 233 SCVs (`manuscript_excluded_scvs`) are ClinVar submissions again since their flags were removed, so they stay in the figure as part of ClinVar, as in the All ClinVar baseline of Figure 3C. The user chose this on 2026-11-12. Both images say so in a footnote.
+
+At release 2026-11-08 all 233 SCVs contribute. Leaving the SCVs themselves out too would change these counts and no others:
+
+| Count | As counted | With the 233 SCVs left out |
+| --- | ---: | ---: |
+| Variants in Panel A | 4,455,641 | 4,455,560 |
+| 1 submission | 3,490,066 | 3,490,036 |
+| 2 or more concordant submissions | 650,948 | 650,924 |
+| Confidence conflict | 130,367 | 130,347 |
+| VUS vs B/LB | 152,875 | 152,874 |
+| P/LP vs VUS/B/LB | 31,385 | 31,379 |
+| LP vs VUS / P + LP vs VUS / P vs VUS | 19,172 / 5,732 / 5,170 | 19,173 / 5,729 / 5,166 |
+| Medically significant across all SCVs | 42,115 | 42,108 |
+| Of those, not in the top ranked group | 10,730 | 10,729 |
+| One top SCV with lower ranked SCVs | 73,160 | 73,154 |
+| Panel B variants | 3,165,169 | 3,165,088 |
+| Panel B pathogenicity SCVs | 5,460,430 | 5,460,197 |
+| Panel B conflict variants | 30,918 | 30,912 |
+
+Panel B keeps all 4,218 genes, the 1,210 at 0%, the 0 to 14.29% range and all 11 labels. Counts change in 25 genes, and the rate in 5 of them, by at most 0.08 points (FIG4, 1.28% to 1.20%).
+
+`manuscript_figure1_discordance_scvs_view` has one row per SCV, so analysts can check each one: whether it is in the release and flagged, its rank and whether it is in the top ranked group, the variant's `variant_state` and `conflict_type` as counted, `variant_state_left_out` and `conflict_type_left_out` (NULL when the variant would leave the figure), `in_figure_1b` and the ClinVar link. It is the only Figure 1 object that reads CvC data. It calls `manuscript_figure1_variant_states_core` with the 233 accessions, the same logic the figure uses with an empty list.
+
+### Refreshing the Data
+
+The views are pinned to one release, so the sheet's tables match the images until the figure is moved on purpose. Row 1 of each figure tab says OUT OF DATE if its table moves to another release.
+
+1. Run `00-excluded-scvs.sql` if it changed. In `01-clinvar-landscape.sql`, change the `DATE` literal in the four pinned views, and `FIGURE_RELEASE` in `generate_figure1.py`. Run the script with `bq query`.
+2. In the sheet, choose **Data > Data connectors > Refresh options > Refresh all**. Viewers need BigQuery access to `clingen-dev` to refresh the connected tabs.
+3. From this folder, run `python3 generate_figure1.py --out output/figure1`.
+4. On each figure tab, delete the old image and choose **Insert > Image > Insert image over cells**. Use `figure1A.png` and `figure1B.png`.
+5. Update the date in the row 1 formula of each figure tab, line 2 of the `About Figure 1` tab, the counts on that tab, row 2 and the labeled-gene counts on the figure tabs, and the counts in this section, including the discordance project table.
 
 ```sql
--- Query the view
+-- Figure 1A at its most granular
+SELECT * FROM `clinvar_ingest.manuscript_figure1a_final_classifications_view`;
+
+-- Figure 1B
 SELECT * FROM `clinvar_ingest.manuscript_clinvar_landscape`;
 ```
 
