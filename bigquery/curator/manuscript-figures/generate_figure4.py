@@ -207,8 +207,9 @@ def sankey_section(flows, groups, top, plot_height):
     """One two column Sankey drawn from y=top, with its sources in groups.
 
     groups are (heading, sources), drawn top to bottom in the left column with
-    the heading above each group. Ribbons and nodes share one scale, so every
-    width in the diagram is comparable. Returns (svg list, bottom y)."""
+    the heading above each group; a heading of None draws no heading and leaves
+    no room for one. Ribbons and nodes share one scale, so every width in the
+    diagram is comparable. Returns (svg list, bottom y)."""
     groups = [(h, [s for s in names if any(k[0] == s for k in flows)]) for h, names in groups]
     groups = [(h, names) for h, names in groups if names]
     sources = [s for _, names in groups for s in names]
@@ -231,7 +232,7 @@ def sankey_section(flows, groups, top, plot_height):
     # Gaps need room for two lines of label, so small nodes do not collide, and
     # each group needs room for its heading.
     min_gap = 38
-    group_head = 48
+    group_head = 48 if any(h for h, _ in groups) else 16
     plot_top = top + group_head
     fixed = min_gap * (len(sources) - 1) + group_head * (len(groups) - 1)
     scale = (plot_height - group_head - fixed) / total
@@ -244,7 +245,8 @@ def sankey_section(flows, groups, top, plot_height):
             y += group_head
         # Above the node and above its label, which rises over a thin node.
         first_label = y + src_totals[names[0]] * scale / 2 - 3
-        parts.append(text(0, min(y - 14, first_label - 28), heading, TYPE["heading"], "bold"))
+        if heading:
+            parts.append(text(0, min(y - 14, first_label - 28), heading, TYPE["heading"], "bold"))
         for name in names:
             src_y[name] = y
             y += src_totals[name] * scale + gap
@@ -297,8 +299,7 @@ def sankey_section(flows, groups, top, plot_height):
 
 def panel_b(flows, groups, footnotes, plot_height, title):
     """One Sankey under a pair of column headings, its sources in groups."""
-    # The left heading starts at the left edge with the group headings and the
-    # widest source label. The right heading ends where the widest destination
+    # The left heading starts at the left edge with the widest source label. The right heading ends where the widest destination
     # label ends.
     head_y = TYPE["heading"]
     line_h = TYPE["heading"] + 4
@@ -421,14 +422,12 @@ def main():
         return "; ".join(parts) if parts else "none"
 
     # One Sankey at one scale: the non-medically significant conflicts are the
-    # lower group of sources and flow into the same results.
+    # lower sources and flow into the same results. No group headings; the
+    # footnote names both groups.
     medsig_shown, nonmed_shown = sum(medsig.values()), sum(nonmed.values())
     panel_b_svg = panel_b(
         medsig + nonmed,
-        [
-            ("Medically significant conflicts", MEDSIG_SOURCES),
-            ("Non-medically significant conflicts", NONMEDSIG_SOURCES),
-        ],
+        [(None, MEDSIG_SOURCES + NONMEDSIG_SOURCES)],
         [
             f"{fmt(medsig_shown)} of {fmt(medsig_n)} flagged medically significant conflicts (P/LP vs VUS or B/LB) "
             f"and {fmt(nonmed_shown)} of {fmt(nonmed_n)} flagged non-medically significant conflicts (VUS vs B/LB) "
