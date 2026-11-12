@@ -441,13 +441,13 @@ ClinVar builds the aggregate from the highest ranked group of SCVs, so before an
 | | `conflict resolved, no classification left` | Any conflict loses all of its SCVs |
 | Conflict reduced | `significant conflict reduced` | P/LP vs VUS/B/LB becomes VUS vs B/LB |
 | Classification removed | `non-conflict removed` | No conflict, and no contributing SCVs are left |
-| Submission(s), classification unchanged | `other conflict modified` | Top group flagged, and the conflict remains at a level that is not reduced |
+| Classification unchanged (submission(s) flagged) | `other conflict modified` | Top group flagged, and the conflict remains at a level that is not reduced |
 | | `non-conflict modified` | Top group flagged, no conflict before or after |
 | | `non-conflict, classification changed at lower rank` | Top group fully flagged, and a lower group with a different tier takes over |
 | | `conflict exposed at lower rank` | Top group fully flagged, and a lower group in conflict takes over |
 | | `conflict, top rank not flagged` | Only lower groups flagged, and the top group is in conflict |
 | | `non-conflict, top rank not flagged` | Only lower groups flagged, and the top group is not in conflict |
-| No change | `no flagging candidate submitted` | Reviewed, with no valid flagging candidate in a batch |
+| Classification unchanged (no submission(s) flagged) | `no flagging candidate submitted` | Reviewed, with no valid flagging candidate in a batch |
 
 The denominator is distinct variants with a batch decision on a path SCV.
 
@@ -459,7 +459,7 @@ The denominator is distinct variants with a batch decision on a path SCV.
 - **A batch's decision on an SCV is its latest annotation in that batch.** Superseded annotations in the same batch don't count, and a submitted flagging candidate counts only when the batch's latest annotation on that SCV is still a flagging candidate.
 - **Archive reviews never count.** They were corrected before submission, so they are not a flagging candidate or a no change decision.
 
-At 2026-11-08 the last two rules leave out 41 variants whose only batch decisions are Archive reviews, and count 3 variants with a valid submitted flagging candidate as No change, because that candidate is not their batch's latest decision on the SCV.
+At 2026-11-08 the last two rules leave out 41 variants whose only batch decisions are Archive reviews, and count 3 variants with a valid submitted flagging candidate as "Classification unchanged (no submission(s) flagged)", because that candidate is not their batch's latest decision on the SCV.
 
 ### How to Interpret It
 
@@ -469,14 +469,14 @@ At 2026-11-08 the last two rules leave out 41 variants whose only batch decision
 - **P/LP after flagging means P, LP or both.** Of the 2,953 medically significant conflicts that move to P/LP, 2,016 are left with both P and LP, 554 with only P and 383 with only LP.
 - **The most granular counts are in one view.** `clinvar_ingest.manuscript_figure4b_final_classifications_view` has one row for each `classification_to_start` and result after flagging, shown as a table under the Sankey in the sheet. For example, of the P + LP vs VUS variants, 1,959 ended as P + LP and 3 as VUS. Variants that stayed in conflict are not in this view. `conflict_combination` and `after_classif_group` have the same labels per variant. Its `flagged_scvs` column counts the flagging candidates of the variant's reported batch in the top ranked group, and in any lower group down to the one that takes over.
 - **Variants flagged in several batches appear once.** 275 variants are in this group. Each batch is evaluated on its own flags, and the variant keeps its strongest outcome. An earlier flag that ClinVar has applied is rank -3 and already out of the batch release. An earlier flag that it has not applied still counts as a contributing SCV.
-- **Retracted flags are still counted.** The figure reflects the point of submission, so 96 variants with a flag that was later retracted stay in their outcome: 16 Conflict resolved, 2 Conflict reduced, 22 Classification removed and 56 "Submission(s), classification unchanged". 18 of them are in Panel B. 90 of them had a flag removed in batch 127, the batch of the 87 CAPN3 gene-disease relationship retractions that the earlier rule left out. `any_flag_retracted` identifies these variants. The discordance project's left-out flags are not among them.
-- **"Submission(s), classification unchanged" includes lower ranked flags.** For 471 of the 844 variants, only lower ranked groups were flagged, so the top ranked group did not change: 115 are in conflict and 356 are not. `outcome_detail` identifies them as `conflict, top rank not flagged` and `non-conflict, top rank not flagged`. They are not in Panel B. None of them is in the retracted group.
-- **"Submission(s), classification unchanged" is the rest of the flagged variants.** A flagging candidate was submitted, but the conflict was not resolved or reduced and a classification remains. The user named it on 2026-11-12; it was "Flagged, not resolved". Of its 844 variants, 744 keep the same state (the 471 above, and 273 whose top ranked group lost some SCVs), 96 three-tier conflicts narrow to two tiers but stay medically significant (92 to P/LP vs VUS, 4 to P/LP vs B/LB), and 4 non-conflicts change tier when a lower group takes over (P to VUS twice, VUS to LP, P to LB). Those 4 are the exception to the name, and the image's footnote says so.
+- **Retracted flags are still counted.** The figure reflects the point of submission, so 96 variants with a flag that was later retracted stay in their outcome: 16 Conflict resolved, 2 Conflict reduced, 22 Classification removed and 56 "Classification unchanged (submission(s) flagged)". 18 of them are in Panel B. 90 of them had a flag removed in batch 127, the batch of the 87 CAPN3 gene-disease relationship retractions that the earlier rule left out. `any_flag_retracted` identifies these variants. The discordance project's left-out flags are not among them.
+- **"Classification unchanged (submission(s) flagged)" includes lower ranked flags.** For 471 of the 844 variants, only lower ranked groups were flagged, so the top ranked group did not change: 115 are in conflict and 356 are not. `outcome_detail` identifies them as `conflict, top rank not flagged` and `non-conflict, top rank not flagged`. They are not in Panel B. None of them is in the retracted group.
+- **"Classification unchanged (submission(s) flagged)" is the rest of the flagged variants.** A flagging candidate was submitted, but the conflict was not resolved or reduced and a classification remains. The user named it on 2026-11-12; it was "Flagged, not resolved", then "Submission(s), classification unchanged". "Classification unchanged (no submission(s) flagged)" was "Classification unchanged (no submission(s) flagged)". Of its 844 variants, 744 keep the same state (the 471 above, and 273 whose top ranked group lost some SCVs), 96 three-tier conflicts narrow to two tiers but stay medically significant (92 to P/LP vs VUS, 4 to P/LP vs B/LB), and 4 non-conflicts change tier when a lower group takes over (P to VUS twice, VUS to LP, P to LB). Those 4 are the exception to the name, and the image's footnote says so.
 - **Some classifications are counted together.** P includes pathogenic low penetrance (`p-lp`) and established risk allele (`era`). LP includes likely pathogenic low penetrance (`lp-lp`) and likely risk allele (`lra`). VUS includes VUS-high (`vus-h`), VUS-mid (`vus-m`), VUS-low (`vus-l`) and uncertain risk allele (`ura`). `after_classif` keeps the original labels.
 
 ### Excluded Non-Pathogenicity Flagging Candidates
 
-CvC submitted flagging candidates on non-pathogenicity SCVs for 5 variants. Those candidates are excluded from this figure. The first three variants had no pathogenicity SCV reviewed, so they do not appear at all. The other two also had a pathogenicity SCV reviewed as no change, so they count as No change in Panel A.
+CvC submitted flagging candidates on non-pathogenicity SCVs for 5 variants. Those candidates are excluded from this figure. The first three variants had no pathogenicity SCV reviewed, so they do not appear at all. The other two also had a pathogenicity SCV reviewed as no change, so they count as Classification unchanged (no submission(s) flagged) in Panel A.
 
 | Variation | Proposition | Flagging candidate SCVs | Pathogenicity SCV reviewed as no change |
 | --- | --- | --- | --- |

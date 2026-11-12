@@ -85,8 +85,8 @@
 -- Output Columns:
 --   variation_id, as_of_batch_release_date
 --   figure_4a_outcome      - Conflict resolved, Conflict reduced, Classification
---                            removed, Submission(s), classification unchanged,
---                            No change
+--                            removed, Classification unchanged (submission(s) flagged),
+--                            Classification unchanged (no submission(s) flagged)
 --   outcome_detail         - Finer outcome that rolls up to figure_4a_outcome
 --   batch_id, batch_release_date - Batch that gave the reported outcome
 --   before_mask/state/classif/top_rank - Top ranked group before flagging
@@ -399,11 +399,11 @@ SELECT
   r.variation_id,
   cutoff.as_of AS as_of_batch_release_date,
   CASE
-    WHEN vo.variation_id IS NULL THEN 'No change'
+    WHEN vo.variation_id IS NULL THEN 'Classification unchanged (no submission(s) flagged)'
     WHEN vo.outcome_priority = 1 THEN 'Conflict resolved'
     WHEN vo.outcome_priority = 2 THEN 'Conflict reduced'
     WHEN vo.outcome_priority = 3 THEN 'Classification removed'
-    ELSE 'Submission(s), classification unchanged'
+    ELSE 'Classification unchanged (submission(s) flagged)'
   END AS figure_4a_outcome,
   COALESCE(vo.outcome_detail, 'no flagging candidate submitted') AS outcome_detail,
   vo.batch_id,
@@ -481,8 +481,8 @@ WITH slices AS (
     STRUCT(1 AS chart_order, 'Conflict resolved' AS outcome),
     (2, 'Conflict reduced'),
     (3, 'Classification removed'),
-    (4, 'Submission(s), classification unchanged'),
-    (5, 'No change')
+    (4, 'Classification unchanged (submission(s) flagged)'),
+    (5, 'Classification unchanged (no submission(s) flagged)')
   ])
 ),
 counts AS (

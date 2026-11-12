@@ -36,13 +36,13 @@ ORDER BY variation_id
 """
 
 # CvC outcomes are steps of the CvC color, darkest for the largest effect on the
-# variant's aggregate classification. No change is neutral. See STYLE.md.
+# variant's aggregate classification. The unflagged slice is neutral. See STYLE.md.
 OUTCOMES = [
     ("Conflict resolved", COLORS["cvc_dark"]),
     ("Conflict reduced", COLORS["cvc_mid"]),
     ("Classification removed", COLORS["cvc"]),
-    ("Submission(s), classification unchanged", COLORS["cvc_light"]),
-    ("No change", COLORS["neutral"]),
+    ("Classification unchanged (submission(s) flagged)", COLORS["cvc_light"]),
+    ("Classification unchanged (no submission(s) flagged)", COLORS["neutral"]),
 ]
 
 # What each outcome means, under its name in Panel A. Each is read from the
@@ -51,8 +51,8 @@ OUTCOME_DESCRIPTIONS = {
     "Conflict resolved": "A conflict becomes one tier: P/LP, VUS or B/LB",
     "Conflict reduced": "P/LP vs VUS or B/LB becomes VUS vs B/LB",
     "Classification removed": "No conflict, and every contributing SCV is flagged",
-    "Submission(s), classification unchanged": "Not resolved or reduced, and the classification stays the same",
-    "No change": "Reviewed, with no flagging candidate submitted",
+    "Classification unchanged (submission(s) flagged)": "Not resolved or reduced, and the classification stays the same",
+    "Classification unchanged (no submission(s) flagged)": "Reviewed, with no flagging candidate submitted",
 }
 
 # Definitions for the terms in Panel B's headings and node names.
@@ -163,7 +163,7 @@ def panel_a(counts, total, flagged, as_of, title, lower_rank_changes=0):
     y = cy - 128
     for name, color, n, mid in label_rows:
         ex, ey = cx + (r + 2) * math.sin(mid), cy - (r + 2) * math.cos(mid)
-        if name == "No change":
+        if name == OUTCOMES[-1][0]:
             # The middle of this wedge is on the far side of the pie, so the
             # leader meets the edge level with the label instead.
             y = max(y + 18, cy + 96)
