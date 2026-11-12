@@ -24,7 +24,8 @@ import os
 import shutil
 import subprocess
 import sys
-import tempfile
+
+from figure_style import COLORS, LAYOUT, TYPE, legend, line, notes, rect, text, wrap_svg, write_csv, write_png
 
 EVENTS_QUERY = """
 SELECT *
@@ -32,24 +33,20 @@ FROM `clinvar_ingest.manuscript_figure6_resolution_events`(@as_of)
 ORDER BY snapshot_release_date, variation_id
 """
 
-FONT = "Arial, Helvetica, sans-serif"
-INK = "#1f1f1f"
-INK_MUTED = "#52514e"
-SURFACE = "#ffffff"
-RULE = "#c9c8c3"
-
-# Colors stay with a reason in every panel. Flagged through CvC uses the flagged
-# color from Figure 3. Bars stack in this order, with the submitter's own changes
-# first, then flags, then new higher ranked submissions.
+# Colors stay with a reason in every panel, as STYLE.md assigns them: CvC flags in
+# the CvC color, the submitter's own changes in category 1, new higher ranked
+# submissions in category 2, and flags from elsewhere and Other in neutral. Bars
+# stack in this order, with the submitter's own changes first, then flags, then
+# new higher ranked submissions.
 REASONS = [
-    ("Reclassified", "#0072B2"),
-    ("Removed", "#56B4E9"),
-    ("Rank lowered", "#7A5195"),
-    ("Flagged through CvC", "#C8341E"),
-    ("Flagged outside CvC", "#8F2A17"),
-    ("Expert panel added", "#009E73"),
-    ("1 star added to 0 star conflict", "#E69F00"),
-    ("Other", "#A3A29C"),
+    ("Reclassified", COLORS["cat1_dark"]),
+    ("Rank lowered", COLORS["cat1"]),
+    ("Removed", COLORS["cat1_light"]),
+    ("Flagged through CvC", COLORS["cvc"]),
+    ("Flagged outside CvC", COLORS["neutral_dark"]),
+    ("Expert panel added", COLORS["cat2_dark"]),
+    ("1 star added to 0 star conflict", COLORS["cat2"]),
+    ("Other", COLORS["neutral"]),
 ]
 REASON_COLORS = dict(REASONS)
 GROUPS = ["medically significant", "non-medically significant"]
@@ -81,72 +78,61 @@ def pct(n, total):
     return f"{100 * n / total:.1f}%" if total else "0.0%"
 
 
-def text(x, y, value, size=13, weight="normal", fill=INK, anchor="start", extra=""):
+def heading(x, y, name, detail):
+    """A heading on one line: the name in bold, then detail (such as n=) in muted label type."""
     return (
-        f'<text x="{x:.1f}" y="{y:.1f}" font-size="{size}" font-weight="{weight}" '
-        f'fill="{fill}" text-anchor="{anchor}"{extra}>{html.escape(value)}</text>'
+        f'<text x="{x:.1f}" y="{y:.1f}" font-size="{TYPE["heading"]}" font-weight="bold" fill="{COLORS["ink"]}">'
+        f'{html.escape(name)}<tspan font-size="{TYPE["label"]}" font-weight="normal" fill="{COLORS["ink_muted"]}" dx="8">'
+        f'{html.escape(detail)}</tspan></text>'
     )
 
 
-def wrap_svg(width, height, body):
-    return (
-        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" '
-        f'width="{width}" height="{height}" font-family="{FONT}">'
-        f'<rect width="{width}" height="{height}" fill="{SURFACE}"/>{body}</svg>\n'
-    )
+def note_block(top, note_lines):
+    """Footnotes starting LAYOUT["note_gap"] below `top`. Returns (svg list, bottom).
+
+    The bottom is a whole number because write_png passes the SVG height to
+    Chrome's --window-size, which rejects decimals.
+    """
+    first = top + LAYOUT["note_gap"] + TYPE["note"]
+    body, height = notes(first, note_lines)
+    return body, math.ceil(first + height - TYPE["note"])
 
 
-def bar(x, y, w, h, fill, title):
-    return (
-        f'<rect x="{x:.2f}" y="{y:.2f}" width="{w:.2f}" height="{h:.2f}" fill="{fill}">'
-        f'<title>{html.escape(title)}</title></rect>'
-    )
-
-
-def panel_a(counts, ordered, notes, title, width=1040):
-    """One row per reason, with one bar per conflict type on a shared scale."""
+def panel_a(counts, ordered, note_lines, title):
+    """One row per reason, headed by its all-conflicts total, with one bar per conflict type on a shared scale."""
+    width = LAYOUT["width"]
     totals = {g: sum(counts[(g, r)] for r, _ in REASONS) for g in GROUPS}
     grand = sum(totals.values())
-    label_w, total_w, col_w, col_gap = 216, 124, 310, 40
-    value_room = 104
+    col_gap = 40
+    col_w = (width - col_gap) / 2
+    col_x = {GROUPS[0]: 0, GROUPS[1]: col_w + col_gap}
+    value_room = 118
     biggest = max(counts[(g, r)] for g in GROUPS for r, _ in REASONS)
     scale = (col_w - value_room) / biggest
+    bar_h, heading_gap, row_gap = 22, 9, 16
 
-    parts = [text(0, 18, title, 16, "bold")]
-    top = 36
-    total_x = label_w + total_w - 18
-    col_x = {
-        GROUPS[0]: label_w + total_w,
-        GROUPS[1]: label_w + total_w + col_w + col_gap,
-    }
-    parts.append(text(total_x, top + 12, "All conflicts", 13, "bold", INK_MUTED, "end"))
-    parts.append(text(total_x, top + 29, f"{fmt(grand)} resolutions", 12, fill=INK_MUTED, anchor="end"))
+    body = []
     for group in GROUPS:
-        parts.append(text(col_x[group], top + 12, GROUP_TITLES[group], 13, "bold", INK_MUTED))
-        parts.append(text(col_x[group], top + 29, f"{fmt(totals[group])} resolutions", 12, fill=INK_MUTED))
+        body.append(heading(col_x[group], TYPE["heading"], GROUP_TITLES[group], f"n={fmt(totals[group])}"))
+    y = TYPE["heading"] + 10
+    body.append(line(0, y, width, y))
+    y += 12
 
-    y = top + 42
-    row_h, bar_h = 33, 20
-    parts.append(f'<line x1="0" y1="{y}" x2="{width}" y2="{y}" stroke="{RULE}" stroke-width="1"/>')
-    y += 7
     for reason in ordered:
-        mid = y + bar_h / 2
         row_total = sum(counts[(g, reason)] for g in GROUPS)
-        parts.append(text(0, mid + 4.5, reason, 13, "bold"))
-        parts.append(text(total_x, mid + 4.5, f"{fmt(row_total)} ({pct(row_total, grand)})", 13, anchor="end"))
+        y += TYPE["heading"]
+        body.append(heading(0, y, reason, f"{fmt(row_total)} in all conflicts ({pct(row_total, grand)})"))
+        y += heading_gap
         for group in GROUPS:
             n = counts[(group, reason)]
-            w = n * scale
+            w = max(n * scale, 1.5) if n else 0
             if n:
-                parts.append(bar(col_x[group], y, max(w, 1.5), bar_h, REASON_COLORS[reason], f"{reason}, {group}: {fmt(n)} ({pct(n, totals[group])})"))
-            parts.append(text(col_x[group] + max(w, 1.5) + 6, mid + 4.5, f"{fmt(n)} ({pct(n, totals[group])})", 12, fill=INK_MUTED))
-        y += row_h
+                body.append(rect(col_x[group], y, w, bar_h, REASON_COLORS[reason]))
+            body.append(text(col_x[group] + w + 6, y + bar_h / 2 + 5, f"{fmt(n)} ({pct(n, totals[group])})"))
+        y += bar_h + row_gap
 
-    y += 12
-    for note in notes:
-        parts.append(text(0, y, note, 12, fill=INK_MUTED))
-        y += 17
-    return wrap_svg(width, int(y + 2), "".join(parts))
+    note_body, bottom = note_block(y - row_gap, note_lines)
+    return wrap_svg(bottom, title, body + note_body)
 
 
 def nice_step(maximum, ticks=4):
@@ -158,132 +144,72 @@ def nice_step(maximum, ticks=4):
     return 10 * power
 
 
-def panel_b(monthly, months, ordered, notes, title, width=1040):
+def panel_b(monthly, months, ordered, note_lines, title):
     """Stacked monthly bars in two rows that share one scale, so heights compare."""
+    width = LAYOUT["width"]
     used = [r for r, _ in REASONS if r in ordered]
     peaks = {
         g: max(sum(monthly[(m, g, r)] for r in used) for m in months)
         for g in GROUPS
     }
-    plot_left, plot_right = 62, width - 10
-    plot_w = plot_right - plot_left
-    slot = plot_w / len(months)
+    plot_left, plot_right = 50, width
+    slot = (plot_right - plot_left) / len(months)
     bar_w = slot * 0.74
-    row_title_h, row_gap = 26, 30
+    heading_gap, row_gap = 12, 30
     # Each row is only as tall as it needs, so one pixel is the same count in both.
     scale = 440 / sum(peaks.values())
     step = nice_step(max(peaks.values()), ticks=6)
+    # Segments shorter than this get no white gap, so small counts stay visible.
+    min_gapped = 3
 
-    parts = [text(0, 18, title, 16, "bold")]
-    top = 36
-
-    # Legend in stack order, on rows that wrap to the plot width.
-    x, y = 0, top + 10
-    for reason in used:
-        item_w = 18 + len(reason) * 6 + 18
-        if x + item_w > width:
-            x, y = 0, y + 22
-        parts.append(f'<rect x="{x}" y="{y - 10}" width="12" height="12" rx="2" fill="{REASON_COLORS[reason]}"/>')
-        parts.append(text(x + 18, y, reason, 12.5))
-        x += item_w
-    y += 22
-
+    body = []
+    y = 0
     for index, group in enumerate(GROUPS):
         group_total = sum(monthly[(m, group, r)] for m in months for r in used)
-        parts.append(text(0, y + 14, f"{GROUP_TITLES[group]} ({fmt(group_total)} resolutions)", 13, "bold", INK_MUTED))
-        y += row_title_h
+        y += TYPE["heading"]
+        body.append(heading(plot_left, y, GROUP_TITLES[group], f"n={fmt(group_total)}"))
+        y += heading_gap
         row_h = max(peaks[group] * scale, 40)
         base = y + row_h
 
         tick = 0
         while tick <= peaks[group]:
             ty = base - tick * scale
-            color = RULE if tick == 0 else "#e8e7e3"
-            parts.append(f'<line x1="{plot_left}" y1="{ty:.1f}" x2="{plot_right}" y2="{ty:.1f}" stroke="{color}" stroke-width="1"/>')
-            parts.append(text(plot_left - 8, ty + 4, fmt(int(tick)), 11, fill=INK_MUTED, anchor="end"))
+            body.append(line(plot_left, ty, plot_right, ty, COLORS["rule"] if tick == 0 else COLORS["rule_light"]))
+            body.append(text(plot_left - 8, ty + 4, fmt(int(tick)), TYPE["tick"], fill=COLORS["ink_muted"], anchor="end"))
             tick += step
 
         for i, month in enumerate(months):
             bx = plot_left + i * slot + (slot - bar_w) / 2
             cursor = base
+            stacked = []
             for reason in used:
                 n = monthly[(month, group, reason)]
-                if not n:
-                    continue
-                h = n * scale
-                cursor -= h
-                parts.append(bar(bx, cursor, bar_w, h, REASON_COLORS[reason], f"{month}, {reason}, {group}: {fmt(n)}"))
+                if n:
+                    h = n * scale
+                    cursor -= h
+                    body.append(rect(bx, cursor, bar_w, h, REASON_COLORS[reason]))
+                    stacked.append((cursor, h))
+            for (top, h), (_, above_h) in zip(stacked, stacked[1:]):
+                if h >= min_gapped and above_h >= min_gapped:
+                    body.append(line(bx, top, bx + bar_w, top, COLORS["surface"], LAYOUT["bar_gap"]))
 
         y = base
         if index == len(GROUPS) - 1:
             for i, month in enumerate(months):
                 if i % 3 == 0:
                     lx = plot_left + i * slot + slot / 2
-                    parts.append(text(lx, y + 18, month, 11, fill=INK_MUTED, anchor="middle"))
-            y += 34
+                    body.append(text(lx, y + 20, month, TYPE["tick"], fill=COLORS["ink_muted"], anchor="middle"))
+            y += 20 + 22
+            body.append(text(plot_left, y, "Monthly ClinVar release. Both rows use the same vertical scale.", TYPE["tick"], fill=COLORS["ink_muted"]))
         else:
             y += row_gap
 
-    parts.append(text(plot_left, y + 2, "Monthly ClinVar release. Both rows use the same vertical scale.", 12, fill=INK_MUTED))
-    y += 21
-    for note in notes:
-        parts.append(text(0, y, note, 12, fill=INK_MUTED))
-        y += 17
-    return wrap_svg(width, int(y + 2), "".join(parts))
-
-
-def find_chrome():
-    candidates = [
-        os.environ.get("CHROME"),
-        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-        shutil.which("google-chrome"),
-        shutil.which("chromium"),
-    ]
-    return next((c for c in candidates if c and os.path.exists(c)), None)
-
-
-def write_png(svg_path):
-    chrome = find_chrome()
-    if not chrome:
-        return False
-    with open(svg_path) as handle:
-        svg = handle.read()
-    head = svg[:svg.index(">")]
-    width = head.split('width="')[1].split('"')[0]
-    height = head.split('height="')[1].split('"')[0]
-    png_path = os.path.abspath(svg_path[:-4] + ".png")
-    # A failed render must not leave an older PNG beside the new SVG.
-    if os.path.exists(png_path):
-        os.remove(png_path)
-    # Headless Chrome occasionally hangs, so each try has a time limit.
-    for _ in range(2):
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
-            page = os.path.join(tmp, "page.html")
-            with open(page, "w") as handle:
-                handle.write(f'<!doctype html><html><body style="margin:0">{svg}</body></html>')
-            try:
-                subprocess.run(
-                    [
-                        chrome, "--headless=new", "--disable-gpu", "--hide-scrollbars",
-                        f"--user-data-dir={os.path.join(tmp, 'profile')}",
-                        "--force-device-scale-factor=3", f"--window-size={width},{height}",
-                        f"--screenshot={png_path}", f"file://{page}",
-                    ],
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                    check=True, timeout=45,
-                )
-            except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
-                continue
-        if os.path.exists(png_path):
-            return True
-    return False
-
-
-def write_csv(path, header, rows):
-    with open(path, "w", newline="") as handle:
-        writer = csv.writer(handle)
-        writer.writerow(header)
-        writer.writerows(rows)
+    # Horizontal legend in stack order, beneath the plot.
+    legend_y = y + 20
+    legend_body, legend_height = legend(plot_left, legend_y, [(r, REASON_COLORS[r]) for r in used], width - plot_left)
+    note_body, bottom = note_block(legend_y + legend_height, note_lines)
+    return wrap_svg(bottom, title, body + legend_body + note_body)
 
 
 def main():

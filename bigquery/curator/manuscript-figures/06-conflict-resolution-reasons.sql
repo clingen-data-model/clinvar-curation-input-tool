@@ -60,6 +60,13 @@
 --   submitted on or before that release, matched on accession. Flagged outside CvC
 --   means none did, such as flags from NCBI.
 --
+-- Excluded SCVs:
+--   SCVs listed in clinvar_ingest.manuscript_excluded_scvs (00-excluded-scvs.sql)
+--   are left out: the 321 SCVs whose gene-disease relationship flag CvC later
+--   retracted. They are not CvC flagging candidates here, and an event whose
+--   reason SCVs are all excluded is dropped, because the retracted flag caused
+--   it. Run that script first.
+--
 -- CvC candidates before a submitter's change:
 --   cvc_candidate_before and cvc_candidate_within_60_days apply to any reason.
 --   They report timing only, and do not show that CvC caused the change. The 60
@@ -170,10 +177,23 @@ AS (
 
   -- Valid flagging candidates, the same test Figure 4 uses.
   candidates AS (
-    SELECT DISTINCT scv_id, submission_date
-    FROM `clinvar_curator.cvc_submitted_annotations_view`
-    WHERE action = 'flagging candidate'
-      AND valid_submission
+    SELECT DISTINCT sa.scv_id, sa.submission_date
+    FROM `clinvar_curator.cvc_submitted_annotations_view` sa
+    LEFT JOIN `clinvar_ingest.manuscript_excluded_scvs` x
+      ON x.scv_id = sa.scv_id
+    WHERE sa.action = 'flagging candidate'
+      AND sa.valid_submission
+      AND x.scv_id IS NULL
+  ),
+
+  -- Events caused only by excluded SCVs.
+  excluded_events AS (
+    SELECT e.snapshot_release_date, e.variation_id
+    FROM with_scvs e, UNNEST(e.reason_scvs) AS scv
+    LEFT JOIN `clinvar_ingest.manuscript_excluded_scvs` x
+      ON x.scv_id = REGEXP_EXTRACT(scv, r'SCV\d+')
+    GROUP BY e.snapshot_release_date, e.variation_id
+    HAVING LOGICAL_AND(x.scv_id IS NOT NULL)
   ),
 
   cvc_timing AS (
@@ -303,6 +323,8 @@ AS (
   LEFT JOIN submitters su USING (snapshot_release_date, variation_id)
   LEFT JOIN returned b USING (snapshot_release_date, variation_id)
   LEFT JOIN start_label l USING (snapshot_release_date, variation_id)
+  LEFT JOIN excluded_events x USING (snapshot_release_date, variation_id)
+  WHERE x.variation_id IS NULL
 );
 
 CREATE OR REPLACE VIEW `clinvar_ingest.manuscript_figure6_resolution_events_view`
