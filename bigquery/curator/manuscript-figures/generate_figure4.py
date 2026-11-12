@@ -27,7 +27,7 @@ import shutil
 import subprocess
 import sys
 
-from figure_style import COLORS, LAYOUT, TYPE, line, notes, rect, text, wrap_svg, write_csv, write_png
+from figure_style import COLORS, LAYOUT, TYPE, line, notes, rect, text, text_width, wrap_svg, write_csv, write_png
 
 OUTCOMES_QUERY = """
 SELECT *
@@ -74,11 +74,16 @@ DESTINATIONS = [
 ]
 SOURCE_FILL = COLORS["neutral_dark"]
 
-# Sankey geometry: right edge of the source labels, left edge of the destination
-# nodes, and node width.
-SANKEY_LEFT = 230
-SANKEY_RIGHT = LAYOUT["width"] - 240
+# Sankey geometry: node width, and the space between a node and its labels. The
+# columns are placed from the measured labels, so the widest label on the left
+# starts at the panel's left edge and the widest on the right ends at its right
+# edge.
 SANKEY_NODE = 16
+SANKEY_LABEL_GAP = 8
+
+# Column headings, two lines each, over the source and destination labels.
+LEFT_HEADING = ["Top ranked group", "when flagged"]
+RIGHT_HEADING = ["Top ranked group", "after flagging"]
 
 MEDSIG_SOURCES = [
     "P + LP vs VUS",
@@ -213,6 +218,15 @@ def sankey_section(flows, groups, top, plot_height):
     src_totals = {s: sum(v for k, v in flows.items() if k[0] == s) for s in sources}
     dst_totals = {d: sum(v for k, v in flows.items() if k[1] == d) for d in dests}
 
+    def label_width(name, n):
+        return max(
+            text_width(name, TYPE["label"], "bold"),
+            text_width(f"{fmt(n)} ({pct(n, total)})", TYPE["label"]),
+        )
+
+    left = max(label_width(s, src_totals[s]) for s in sources) + SANKEY_LABEL_GAP
+    right = LAYOUT["width"] - SANKEY_NODE - SANKEY_LABEL_GAP - max(label_width(d, dst_totals[d]) for d in dests)
+
     parts = []
     # Gaps need room for two lines of label, so small nodes do not collide, and
     # each group needs room for its heading.
@@ -254,41 +268,45 @@ def sankey_section(flows, groups, top, plot_height):
             h = n * scale
             y0, y1 = src_cursor[src], dst_cursor[dst]
             parts.append(ribbon(
-                SANKEY_LEFT + SANKEY_NODE, SANKEY_RIGHT, y0, y0 + h, y1, y1 + h, dest_colors[dst],
+                left + SANKEY_NODE, right, y0, y0 + h, y1, y1 + h, dest_colors[dst],
                 f"{src} to {dst}: {fmt(n)} ({pct(n, total)})",
             ))
             if h >= 16:
-                parts.append(text(SANKEY_LEFT + SANKEY_NODE + 6, y0 + h / 2 + 5, fmt(n), TYPE["tick"]))
+                parts.append(text(left + SANKEY_NODE + 6, y0 + h / 2 + 5, fmt(n), TYPE["tick"]))
             src_cursor[src] += h
             dst_cursor[dst] += h
 
     for src in sources:
         h = max(src_totals[src] * scale, 1.5)
         y = src_y[src]
-        parts.append(node(SANKEY_LEFT, y, SANKEY_NODE, h, SOURCE_FILL, f"{src}: {fmt(src_totals[src])}"))
+        parts.append(node(left, y, SANKEY_NODE, h, SOURCE_FILL, f"{src}: {fmt(src_totals[src])}"))
         mid = y + h / 2
-        parts.append(text(SANKEY_LEFT - 8, mid - 3, src, TYPE["label"], "bold", anchor="end"))
-        parts.append(text(SANKEY_LEFT - 8, mid + 15, f"{fmt(src_totals[src])} ({pct(src_totals[src], total)})", TYPE["label"], fill=COLORS["ink_muted"], anchor="end"))
+        parts.append(text(left - SANKEY_LABEL_GAP, mid - 3, src, TYPE["label"], "bold", anchor="end"))
+        parts.append(text(left - SANKEY_LABEL_GAP, mid + 15, f"{fmt(src_totals[src])} ({pct(src_totals[src], total)})", TYPE["label"], fill=COLORS["ink_muted"], anchor="end"))
 
     for dst in dests:
         h = max(dst_totals[dst] * scale, 1.5)
         y = dst_y[dst]
-        parts.append(node(SANKEY_RIGHT, y, SANKEY_NODE, h, dest_colors[dst], f"{dst}: {fmt(dst_totals[dst])}"))
+        parts.append(node(right, y, SANKEY_NODE, h, dest_colors[dst], f"{dst}: {fmt(dst_totals[dst])}"))
         mid = y + h / 2
-        parts.append(text(SANKEY_RIGHT + SANKEY_NODE + 8, mid - 3, dst, TYPE["label"], "bold"))
-        parts.append(text(SANKEY_RIGHT + SANKEY_NODE + 8, mid + 15, f"{fmt(dst_totals[dst])} ({pct(dst_totals[dst], total)})", TYPE["label"], fill=COLORS["ink_muted"]))
+        parts.append(text(right + SANKEY_NODE + SANKEY_LABEL_GAP, mid - 3, dst, TYPE["label"], "bold"))
+        parts.append(text(right + SANKEY_NODE + SANKEY_LABEL_GAP, mid + 15, f"{fmt(dst_totals[dst])} ({pct(dst_totals[dst], total)})", TYPE["label"], fill=COLORS["ink_muted"]))
 
     return parts, top + plot_height + 8
 
 
 def panel_b(flows, groups, footnotes, plot_height, title):
     """One Sankey under a pair of column headings, its sources in groups."""
+    # The left heading starts at the left edge with the group headings and the
+    # widest source label. The right heading ends where the widest destination
+    # label ends.
     head_y = TYPE["heading"]
-    parts = [
-        text(SANKEY_LEFT + SANKEY_NODE, head_y, "Top ranked group when flagged", TYPE["heading"], "bold", anchor="end"),
-        text(SANKEY_RIGHT, head_y, "Top ranked group after flagging", TYPE["heading"], "bold"),
-    ]
-    body, y = sankey_section(flows, groups, head_y + 16, plot_height)
+    line_h = TYPE["heading"] + 4
+    parts = []
+    for i, (left_line, right_line) in enumerate(zip(LEFT_HEADING, RIGHT_HEADING)):
+        parts.append(text(0, head_y + i * line_h, left_line, TYPE["heading"], "bold"))
+        parts.append(text(LAYOUT["width"], head_y + i * line_h, right_line, TYPE["heading"], "bold", anchor="end"))
+    body, y = sankey_section(flows, groups, head_y + (len(LEFT_HEADING) - 1) * line_h + 16, plot_height)
     parts += body
     note_parts, note_h = notes(y + LAYOUT["note_gap"] + TYPE["note"], footnotes)
     parts += note_parts
