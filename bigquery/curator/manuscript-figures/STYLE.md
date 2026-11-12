@@ -72,7 +72,7 @@ One family: `Arial, Helvetica, sans-serif`. Sizes are in SVG px at the standard 
 | 1A | Confidence conflict | `ok_pale`, as on slide 4 |
 | 1A | VUS vs B/LB | `uncertain` |
 | 1A | P/LP vs VUS/B/LB | `medsig` |
-| 1A | Inset bars: P/LP vs VUS, P/LP vs B/LB, P/LP vs VUS vs B/LB (more red, worse conflict) | `medsig_light`, `medsig`, `medsig_dark` |
+| 1A | Inset bars: every conflict type within P/LP vs VUS/B/LB | `medsig` |
 | 1B | Gene points, and labeled genes | `neutral` points, `medsig` labeled genes (the axis is medically significant conflict) |
 | 3A | Flagging candidate submitted, No change, Flagging candidate not submitted | `cvc`, `neutral`, `neutral_dark` |
 | 3B | Reasons, all submitted by CvC | `cvc` |

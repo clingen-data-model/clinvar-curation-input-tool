@@ -16,17 +16,20 @@
 --   generate_figure1.py then calls the table functions and draws both panels.
 --
 -- Table functions (NULL means the latest loaded release):
+--   clinvar_ingest.manuscript_figure1_variant_states_core(release DATE, left_out ARRAY<STRING>)
 --   clinvar_ingest.manuscript_figure1_variant_states(release DATE)
 --   clinvar_ingest.manuscript_figure1a_final_classifications(release DATE)
 --   clinvar_ingest.manuscript_figure1b_gene_rates(release DATE)
 --   clinvar_ingest.manuscript_figure1_callouts(release DATE)
+--   clinvar_ingest.manuscript_figure1_retracted_flag_scvs(release DATE)
 --
 -- Views, pinned to the figure's release because a view cannot take a parameter.
--- To move the figure to a new release, change the DATE literal in the three
--- pinned views below and rerun this script:
+-- To move the figure to a new release, change the DATE literal in the four
+-- pinned views below and rerun this script (run 00-excluded-scvs.sql first):
 --   clinvar_ingest.manuscript_figure1_variant_states_view (pinned)
 --   clinvar_ingest.manuscript_clinvar_landscape (pinned)
 --   clinvar_ingest.manuscript_figure1_callouts_view (pinned)
+--   clinvar_ingest.manuscript_figure1_retracted_flag_scvs_view (pinned)
 --   clinvar_ingest.manuscript_figure1a_states_view
 --   clinvar_ingest.manuscript_figure1a_conflict_types_view
 --   clinvar_ingest.manuscript_figure1a_final_classifications_view
@@ -62,6 +65,16 @@
 --   VUS = vus, vus-h, vus-m, vus-l, ura (uncertain risk allele)
 --   LB = lb. B = b.
 --   p/lp and b/lb are single SCVs submitted as both labels, so they count as both.
+--
+-- SCVs whose flag CvC later retracted (clinvar_ingest.manuscript_excluded_scvs):
+--   Figure 1 counts ClinVar submissions, not CvC work, and reads no CvC
+--   annotations, reviews or submissions. Those 321 SCVs (233 "Discordance project
+--   retraction", 88 "Retracted gene-disease relationship flag") are live ClinVar
+--   submissions again once the flag is removed, so they stay in Figure 1 as part
+--   of ClinVar, as in the All ClinVar baseline of Figure 3C. The user chose this
+--   on 2026-11-12. manuscript_figure1_retracted_flag_scvs lists each one with its
+--   variant's state as counted, and its state with all 321 left out, so analysts
+--   can assess the effect. It is the only Figure 1 object that reads CvC data.
 --
 -- Gene filter (Figure 1B only):
 --   Single-gene variants only, via clinvar_single_gene_variations, to avoid
@@ -99,7 +112,10 @@
 --   release_date
 -- ============================================================================
 
-CREATE OR REPLACE TABLE FUNCTION `clinvar_ingest.manuscript_figure1_variant_states`(release DATE) AS (
+-- left_out lists SCV accessions to drop before reading each variant's state. The
+-- figure passes an empty list; manuscript_figure1_retracted_flag_scvs passes the
+-- retracted-flag SCVs to measure what they change.
+CREATE OR REPLACE TABLE FUNCTION `clinvar_ingest.manuscript_figure1_variant_states_core`(release DATE, left_out ARRAY<STRING>) AS (
 
 WITH cutoff AS (
   SELECT COALESCE(release, MAX(release_date)) AS release_date
@@ -124,6 +140,7 @@ scvs AS (
   JOIN `clinvar_ingest.clinvar_scvs` s
     ON s.proposition_type = 'path'
     AND cutoff.release_date BETWEEN s.start_release_date AND s.end_release_date
+  WHERE s.id NOT IN UNNEST(left_out)
 ),
 
 -- One row per variant, over every contributing SCV.
@@ -204,6 +221,11 @@ SELECT
   ) AS classification_to_start,
   classif_types
 FROM top_group
+);
+
+-- The figure's variant states: every path SCV in the release, nothing left out.
+CREATE OR REPLACE TABLE FUNCTION `clinvar_ingest.manuscript_figure1_variant_states`(release DATE) AS (
+  SELECT * FROM `clinvar_ingest.manuscript_figure1_variant_states_core`(release, CAST([] AS ARRAY<STRING>))
 );
 
 -- Figure 1A at its most granular: one row per variant state, exact starting labels
@@ -338,6 +360,81 @@ UNION ALL SELECT 8, 'medsig_top_group_with_expert_panel', COUNTIF(top_mask >= 5 
 UNION ALL SELECT 9, 'p_slash_lp_in_conflict', COUNTIF(top_mask >= 5 AND REGEXP_CONTAINS(classif_types, r'(^|, )p/lp(,|$)')) FROM states
 );
 
+-- One row per SCV in manuscript_excluded_scvs: where it sits in this release, the
+-- state its variant is counted in, and that variant's state if all 321 SCVs were
+-- left out (NULL variant_state_left_out means the variant would leave the figure).
+-- in_figure_1b marks variants in a Figure 1B gene.
+CREATE OR REPLACE TABLE FUNCTION `clinvar_ingest.manuscript_figure1_retracted_flag_scvs`(release DATE) AS (
+
+WITH cutoff AS (
+  SELECT COALESCE(release, MAX(release_date)) AS release_date
+  FROM `clinvar_ingest.all_schemas`()
+),
+
+excluded AS (
+  SELECT * FROM `clinvar_ingest.manuscript_excluded_scvs`
+),
+
+scvs AS (
+  SELECT s.id AS scv_id, s.rank, s.classif_type
+  FROM cutoff
+  JOIN `clinvar_ingest.clinvar_scvs` s
+    ON s.proposition_type = 'path'
+    AND cutoff.release_date BETWEEN s.start_release_date AND s.end_release_date
+),
+
+counted AS (
+  SELECT * FROM `clinvar_ingest.manuscript_figure1_variant_states`(release)
+),
+
+left_out AS (
+  SELECT * FROM `clinvar_ingest.manuscript_figure1_variant_states_core`(release, ARRAY(SELECT scv_id FROM `clinvar_ingest.manuscript_excluded_scvs`))
+),
+
+figure_1b_variants AS (
+  SELECT DISTINCT sgv.variation_id
+  FROM cutoff
+  JOIN `clinvar_ingest.gencc_dsm_genes` dsm
+    ON TRUE
+  JOIN `clinvar_ingest.clinvar_genes` cg
+    ON cg.hgnc_id = dsm.hgnc_id
+    AND cutoff.release_date BETWEEN cg.start_release_date AND cg.end_release_date
+  JOIN `clinvar_ingest.clinvar_single_gene_variations` sgv
+    ON sgv.gene_id = cg.id
+    AND cutoff.release_date BETWEEN sgv.start_release_date AND sgv.end_release_date
+  JOIN `clinvar_ingest.manuscript_figure1b_gene_rates`(release) gr
+    ON gr.gene_id = cg.id
+)
+
+SELECT
+  cutoff.release_date,
+  x.scv_id,
+  x.variation_id,
+  x.exclusion,
+  s.scv_id IS NOT NULL AS scv_in_release,
+  s.rank = -3 AS scv_flagged_in_release,
+  s.rank AS scv_rank,
+  s.classif_type,
+  c.top_rank,
+  s.rank = c.top_rank AS scv_in_top_group,
+  c.variant_state,
+  c.conflict_type,
+  l.variant_state AS variant_state_left_out,
+  l.conflict_type AS conflict_type_left_out,
+  b.variation_id IS NOT NULL AS in_figure_1b,
+  x.clinvar_url
+FROM excluded x
+CROSS JOIN cutoff
+LEFT JOIN scvs s
+  ON s.scv_id = x.scv_id
+LEFT JOIN counted c
+  ON c.variation_id = x.variation_id
+LEFT JOIN left_out l
+  ON l.variation_id = x.variation_id
+LEFT JOIN figure_1b_variants b
+  ON b.variation_id = x.variation_id
+);
+
 -- Pinned views. Change these DATE literals to move the figure to a new release.
 CREATE OR REPLACE VIEW `clinvar_ingest.manuscript_figure1_variant_states_view` AS
 SELECT * FROM `clinvar_ingest.manuscript_figure1_variant_states`(DATE '2026-11-08');
@@ -349,6 +446,10 @@ ORDER BY clinsig_scv_count DESC;
 CREATE OR REPLACE VIEW `clinvar_ingest.manuscript_figure1_callouts_view` AS
 SELECT * FROM `clinvar_ingest.manuscript_figure1_callouts`(DATE '2026-11-08')
 ORDER BY sort_order;
+
+CREATE OR REPLACE VIEW `clinvar_ingest.manuscript_figure1_retracted_flag_scvs_view` AS
+SELECT * FROM `clinvar_ingest.manuscript_figure1_retracted_flag_scvs`(DATE '2026-11-08')
+ORDER BY exclusion, variation_id, scv_id;
 
 CREATE OR REPLACE VIEW `clinvar_ingest.manuscript_figure1a_states_view` AS
 SELECT

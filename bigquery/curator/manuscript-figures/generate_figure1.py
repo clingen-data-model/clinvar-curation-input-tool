@@ -44,7 +44,15 @@ ORDER BY gene_symbol
 SELECT * FROM `clinvar_ingest.manuscript_figure1_callouts`(@as_of)
 ORDER BY sort_order
 """,
+    # The SCVs whose flag CvC later retracted. Figure 1 keeps them as ClinVar
+    # submissions; this table measures what leaving them out would change.
+    "figure1_retracted_flag_scvs.csv": """
+SELECT * FROM `clinvar_ingest.manuscript_figure1_retracted_flag_scvs`(@as_of)
+ORDER BY exclusion, variation_id, scv_id
+""",
 }
+DISCORDANCE = "Discordance project retraction"
+GDR = "Retracted gene-disease relationship flag"
 
 # Colors by meaning, as STYLE.md gives Figure 1: blue is no disagreement, orange is
 # VUS vs B/LB, and red is the medically significant conflicts.
@@ -67,12 +75,8 @@ CONFLICT_TYPES = [
     "LP vs B/LB",
     "P/LP vs VUS vs B/LB",
 ]
-# The more red, the worse the conflict: P/LP against VUS, then against B/LB, then
-# against both. Steps of one family mark ordered levels of its meaning (STYLE.md).
-CONFLICT_TYPE_FILLS = {
-    t: COLORS["medsig_dark"] if t == "P/LP vs VUS vs B/LB" else COLORS["medsig"] if "B/LB" in t else COLORS["medsig_light"]
-    for t in CONFLICT_TYPES
-}
+# Every breakdown bar is the red of the P/LP vs VUS/B/LB slice it breaks down.
+CONFLICT_TYPE_FILL = COLORS["medsig"]
 
 # Labels on Panel B: genes readers look for, then the outliers by a stated rule.
 NOTABLE_GENES = ["BRCA1", "BRCA2", "TP53"]
@@ -154,14 +158,43 @@ def inset_bars(types, medsig, x, y, row_h, right):
         bar_w = max(bar_max * n / biggest, 2)
         parts.append(heading(x, y + 14, name, f"{fmt(n)} ({pct(n, medsig)})"))
         parts.append(
-            f'<path d="{bar_path(x, y + 20, bar_w, 12)}" fill="{CONFLICT_TYPE_FILLS[name]}">'
+            f'<path d="{bar_path(x, y + 20, bar_w, 12)}" fill="{CONFLICT_TYPE_FILL}">'
             f'<title>{html.escape(name)}: {fmt(n)} ({pct(n, medsig)})</title></path>'
         )
         y += row_h
     return parts
 
 
-def panel_a(states, types, callouts, release, title):
+def retracted_effect(rows):
+    """Counts for the notes on the retracted-flag SCVs, from the audit table."""
+    by_variant = {}
+    for r in rows:
+        v = by_variant.setdefault(r["variation_id"], {"counted": r["variant_state"], "left_out": r["variant_state_left_out"], "b": False})
+        v["b"] = v["b"] or r["in_figure_1b"] == "true"
+    exclusions = collections.Counter(r["exclusion"] for r in rows)
+    if set(exclusions) - {DISCORDANCE, GDR}:
+        raise ValueError(f"Unknown exclusions: {set(exclusions) - {DISCORDANCE, GDR}}")
+    counted = [v for v in by_variant.values() if v["counted"]]
+    medsig_net = sum(v["left_out"] == MEDSIG for v in counted) - sum(v["counted"] == MEDSIG for v in counted)
+    return {
+        "scvs": len(rows),
+        "discordance": exclusions[DISCORDANCE],
+        "gdr": exclusions[GDR],
+        "contributing": sum(r["scv_flagged_in_release"] == "false" for r in rows),
+        "variants_leaving": sum(1 for v in counted if not v["left_out"]),
+        "medsig_net": medsig_net,
+        "b_medsig_net": sum(v["left_out"] == MEDSIG for v in counted if v["b"]) - sum(v["counted"] == MEDSIG for v in counted if v["b"]),
+    }
+
+
+def retracted_note(effect):
+    return (
+        f"{fmt(effect['scvs'])} SCVs whose flag CvC later retracted ({fmt(effect['discordance'])} in the discordance project retraction, "
+        f"{fmt(effect['gdr'])} other gene-disease relationship flags) count here as ClinVar submissions, not CvC work."
+    )
+
+
+def panel_a(states, types, callouts, effect, release, title):
     width = LAYOUT["width"]
     total = sum(states.values())
     medsig = states[MEDSIG]
@@ -209,7 +242,7 @@ def panel_a(states, types, callouts, release, title):
 
     pad = inset_x + 20
     parts.append(heading(pad, 24, MEDSIG, f"{fmt(medsig)} variants ({pct(medsig, total)})"))
-    parts.append(text(pad, 43, "Exact classifications in the top ranked group. Darker red is a wider disagreement.", fill=COLORS["ink_muted"]))
+    parts.append(text(pad, 43, "Exact classifications in the top ranked group.", fill=COLORS["ink_muted"]))
     parts.extend(inset_bars(types, medsig, pad, rows_top, row_h, width - 20))
 
     # Legend beneath the plot, largest share first, with each state's count.
@@ -223,6 +256,8 @@ def panel_a(states, types, callouts, release, title):
         f"ClinVar release {release}. Flagged SCVs do not contribute. {fmt(callouts['excluded_all_scvs_flagged'])} variants with every SCV flagged have no aggregate and are left out.",
         f"1 submission means one SCV in the top ranked group; {fmt(callouts['one_top_scv_with_lower_ranked_scvs'])} of these variants also have lower ranked SCVs.",
         "A slash means either or both of its labels. A plus means both together.",
+        retracted_note(effect) + f" Leaving them out would give {fmt(sum(states.values()) - effect['variants_leaving'])} variants "
+        f"and {fmt(states[MEDSIG] + effect['medsig_net'])} P/LP vs VUS/B/LB.",
     ])
     parts.extend(note_body)
     height = note_y + note_height - LAYOUT["note_line"] + 6
@@ -247,7 +282,7 @@ def choose_labels(genes):
     return labels
 
 
-def panel_b(genes, labels, release, title, plot_height=430):
+def panel_b(genes, labels, effect, release, title, plot_height=430):
     width = LAYOUT["width"]
     left, top, right = 64, 10, 10
     plot_w = width - left - right
@@ -305,6 +340,8 @@ def panel_b(genes, labels, release, title, plot_height=430):
     note_body, note_height = notes(note_y, [
         f"ClinVar release {release}. Single-gene variants, read from each variant's top ranked group. Flagged SCVs do not contribute.",
         f"{fmt(zero)} genes have no such conflict and sit on the 0% line. The curved lower edge is genes with exactly one conflict variant.",
+        retracted_note(effect) + f" Leaving them out would give {fmt(sum(g['conflicts'] for g in genes) + effect['b_medsig_net'])} "
+        f"conflict variants in these genes instead of {fmt(sum(g['conflicts'] for g in genes))}.",
     ])
     parts.extend(note_body)
     height = note_y + note_height - LAYOUT["note_line"] + 6
@@ -338,7 +375,8 @@ def main():
     final = read_csv(os.path.join(args.out, "figure1a_final_classifications.csv"))
     gene_rows = read_csv(os.path.join(args.out, "figure1b_gene_rates.csv"))
     callout_rows = read_csv(os.path.join(args.out, "figure1_callouts.csv"))
-    if not final or not gene_rows or not callout_rows:
+    retracted_rows = read_csv(os.path.join(args.out, "figure1_retracted_flag_scvs.csv"))
+    if not final or not gene_rows or not callout_rows or not retracted_rows:
         sys.exit("A query returned no rows.")
 
     release = final[0]["release_date"]
@@ -368,6 +406,9 @@ def main():
         for r in gene_rows
     ]
     labels = choose_labels(genes)
+    if {r["release_date"] for r in retracted_rows} != {release}:
+        raise ValueError("The retracted-flag SCV table is for another release.")
+    effect = retracted_effect(retracted_rows)
 
     write_csv(
         os.path.join(args.out, "figure1a_states.csv"),
@@ -386,8 +427,8 @@ def main():
         [[release, s, why, by_symbol[s]["scvs"], by_symbol[s]["variants"], by_symbol[s]["conflicts"], by_symbol[s]["pct"]] for s, why in labels.items()],
     )
 
-    a_svg = panel_a(states, types, callouts, release, "Figure 1A. Concordance among ClinVar submissions")
-    b_svg = panel_b(genes, labels, release, "Figure 1B. ClinVar conflict rate by gene")
+    a_svg = panel_a(states, types, callouts, effect, release, "Figure 1A. Concordance among ClinVar submissions")
+    b_svg = panel_b(genes, labels, effect, release, "Figure 1B. ClinVar conflict rate by gene")
     outputs = {"figure1A.svg": a_svg, "figure1B.svg": b_svg}
     png_written = True
     for name, svg in outputs.items():
@@ -407,6 +448,9 @@ def main():
     print("Labeled: " + ", ".join(labels))
     for row in callout_rows:
         print(f"  {row['callout']:40}{fmt(int(row['variants'])):>10}")
+    print("SCVs whose flag CvC later retracted, kept as ClinVar submissions:")
+    for key, value in effect.items():
+        print(f"  {key:40}{fmt(value):>10}")
     print(f"Wrote {args.out}" + ("" if png_written else " (some PNGs missing: Chrome was not found or did not finish, set CHROME or rerun)"))
 
 
