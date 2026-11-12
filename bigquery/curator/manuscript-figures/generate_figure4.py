@@ -41,7 +41,7 @@ OUTCOMES = [
     ("Conflict resolved", COLORS["cvc_dark"]),
     ("Conflict reduced", COLORS["cvc_mid"]),
     ("Classification removed", COLORS["cvc"]),
-    ("Flagged, not resolved", COLORS["cvc_light"]),
+    ("Submission(s), classification unchanged", COLORS["cvc_light"]),
     ("No change", COLORS["neutral"]),
 ]
 
@@ -51,7 +51,7 @@ OUTCOME_DESCRIPTIONS = {
     "Conflict resolved": "A conflict becomes one tier: P/LP, VUS or B/LB",
     "Conflict reduced": "P/LP vs VUS or B/LB becomes VUS vs B/LB",
     "Classification removed": "No conflict, and every contributing SCV is flagged",
-    "Flagged, not resolved": "Not resolved or reduced, and a classification remains",
+    "Submission(s), classification unchanged": "Not resolved or reduced, and the classification stays the same",
     "No change": "Reviewed, with no flagging candidate submitted",
 }
 
@@ -143,7 +143,9 @@ def wedge(cx, cy, r, start, end, fill, title):
     )
 
 
-def panel_a(counts, total, flagged, as_of, title):
+def panel_a(counts, total, flagged, as_of, title, lower_rank_changes=0):
+    """lower_rank_changes counts the variants in the unchanged slice whose
+    classification did change, because a lower ranked group took over."""
     parts = []
     cx, cy, r = 160, 160, 150
     angle = 0.0
@@ -179,11 +181,17 @@ def panel_a(counts, total, flagged, as_of, title):
         y += 62
 
     plot_bottom = max(2 * cy, bottom + 8)
-    note_parts, note_h = notes(plot_bottom + LAYOUT["note_gap"] + TYPE["note"], [
+    footnotes = [
         f"Each variant is counted once, by the outcome of its batch's flagging candidates at the point of submission. Batches through {as_of}.",
         "Each outcome is read from the variant's top ranked group, the highest ranked group of SCVs (practice guideline, "
         "expert panel, criteria provided, no criteria), which ClinVar uses for the aggregate classification.",
-    ])
+    ]
+    if lower_rank_changes:
+        footnotes.append(
+            f"Exception: in {fmt(lower_rank_changes)} variants counted as \"{OUTCOMES[3][0]}\", the whole top ranked group "
+            "was flagged and a lower ranked group with a different classification took over."
+        )
+    note_parts, note_h = notes(plot_bottom + LAYOUT["note_gap"] + TYPE["note"], footnotes)
     parts += note_parts
     subtitle = f"{fmt(total)} variants reviewed; {fmt(flagged)} with a flagging candidate submitted"
     return wrap_svg(plot_bottom + LAYOUT["note_gap"] + note_h, title, parts, subtitle=subtitle)
@@ -413,7 +421,11 @@ def main():
         [[as_of, *k, v] for k, v in sorted(groups.items(), key=lambda kv: (-kv[0][0], kv[0][1], -kv[1]))],
     )
 
-    panel_a_svg = panel_a(counts, total, flagged, as_of, "Figure 4A. Outcomes of SCV annotations")
+    lower_rank_changes = sum(
+        n for (outcome, detail), n in details.items()
+        if outcome == OUTCOMES[3][0] and detail in ("non-conflict, classification changed at lower rank", "conflict exposed at lower rank")
+    )
+    panel_a_svg = panel_a(counts, total, flagged, as_of, "Figure 4A. Outcomes of SCV annotations", lower_rank_changes)
 
     def not_shown(remained, none):
         parts = [f"{fmt(remained)} remained in conflict at that level"] if remained else []
