@@ -13,11 +13,14 @@ Use the table below as a README sheet in your Google Sheets file. Replace `[Link
 | 1a | ClinVar Landscape (Conflict Count) | `clinvar_ingest.manuscript_clinvar_landscape` | `01-clinvar-landscape.sql` | Scatter Plot | [Link] |
 | 1b | ClinVar Landscape (Conflict Rate) | `clinvar_ingest.manuscript_clinvar_landscape` | `01-clinvar-landscape.sql` | Scatter Plot | [Link] |
 | 2 | Submitter Landscape | `clinvar_ingest.manuscript_submitter_landscape` | `02-submitter-landscape.sql` | Bar Chart | [Link] |
-| 3 | Variants by Consequence Group: All ClinVar vs CvC Flagged | `clinvar_ingest.manuscript_cvc_vs_clinvar_consequence_bar_view` | `03-flagged-scv-by-consequence.sql`, `generate_figure3.py` | Paired bars and forest plot, pasted as a static image | [Figure 3 sheet](https://docs.google.com/spreadsheets/d/17wr65aFoU9xVD0eluNfLxOzbxpJbAv7jYoG4Ir4POyY/edit) |
-| 3 (stacked) | Variants by Consequence Group: Stacked Bars | `clinvar_ingest.manuscript_cvc_vs_clinvar_consequence_bar_view` | `03-flagged-scv-by-consequence.sql`, `generate_figure3.py` | 100% stacked bars with change from baseline, pasted as a static image | [Figure 3 sheet](https://docs.google.com/spreadsheets/d/17wr65aFoU9xVD0eluNfLxOzbxpJbAv7jYoG4Ir4POyY/edit) |
+| 3a | CvC Reviews by Outcome | `clinvar_ingest.manuscript_figure3a_outcomes_view` | `03ab-review-outcomes-and-reasons.sql`, `generate_figure3ab.py` | Stacked bars, pasted as a static image | [Figure 3 sheet](https://docs.google.com/spreadsheets/d/17wr65aFoU9xVD0eluNfLxOzbxpJbAv7jYoG4Ir4POyY/edit) |
+| 3b | Flagging Candidates by Reason | `clinvar_ingest.manuscript_figure3b_reasons_view` | `03ab-review-outcomes-and-reasons.sql`, `generate_figure3ab.py` | Bars, pasted as a static image | [Figure 3 sheet](https://docs.google.com/spreadsheets/d/17wr65aFoU9xVD0eluNfLxOzbxpJbAv7jYoG4Ir4POyY/edit) |
+| 3c | Variants by Consequence Group: All ClinVar vs CvC Flagged | `clinvar_ingest.manuscript_cvc_vs_clinvar_consequence_bar_view` | `03-flagged-scv-by-consequence.sql`, `generate_figure3.py` | Two 100% stacked bars with the change from baseline beside them, pasted as a static image | [Figure 3 sheet](https://docs.google.com/spreadsheets/d/17wr65aFoU9xVD0eluNfLxOzbxpJbAv7jYoG4Ir4POyY/edit) |
+| 3c (stacked) | Variants by Consequence Group: Stacked Bars | `clinvar_ingest.manuscript_cvc_vs_clinvar_consequence_bar_view` | `03-flagged-scv-by-consequence.sql`, `generate_figure3.py` | 100% stacked bars with change from baseline, pasted as a static image | [Figure 3 sheet](https://docs.google.com/spreadsheets/d/17wr65aFoU9xVD0eluNfLxOzbxpJbAv7jYoG4Ir4POyY/edit) |
 | Supporting | Flag Source Combinations | `clinvar_ingest.manuscript_flag_source_combo_by_consequence_view` | `03-flagged-scv-by-consequence.sql` | Table | [Link] |
 | 4a | Outcomes of SCV Annotations | `clinvar_ingest.manuscript_figure4a_outcomes_view` | `04-conflict-resolution-outcomes.sql`, `generate_figure4.py` | Pie, pasted as a static image | [Figure 4 sheet](https://docs.google.com/spreadsheets/d/1qx6_90ZHtcu_xlVq0zU1DjkSnk0tHFJDA-GJMcvvkos/edit) |
 | 4b | Direction of Conflict Resolution | `clinvar_ingest.manuscript_figure4b_flows_view` | `04-conflict-resolution-outcomes.sql`, `generate_figure4.py` | Sankey, pasted as a static image | [Figure 4 sheet](https://docs.google.com/spreadsheets/d/1qx6_90ZHtcu_xlVq0zU1DjkSnk0tHFJDA-GJMcvvkos/edit) |
+| 5 | CvC Flags in Genes with Insufficient Gene-Disease Evidence | `clinvar_ingest.manuscript_figure5_domain_level_view` | `05-gdr-flags-by-domain.sql`, `generate_figure5.py` | Stacked bars, pasted as a static image | [Figure 5 sheet](https://docs.google.com/spreadsheets/d/1nWyrtCqaoaXcYWC1gyfAjuFaukn55zdKSYiEioncApk/edit) |
 | 6a | Reasons Conflicts are Resolved, in Total | `clinvar_ingest.manuscript_figure6a_reason_totals_view` | `06-conflict-resolution-reasons.sql`, `generate_figure6.py` | Bars by reason and conflict type, pasted as a static image | [Figure 6 sheet](https://docs.google.com/spreadsheets/d/1hx0aX859RjFrbtwWuIc7t4s1TkQd8wWhKOuQUU839bQ/edit) |
 | 6b | Reasons Conflicts are Resolved, by Monthly Release | `clinvar_ingest.manuscript_figure6b_monthly_view` | `06-conflict-resolution-reasons.sql`, `generate_figure6.py` | Stacked monthly bars, pasted as a static image | [Figure 6 sheet](https://docs.google.com/spreadsheets/d/1hx0aX859RjFrbtwWuIc7t4s1TkQd8wWhKOuQUU839bQ/edit) |
 
@@ -246,7 +249,7 @@ Connect to the view `clinvar_ingest.manuscript_submitter_landscape` in BigQuery.
 
 ---
 
-## Figure 3: Variants by Molecular Consequence
+## Figure 3C: Variants by Molecular Consequence
 
 **Chart view:** `clinvar_ingest.manuscript_cvc_vs_clinvar_consequence_bar_view`
 **Scripts:** `03-flagged-scv-by-consequence.sql`, `generate_figure3.py`
@@ -263,26 +266,37 @@ CALL `clinvar_ingest.refresh_flagged_scv_by_consequence`(NULL);
 
 Re-running the script replaces the result tables, so always call the procedure afterwards.
 
-### Figure 3 Setup Steps
+### Figure 3C Setup Steps
 
 The current sheet is the [CvC Manuscript Figure 3 sheet](https://docs.google.com/spreadsheets/d/17wr65aFoU9xVD0eluNfLxOzbxpJbAv7jYoG4Ir4POyY/edit). See the [README](README.md#what-the-figure-represents) for what the figure represents and how to read its statistics. To rebuild it:
 
 1. Connect to `clinvar_ingest.manuscript_cvc_vs_clinvar_consequence_bar_view` via Data Connector.
-2. Click **Extract** to pull the data into a regular sheet named `Figure 3 data`, starting at A1.
-3. Add the `Figure 3 statistics` tab described below.
+2. Click **Extract** to pull the data into a regular sheet named `Figure 3C data`, starting at A1.
+3. Add the `Figure 3C statistics` tab described below.
 4. From this folder, run `python3 generate_figure3.py --out output/figure3`.
-5. Add a tab for each figure and choose **Insert > Image > Insert image over cells**: `figure3_bars.png` on the `Figure 3` tab and `figure3_stacked.png` on the `Figure 3 (stacked)` tab.
-6. In row 1 of each figure tab, state that the image is static and which release it shows. In the sheet, this cell compares that release with `MAX('Figure 3 data'!A2:A)` and says when the image is out of date.
+5. Add a tab for each figure and choose **Insert > Image > Insert image over cells**: `figure3_stacked.png` on the `Figure 3C (stacked)` tab. The paired-bar version on the `Figure 3C` tab is no longer drawn.
+6. In row 1 of each figure tab, state that the image is static and which release it shows. In the sheet, this cell compares that release with `MAX('Figure 3C data'!A2:A)` and says when the image is out of date. Row 3 states the figure's question and points to the open questions on the `About Figure 3` tab, and the image starts at row 4.
 7. Below each image, add notes on how to read the table, then choose **Extract > Existing sheet** on the connected tab to put an extract of the view at the bottom of the figure tab. In the sheet, it starts at A40. Keep it last on the tab, so nothing blocks it if it grows.
 
-### Figure 3 Statistics Tab
+### Figures 3A and 3B Setup Steps
+
+These are on the same sheet as Figure 3C, each as a separate image on its own tab. See the [README](README.md#figures-3a-and-3b-cvc-reviews-and-flagging-reasons) for what they represent.
+
+1. Run `03ab-review-outcomes-and-reasons.sql`, then `python3 generate_figure3ab.py --out output/figure3`.
+2. Connect to `manuscript_figure3a_outcomes_view`, `manuscript_figure3a_detail_view`, `manuscript_figure3b_reasons_view` and `manuscript_figure3ab_excluded_scvs_view` via Data Connector, with delegated access set to **Do not allow**.
+3. Add a `Figure 3A` tab with the question in row 3, `figure3a.png` over rows 4 to 21, notes at rows 22 to 26, an extract of the outcomes view at A29 and an extract of the detail view at A36. Keep the detail extract last.
+4. Add a `Figure 3B` tab with the question in row 3, `figure3b.png` over rows 4 to 32, notes at rows 33 to 36, and an extract of the reasons view at A38.
+5. Add a `Figure 3A-B excluded SCVs` tab with an extract of the excluded view at A4.
+6. In row 1 of each figure tab, state that the image is static and which cutoff it shows. In the sheet, this cell compares that date with `as_of_date` in the extract and says when the image is out of date.
+
+### Figure 3C Statistics Tab
 
 The tab recalculates what `generate_figure3.py` calculates, with formulas, so the two can be checked against each other and the values update on refresh. Rows 6 to 10 hold the five groups in the order most to least severe, and row 11 holds the totals. Rows 15 to 19 repeat the layout without `other`.
 
 | Column | Formula in row 6 |
 |--------|------------------|
-| `B`, flagged variants | `=SUMIF('Figure 3 data'!$B$2:$B,$A6,'Figure 3 data'!$D$2:$D)` |
-| `C`, all ClinVar variants | `=SUMIF('Figure 3 data'!$B$2:$B,$A6,'Figure 3 data'!$C$2:$C)` |
+| `B`, flagged variants | `=SUMIF('Figure 3C data'!$B$2:$B,$A6,'Figure 3C data'!$D$2:$D)` |
+| `C`, all ClinVar variants | `=SUMIF('Figure 3C data'!$B$2:$B,$A6,'Figure 3C data'!$C$2:$C)` |
 | `D`, not flagged variants | `=C6-B6` |
 | `E`, `F`, `G`, percentages | `=100*B6/B$11`, and the same for `C` and `D` |
 | `H`, odds ratio | `=(B6*(D$11-D6))/((B$11-B6)*D6)` |
@@ -309,7 +323,7 @@ Each MANE Select row is assigned using the first term of its consequence label. 
 | UTR/intronic | 5 prime UTR variant, 3 prime UTR variant, intron variant |
 | other | All other consequences (synonymous, stop lost, start lost, etc.) and variants without MANE Select annotation |
 
-### Figure 3 Chart Columns
+### Figure 3C Chart Columns
 
 | Column | Description |
 |--------|-------------|
@@ -326,7 +340,7 @@ Each MANE Select row is assigned using the first term of its consequence label. 
 
 Use this view for the exact source combinations. Rows do not overlap, so they sum to the flagged totals. Filter on `count_level` and never add `scv` and `variant` rows together.
 
-For the summary table on the sheet's `Flag source counts` tab, create a pivot table from the connected view with rows `flag_source_combo` (totals on) and `release_date`, column `count_level`, and value `SUM` of `item_count`.
+For the summary table on the sheet's `Figure 3C flag source counts` tab, create a pivot table from the connected view with rows `flag_source_combo` (totals on) and `release_date`, column `count_level`, and value `SUM` of `item_count`.
 
 | Column | Description |
 |--------|-------------|
@@ -341,7 +355,7 @@ For the summary table on the sheet's `Flag source counts` tab, create a pivot ta
 
 **View:** `clinvar_ingest.manuscript_flagged_scv_by_consequence_view`
 
-The per-source columns overlap when a variant or SCV has more than one source. `flagged_variant_count` and `flagged_scv_count` include every source, including NCBI, so do not use them for Figure 3.
+The per-source columns overlap when a variant or SCV has more than one source. `flagged_variant_count` and `flagged_scv_count` include every source, including NCBI, so do not use them for Figure 3C.
 
 | Column | Description |
 |--------|-------------|
@@ -361,7 +375,7 @@ The per-source columns overlap when a variant or SCV has more than one source. `
 - **Source**: BigQuery `clinvar_ingest` dataset
 - **Refresh frequency**: After each ClinVar release (~monthly)
 - **To refresh**: Data > Data connectors > Refresh options
-- **Figure 3**: first run `CALL clinvar_ingest.refresh_flagged_scv_by_consequence(NULL)` in BigQuery, because its views read result tables rather than live ClinVar data. Its figures are static images, so also rerun `generate_figure3.py` and replace them, as the [README](README.md#refreshing-the-data) describes
+- **Figure 3C**: first run `CALL clinvar_ingest.refresh_flagged_scv_by_consequence(NULL)` in BigQuery, because its views read result tables rather than live ClinVar data. Its figures are static images, so also rerun `generate_figure3.py` and replace them, as the [README](README.md#refreshing-the-data) describes
 
 ---
 

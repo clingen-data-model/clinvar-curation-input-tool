@@ -52,6 +52,7 @@
 -- Dependencies:
 --   - clinvar_curator.cvc_flagging_candidate_outcomes
 --   - clinvar_curator.cvc_remove_flagged_outcomes
+--   - clinvar_curator.cvc_annotations (TVF; supplies prior_scv_annotations)
 --   - clinvar_ingest.clinvar_scvs
 --   - clinvar_ingest.clinvar_submitters
 --
@@ -288,12 +289,21 @@ autoreflag_base AS (
     -- Exclude SCVs where a "remove flagged submission" was accepted
     -- AFTER the most recent flagging candidate submission
     AND (lrf.scv_id IS NULL OR lrf.latest_remove_date < fc.batch_accepted_date)
+),
+
+-- Prior annotation history per annotation, from the cvc_annotations TVF.
+-- prior_scv_annotations is a newline-delimited list of earlier annotations on
+-- the same SCV (annotation_id < this one), newest first.
+prior_annotations AS (
+  SELECT annotation_id, prior_scv_annotations
+  FROM `@@DATASET@@.cvc_annotations`('ALL')
 )
 
 -- Final output
 SELECT
   ab.*,
   sub.current_name AS submitter_name,
+  pa.prior_scv_annotations,
 
   -- Summary flag: all 6 substantive fields unchanged = auto-reflag candidate
   -- (same definition as is_version_bump in 05-version-bump-detection.sql)
@@ -330,6 +340,8 @@ FROM autoreflag_base ab
 LEFT JOIN `clinvar_ingest.clinvar_submitters` sub
   ON ab.submitter_id = sub.id
   AND sub.deleted_release_date IS NULL
+LEFT JOIN prior_annotations pa
+  ON pa.annotation_id = ab.annotation_id
 ORDER BY
   ab.target_lab_label,
   ab.scv_id;
@@ -423,6 +435,7 @@ SELECT
   -- Original flagging context
   annotation_id AS `Annotation ID`,
   flagging_reason AS `Original Flagging Reason`,
+  prior_scv_annotations AS `Prior SCV Annotations`,
   batch_id AS `Original Batch ID`,
   batch_accepted_date AS `Original Submission Date`,
   outcome AS `Current Outcome`,
