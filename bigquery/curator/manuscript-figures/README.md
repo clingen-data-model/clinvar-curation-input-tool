@@ -602,20 +602,20 @@ Why do conflicts in ClinVar stop being conflicts, and how often is a flag throug
 
 | Figure label | Reasons from the SQL | All conflicts | Medically significant | Non-medically significant |
 | --- | --- | --- | --- | --- |
-| Submission(s) flagged through CvC | Flagged through CvC + Flagged outside CvC | 2,572 (13.2%) | 2,461 (29.7%) | 111 (1.0%) |
+| Submissions flagged | Flagged through CvC + Flagged outside CvC | 2,572 (13.2%) | 2,461 (29.7%) | 111 (1.0%) |
 | | of which flagged through CvC | 2,481 | 2,404 | 77 |
 | | of which NCBI flags outside CvC | 87 | 53 | 34 |
 | | of which ClinGen flags outside CvC | 4 | 4 | 0 |
-| Submission(s) reclassified | Reclassified | 8,233 (42.2%) | 3,198 (38.5%) | 5,035 (44.9%) |
-| Submission(s) rank lowered | Rank lowered | 3,668 (18.8%) | 659 (7.9%) | 3,009 (26.9%) |
-| Submission(s) removed | Removed | 3,006 (15.4%) | 744 (9.0%) | 2,262 (20.2%) |
-| Expert panel submission(s) added | Expert panel added | 1,836 (9.4%) | 1,076 (13.0%) | 760 (6.8%) |
-| 1 star submission(s) added to 0 star conflict | 1 star added to 0 star conflict | 143 (0.7%) | 119 (1.4%) | 24 (0.2%) |
-| Submission(s) rank raised | Rank raised | 45 (0.2%) | 40 (0.5%) | 5 (<0.1%) |
+| Submissions reclassified | Reclassified | 8,233 (42.2%) | 3,198 (38.5%) | 5,035 (44.9%) |
+| Submissions rank lowered | Rank lowered | 3,668 (18.8%) | 659 (7.9%) | 3,009 (26.9%) |
+| Submissions removed | Removed | 3,006 (15.4%) | 744 (9.0%) | 2,262 (20.2%) |
+| Expert panel submissions added | Expert panel added | 1,836 (9.4%) | 1,076 (13.0%) | 760 (6.8%) |
+| 1 star submissions added to 0 star conflict | 1 star added to 0 star conflict | 143 (0.7%) | 119 (1.4%) | 24 (0.2%) |
+| Submissions rank raised | Rank raised | 45 (0.2%) | 40 (0.5%) | 5 (<0.1%) |
 | Other | Other | 0 | 0 | 0 |
 | **Total** | | **19,503** | **8,297** | **11,206** |
 
-**Unlike the other figures, the flagged bar counts flags from outside CvC.** Every other figure counts only flags CvC submitted. Figure 6 lumps the 91 resolutions flagged outside CvC into "Submission(s) flagged through CvC", as the user chose on 2026-11-13: 87 NCBI flags (53 medically significant, 34 not) and 4 ClinGen flags, all medically significant, with the reason "Conflict with ClinGen Gene Dosage Map" on SCVs CvC never annotated. The NCBI flags fall in three releases: 51 in 2023-12, 11 in 2024-08 and 25 in 2026-02. Each image's footnote gives its own counts, and the flagged heading in 6A and 6A-Supp repeats them. The flagged bar is listed first, and in 6B and 6B-Supp it sits on top of each month's stack. The SQL keeps the two reasons apart in `resolution_reason`, so the sheet's extracts and `figure_label` in the CSVs show both. `figure6_flag_sources.csv` lists each of the 91 with its flag source, read from the `FlaggedComment` source in that release's `scv_summary`.
+**Unlike the other figures, the flagged bar counts flags from outside CvC.** Every other figure counts only flags CvC submitted. Figure 6 lumps the 91 resolutions flagged outside CvC into "Submissions flagged", as the user chose on 2026-11-13: 87 NCBI flags (53 medically significant, 34 not) and 4 ClinGen flags, all medically significant, with the reason "Conflict with ClinGen Gene Dosage Map" on SCVs CvC never annotated. The NCBI flags fall in three releases: 51 in 2023-12, 11 in 2024-08 and 25 in 2026-02. Each image's footnote gives its own counts, and the flagged heading in 6A and 6A-Supp splits the bar, for example "2,404 through CvC, 53 NCBI, 4 ClinGen". These are resolutions, not flags. Release 2026-11-08 has 914 NCBI-flagged pathogenicity SCVs and 142 ClinGen flags that CvC did not submit, all with the Gene Dosage Map reason. Only 143 and 5 of them were flagged on a variant the conflict tables show in conflict; the rest were on variants without a conflict, so they ended none. Of those, 87 and 4 resolutions remain where the flag was the reason the conflict ended. The flagged bar is listed first, and in 6B and 6B-Supp it sits on top of each month's stack. The SQL keeps the two reasons apart in `resolution_reason`, so the sheet's extracts and `figure_label` in the CSVs show both. `figure6_flag_sources.csv` lists each of the 91 with its flag source, read from the `FlaggedComment` source in that release's `scv_summary`.
 
 The 19,503 resolutions cover 19,261 variants, because a variant that resolves twice counts twice.
 

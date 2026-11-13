@@ -48,13 +48,13 @@ ORDER BY snapshot_release_date, variation_id
 # follow this order, flags first; in 6B stacks the flag segment is on top. A label
 # with no resolutions at all, such as an empty Other, is left out.
 FIGURE_REASONS = [
-    ("Submission(s) flagged through CvC", COLORS["cvc"], ["Flagged through CvC", "Flagged outside CvC"]),
-    ("Submission(s) reclassified", COLORS["cat1_dark"], ["Reclassified"]),
-    ("Submission(s) rank lowered", COLORS["cat1"], ["Rank lowered"]),
-    ("Submission(s) removed", COLORS["cat1_light"], ["Removed"]),
-    ("Expert panel submission(s) added", COLORS["cat2_dark"], ["Expert panel added"]),
-    ("1 star submission(s) added to 0 star conflict", COLORS["cat2"], ["1 star added to 0 star conflict"]),
-    ("Submission(s) rank raised", COLORS["cat1_mid"], ["Rank raised"]),
+    ("Submissions flagged", COLORS["cvc"], ["Flagged through CvC", "Flagged outside CvC"]),
+    ("Submissions reclassified", COLORS["cat1_dark"], ["Reclassified"]),
+    ("Submissions rank lowered", COLORS["cat1"], ["Rank lowered"]),
+    ("Submissions removed", COLORS["cat1_light"], ["Removed"]),
+    ("Expert panel submissions added", COLORS["cat2_dark"], ["Expert panel added"]),
+    ("1 star submissions added to 0 star conflict", COLORS["cat2"], ["1 star added to 0 star conflict"]),
+    ("Submissions rank raised", COLORS["cat1_mid"], ["Rank raised"]),
     ("Other", COLORS["neutral"], ["Other"]),
 ]
 FLAGGED = FIGURE_REASONS[0][0]
@@ -394,7 +394,10 @@ def main():
             for r in members if r["resolution_reason"] == "Flagged outside CvC"
         )
         outside_text = " and ".join(f"{fmt(n)} {source}" for source, n in sorted(outside.items()))
-        flag_detail = f"includes {outside_text} flags outside CvC" if outside else ""
+        through_cvc = sum(r["resolution_reason"] == "Flagged through CvC" for r in members)
+        flag_detail = ", ".join(
+            [f"{fmt(through_cvc)} through CvC"] + [f"{fmt(n)} {source}" for source, n in sorted(outside.items(), key=lambda kv: -kv[1])]
+        )
         group_note = [
             f"ClinVar monthly releases {first_month} to {as_of[:7]}. {fmt(len(members))} resolutions across "
             f"{fmt(len({r['variation_id'] for r in members}))} variants; a variant that resolves twice counts twice.",
