@@ -62,26 +62,6 @@ LEVELS = [
     ("Not recorded", COLORS["neutral"]),
 ]
 
-# All clinical domain working groups, so that a domain with no flags shows as 0.
-DOMAINS = [
-    "Cardiovascular",
-    "Hearing Loss",
-    "Hemostasis/Thrombosis",
-    "Hereditary Cancer",
-    "Immunology",
-    "Inborn Errors of Metabolism",
-    "Kidney Disease",
-    "Neurodevelopmental Disorders",
-    "Neurological Disorders",
-    "Ocular",
-    "Other",
-    "Pulmonary",
-    "RASopathy",
-    "Rheumatologic Autoimmune Disease",
-    "Skeletal Disorders",
-    "Somatic Cancer",
-]
-
 
 def run_query(query, as_of=None):
     params = [f"--parameter=as_of:DATE:{as_of or 'NULL'}"] if "@as_of" in query else []
@@ -116,10 +96,10 @@ def domain_level_counts(rows):
 
 def figure_svg(rows, excluded, as_of):
     counts = domain_level_counts(rows)
-    # A flag can only reach the figure with a domain, unless its gene is not in the
-    # export. Such a flag gets its own row rather than disappearing.
-    domains = DOMAINS + sorted(set(counts) - set(DOMAINS))
-    domains.sort(key=lambda d: (-sum(counts[d].values()), d))
+    # Only domains with a flag in the figure get a bar. A flag whose gene is not in
+    # the export gets its own row rather than disappearing.
+    domains = sorted((d for d in counts if sum(counts[d].values())),
+                     key=lambda d: (-sum(counts[d].values()), d))
     levels = [(n, c) for n, c in LEVELS if any(counts[d][n] for d in domains)]
     total = sum(sum(counts[d].values()) for d in domains)
     max_count = max((sum(counts[d].values()) for d in domains), default=1) or 1
@@ -131,8 +111,7 @@ def figure_svg(rows, excluded, as_of):
     bar_height, heading_gap, row_gap = 20, 7, 12
     gap = LAYOUT["bar_gap"]
 
-    # Each domain's heading sits just above its bar, with n= to the right. A domain
-    # with no flags keeps its heading so all clinical domains are listed.
+    # Each domain's heading sits just above its bar, with n= to the right.
     body, y = [], 0
     for domain in domains:
         domain_total = sum(counts[domain].values())
@@ -141,9 +120,6 @@ def figure_svg(rows, excluded, as_of):
         heading = text(0, y, domain, TYPE["label"])
         body.append(heading[:-len("</text>")]
                     + f'<tspan dx="10" fill="{COLORS["ink_muted"]}">n={domain_total}</tspan></text>')
-        if not domain_total:
-            y += row_gap
-            continue
         y += heading_gap
         x = 0
         for name, color in levels:
@@ -153,10 +129,11 @@ def figure_svg(rows, excluded, as_of):
             segment = max(count * scale - gap, gap)
             tip = html.escape(f"{domain}, {name}: {count} SCVs")
             body.append(rect(x, y, segment, bar_height, color)[:-2] + f"><title>{tip}</title></rect>")
-            # Light fills are below 3:1 on white, so wide segments carry their value.
-            if segment >= 30:
-                body.append(text(x + segment / 2, y + 15, count, TYPE["tick"], "bold",
-                                 label_ink(color), "middle"))
+            # Every segment carries its value, even a single SCV: light fills are below
+            # 3:1 on white, and small segments are the hardest to read off the axis.
+            # One SCV is at least 1/axis_max of the width, so a digit always fits.
+            body.append(text(x + segment / 2, y + 15, count, TYPE["tick"], "bold",
+                             label_ink(color), "middle"))
             x += count * scale
         y += bar_height + row_gap
 
