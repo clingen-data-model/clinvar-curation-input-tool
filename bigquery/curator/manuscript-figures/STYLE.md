@@ -15,15 +15,15 @@ The palette follows the [CvC presentation deck](https://docs.google.com/presenta
 | Medically significant | P/LP, P/LP vs VUS or B/LB conflicts | `medsig` `#C00000` | `#8B0000`, `#C00000`, `#E2382A` |
 | CvC | CvC's own work: candidates submitted, CvC flags, CvC outcomes | `cvc` `#1B9E77` | `#024F39`, `#0D7154`, `#1B9E77`, `#43B991` |
 | Neutral | No change, other, not recorded, all ClinVar as a comparison | `neutral` `#A3A29C` | `#5C5B57`, `#A3A29C`, `#D9D8D3` |
-| Category 1 | No shared meaning; categories named by the figure's legend | `cat1` `#7030A0` | `#4A1A70`, `#7030A0`, `#9457C2`, `#B585DD` |
+| Category 1 | No shared meaning; categories named by the figure's legend | `cat1` `#5F59BB` | `#3B367F`, `#5F59BB`, `#8180D8`, `#9F9FFA` |
 | Category 2 | As category 1, used only after it | `cat2` `#D17DB0` | `#8E4072`, `#B5608F`, `#D17DB0` |
 
 Rules:
 
-- **A semantic color means one thing.** Blue, orange, red, teal-green and gray keep the meanings above in every figure. Never use them for anything else, even when a figure has no clinical content. For example, "Reclassified" in Figure 6 is not blue, because blue means clinically okay.
+- **A semantic color means one thing.** Blue, orange, red, teal-green and gray keep the meanings above in every figure. Never use them for anything else, even when a figure has no clinical content. For example, "Reclassified" in Figure 6 is not the clinical blue, because that blue means clinically okay; it uses category 1's blue-purple, which never shares a figure with it.
 - **CvC is teal-green, not red.** Red means medically significant. The deck's own teal, `#438086`, reads as gray and is too close to the clinical blue for color-blind readers, so CvC uses the nearest teal-green that passes.
 - **Steps within a family show ordered sub-levels of the same meaning**, such as the kinds of CvC outcome in Figure 4A. Darker means more of that meaning.
-- **Category colors are for legend-named categories only**, such as consequence groups or gene-disease validity levels. They mean nothing across figures. Use category 1's steps first, then category 2. More than seven categories in one figure should fold into "Other".
+- **Category colors are for legend-named categories only**, such as consequence groups or gene-disease validity levels. They mean nothing across figures. On 2026-11-13 the user moved category 1 from purple (`#7030A0`) to a blue-purple (periwinkle), from a sample of `#7576B2`, saturated so it stays apart from gray and clears white. Use category 1's steps first, then category 2. More than seven categories in one figure should fold into "Other".
 - **Gray is reserved for neutral.** Use it for no change, other, not recorded, and for all ClinVar when it is the comparison for a CvC group.
 - **Text is ink, never a series color.** Values and labels use `ink` `#1F1F1F` or `ink_muted` `#52514E`. Use `label_ink(fill)` for text on a fill.
 
@@ -31,7 +31,9 @@ Rules:
 
 The palette was checked with the dataviz skill's validator, which simulates protan, deutan and tritan vision. Passing values:
 
-- **The six base colors as one set, all pairs on white:** worst color-blind separation ΔE 8.0 (CvC vs uncertain, protan), at the 8.0 target. Worst normal-vision separation is ΔE 16.1, above the 15 floor.
+- **The base colors as one set, all pairs on white:** without `ok`, worst color-blind separation ΔE 8.0 (CvC vs uncertain, protan), at the 8.0 target, and worst normal-vision separation ΔE 16.1, above the 15 floor.
+- **`cat1` vs `ok` is the one known clash.** The blue-purple fails against the clinically okay blue (ΔE 4.4 deutan, 8.7 normal). The user accepted this on 2026-11-13 because `cat1` and `ok` never appear in the same figure. Keep it that way: a figure that needs `ok` must use `cat2`, not `cat1`, for its categories.
+- **`cat1_light` vs `neutral`**, which sit side by side in Figures 3C and 6: ΔE 14.2 normal, 11+ color-blind, just under the 15 floor as before the change. Both are labeled directly or listed in the table under the figure.
 - **Each family's steps:** pass the ordinal check, with lightness rising evenly and the lightest step at least 2:1 against white.
 - **Lighter fills:** `uncertain` (2.77:1), `cat2` (2.89:1), `ok_light`, `neutral` and the lightest steps are below 3:1 on white. Wherever they appear, label the marks directly or put the values in the table under the figure, which every figure already has.
 - **Never rely on color alone.** Use direct labels where they fit, a legend for two or more series, and a 2 px white gap between touching fills.
@@ -39,7 +41,9 @@ The palette was checked with the dataviz skill's validator, which simulates prot
 To recheck after a change, from the dataviz skill's `scripts` folder:
 
 ```sh
-node validate_palette.js "#2E75B6,#ED7D31,#C00000,#1B9E77,#7030A0,#D17DB0" --mode light --pairs all --surface "#ffffff"
+node validate_palette.js "#ED7D31,#C00000,#1B9E77,#5F59BB,#D17DB0" --mode light --pairs all --surface "#ffffff"
+node validate_palette.js "#2E75B6,#ED7D31,#C00000,#1B9E77,#D17DB0" --mode light --pairs all --surface "#ffffff"
+node validate_palette.js "#3B367F,#5F59BB,#8180D8,#9F9FFA" --ordinal --mode light --surface "#ffffff"
 node validate_palette.js "#024F39,#0D7154,#1B9E77,#43B991" --ordinal --mode light --surface "#ffffff"
 ```
 
