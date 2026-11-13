@@ -32,12 +32,14 @@ import textwrap
 # deck's teal accent that stays distinct from the clinical blue for color-blind
 # readers. Gray is neutral: no change, other, or a comparison group.
 #
-# The base colors of all six families pass the dataviz validator as one set
-# (all pairs, white surface): worst color-blind separation 8.0 (CvC vs uncertain,
-# protan), worst normal-vision separation 16.1. Each family's steps pass its
-# ordinal check. STYLE.md has the commands to recheck after any change.
+# The base colors pass the dataviz validator as one set (all pairs, white
+# surface): worst color-blind separation 8.0 (CvC vs uncertain, protan), worst
+# normal-vision separation 16.1. The one exception is cat1 vs ok: the
+# blue-purple cat1 is too close to the clinical blue, so the two must never
+# appear in the same figure. Each family's steps pass its ordinal check.
+# STYLE.md has the commands to recheck after any change.
 #
-# Category colors (purple, pink) have no meaning across figures. Use them, in
+# Category colors (blue-purple, pink) have no meaning across figures. Use them, in
 # order, only for categories a figure's legend names, after the semantic colors
 # are used up.
 #
@@ -69,10 +71,10 @@ COLORS = {
     "neutral": "#A3A29C",
     "neutral_light": "#D9D8D3",
     # Category colors with no shared meaning, used in this order.
-    "cat1_dark": "#4A1A70",
-    "cat1": "#7030A0",
-    "cat1_mid": "#9457C2",
-    "cat1_light": "#B585DD",
+    "cat1_dark": "#3B367F",
+    "cat1": "#5F59BB",
+    "cat1_mid": "#8180D8",
+    "cat1_light": "#9F9FFA",
     "cat2_dark": "#8E4072",
     "cat2_mid": "#B5608F",
     "cat2": "#D17DB0",
