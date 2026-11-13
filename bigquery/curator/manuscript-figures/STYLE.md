@@ -90,9 +90,10 @@ One family: `Arial, Helvetica, sans-serif`. Sizes are in SVG px at the standard 
 | 5 | Limited, Disputed, Refuted | `cat1_light`, `cat1`, `cat1_dark` |
 | 5 | Not recorded | `neutral` |
 | 5 | No Known (not drawn on current data) | `cat2` |
-| 6 | Flagged through CvC | `cvc` |
-| 6 | Flagged outside CvC, Other | `neutral_dark`, `neutral` |
-| 6 | Reclassified, Rank lowered, Removed | `cat1_dark`, `cat1`, `cat1_light` |
-| 6 | Expert panel added, 1 star added to 0 star conflict | `cat2_dark`, `cat2` |
+| 6 | Submission(s) flagged through CvC (includes NCBI and ClinGen flags outside CvC) | `cvc` |
+| 6 | Other | `neutral` |
+| 6 | Submission(s) reclassified, Submission(s) rank lowered, Submission(s) removed | `cat1_dark`, `cat1`, `cat1_light` |
+| 6 | Expert panel submission(s) added, 1 star submission(s) added to 0 star conflict | `cat2_dark`, `cat2` |
+| 6 | Submission(s) rank raised (placed after category 2, away from the other category 1 steps) | `cat1_mid` |
 
 When a new figure needs a color, pick it by meaning from the families above, add its row here, and use the `COLORS` key in the generator.
