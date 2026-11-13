@@ -33,15 +33,15 @@ Each script in this folder generates a dataset that underpins a specific figure 
 - **Still counted on those SCVs:** no change annotations, and anything annotated after the removal, such as the batch 135 re-flag of SCV002318480 (ACTC1) for insufficient supporting evidence.
 - **Other retracted flags are not left out.** The user decided on 2026-11-12 that the 88 other retracted gene-disease relationship flags count as ordinary retracted flags: 87 on CAPN3, removed in batch 127 because the classification changed, and 1 on BAZ2B, removed in batch 135. Figures that count retractions say so in their own notes.
 
-Until Figures 3A, 3B, 3C, 4 and 6 are regenerated, their sections below, images and sheets still describe the earlier rule, which left out 321 whole SCVs. Their deployed SQL now reads the 233-SCV view, so their connector tabs show neither rule exactly until each switches to the annotations view.
+Until Figures 4 and 6 are regenerated, their sections below, images and sheets still describe the earlier rule, which left out 321 whole SCVs. Their deployed SQL now reads the 233-SCV view, so their connector tabs show neither rule exactly until each switches to the annotations view.
 
 How each figure applies it:
 
 | Figure | Effect |
 | --- | --- |
 | 1 | None. Figure 1 uses no CvC data. |
-| 3A, 3B | Left out of the reviewed SCVs' decisions. `03ab-review-outcomes-and-reasons.sql` still anti-joins `manuscript_excluded_scvs` on `scv_id` and must switch to the annotations view. |
-| 3C | Not counted as CvC flags. They stay in All ClinVar, because they are still ClinVar submissions. `03-flagged-scv-by-consequence.sql` must switch to the annotations view. |
+| 3A, 3B | Left out of every review decision, submission and retraction, by `annotation_id`. 229 of the 233 SCVs have no other reviewed annotation and don't appear; 3 count through their other annotations, and 1 has only archived reviews. All 233 are listed on the `Figure 3A-B excluded SCVs` tab with `effect` saying which. |
+| 3C | Not counted as CvC flags, by `annotation_id`. The SCVs stay in All ClinVar, because they are still ClinVar submissions. None of the 233 is flagged in release 2026-11-08. |
 | 4 | Treated as never reviewed. `04-conflict-resolution-outcomes.sql` must switch to the annotations view. |
 | 5 | Left out of the submitted flags and retractions, by `annotation_id`. The footnote names the group, with counts read from `manuscript_excluded_scvs`. |
 | 6 | Resolution events caused only by these flags are left out. Their branch must switch to the annotations view. |
@@ -214,7 +214,8 @@ python3 generate_figure3ab.py --input output/figure3/scv_outcomes.csv --out outp
 | `figure3a.svg`, `figure3a.png` | Stacked bars of SCVs and variants by outcome |
 | `figure3b.svg`, `figure3b.png` | Bars of submitted SCVs by reason |
 | `figure3a_outcomes.csv`, `figure3b_reasons.csv` | The numbers behind each panel |
-| `figure3ab_excluded_scvs.csv` | Reviewed SCVs left out of both figures, with the reason |
+| `figure3ab_excluded_scvs.csv` | Reviewed SCVs left out of both figures, and the discordance project SCVs, with the reason and the `effect` on the figures |
+| `discordance_scvs.csv` | The SCVs with left-out discordance project annotations, from `manuscript_excluded_scvs` |
 | `scv_outcomes.csv` | The query result, one row per SCV |
 
 ### Who Is Counted
@@ -223,23 +224,24 @@ Germline pathogenicity SCVs (`proposition_type = 'path'`) with a reviewed annota
 
 | Outcome | Rule | SCVs | Variants |
 | --- | --- | ---: | ---: |
-| Flagging candidate submitted | At least one valid flagging candidate submission | 6,060 (21.7%) | 4,843 (23.3%) |
-| No change | No valid submission, and the final reviewed action is no change | 21,858 (78.3%) | 15,959 (76.7%) |
+| Flagging candidate submitted | At least one valid flagging candidate submission | 6,149 (22.0%) | 4,925 (23.6%) |
+| No change | No valid submission, and the final reviewed action is no change | 21,860 (78.0%) | 15,955 (76.4%) |
 | Flagging candidate not submitted | No valid submission, and the final reviewed action is flagging candidate, approved as OK or Fixed | 0 | 0 |
-| **Total** | | **27,918** | **20,802** |
+| **Total** | | **28,009** | **20,880** |
 
-The final reviewed action is the SCV's latest batch decision (its latest annotation in a batch) whose review status is not Archive. A variant takes the first of these outcomes that any of its SCVs has, so it is never counted twice. In Figure 3B, each SCV has the reason from its most recent valid submission, so the reasons add up to 6,060.
+The final reviewed action is the SCV's latest batch decision (its latest annotation in a batch) whose review status is not Archive. The left-out discordance project annotations are dropped before the latest decision is taken, so a batch whose latest annotation was left out has no decision on that SCV. A variant takes the first of these outcomes that any of its SCVs has, so it is never counted twice. In Figure 3B, each SCV has the reason from its most recent valid submission, so the reasons add up to 6,149.
 
 ### How to Interpret Figures 3A and 3B
 
-- **Submitted does not mean flagged now.** In release 2026-11-08, 2,397 of the 6,060 are flagged, 2,961 are not, and 702 are no longer in ClinVar. The 2,397 flagged SCVs are the 2,019 variants in Figure 3C.
-- **Retracted flags are left out.** The 321 SCVs (319 variants) whose flag CvC later retracted are in neither figure, as in every manuscript figure (`00-excluded-scvs.sql`): 233 in the discordance project retraction and 88 other gene-disease relationship flags. They are listed on the `Figure 3A-B excluded SCVs` tab with `exclusion` = `Discordance project retraction` or `Retracted gene-disease relationship flag`. Leaving them out takes 321 SCVs from Submitted and from that reason in Figure 3B (684 to 363), and 280 variants from the total. 14 of their variants still count, as No change, through other SCVs.
-- **Other later changes stay counted as submitted.** 11 SCVs (10 variants) were later retracted by CvC for other reasons, and 123 were later reviewed as no change. Filter on `later_retracted` and `final_action`.
+- **Submitted does not mean flagged now.** In release 2026-11-08, 2,398 of the 6,149 are flagged, 3,049 are not, and 702 are no longer in ClinVar. The 2,398 flagged SCVs are the 2,020 variants in Figure 3C.
+- **The discordance project retraction's flags and removals (batch 129), on 233 SCVs, are left out**, as in every manuscript figure (`00-excluded-scvs.sql`). The 597 annotations are anti-joined on `annotation_id` wherever the query reads reviews or submissions, so other CvC work on those SCVs still counts. 229 of the SCVs have no other reviewed annotation and are in neither figure. 3 count through their other annotations: SCV000027059 and SCV001140769 as No change, and SCV002318480 as Flagging candidate submitted, from its batch 135 re-flag for "Claim with insufficient supporting evidence". 1 has only archived reviews. All 233 are listed on the `Figure 3A-B excluded SCVs` tab with `exclusion` = `Discordance project retraction` and an `effect` column. Their 231 variants take 202 variants from the total; the other 29 still count through other SCVs.
+- **The batch 135 re-flag of SCV002318480 counts as a valid submission.** `cvc_submitted_annotations_view` marks it "submitted in prior batch", because its batch 118 flag was submitted. That flag is left out, so the query treats the SCV's first remaining submission as valid.
+- **Later changes stay counted as submitted.** 99 SCVs (98 variants) were later retracted by CvC, and 123 were later reviewed as no change. The 99 include the 88 other gene-disease relationship flags (87 CAPN3 in batch 127, 1 BAZ2B in batch 135), which the user decided on 2026-11-12 count as ordinary retracted flags. Filter on `later_retracted` and `final_action`.
 - **Archived reviews are ignored.** An archived annotation was corrected before submission, so it is not a valid flagging candidate or no change decision. 73 SCVs (63 variants) whose only decisions are archived are left out, with `exclusion` = `Only archived reviews (corrected before submission)`. 36 of them are SCVs deleted from ClinVar before CvC's submission; on 2026-11-11 their review status was changed from OK to Archive (backup `clinvar_curator.cvc_clinvar_reviews_backup_20261111_archive36` and `_archive3`).
 - **Flagging candidate not submitted should be empty.** An approved flagging candidate that is missing from its batch's submission is an issue to raise with the CvC team. Through 2026-11-08 there are none, and Figure 3A drops the segment and its legend entry when it is empty. On 2026-11-12, SCV001251707 (batch 114) was changed to No Change in the source annotation sheet, and SCV000366772 (batch 102) and SCV001334605 (batch 114) were changed from Fixed to Archive (backup `clinvar_curator.cvc_clinvar_reviews_backup_20261112_archive2`). The 105 approved candidates from batches 109 and 129 that were never submitted were returned to review on 2026-11-11 (`clinvar_curator.cvc_detach_20261111_annotations`) and went into batch 139, finalized 2026-11-12, where 84 were submitted validly. Batch 139 is after this cutoff, so they are not in these counts. Filter on `not_submitted_detail`.
 - **40 reviewed SCVs are excluded** because they are not germline pathogenicity SCVs (10 submitted, 30 no change). They appear in neither figure, and are listed with links on the `Figure 3A-B excluded SCVs` tab.
-- **The cutoff leaves out batch 139.** It was finalized 2026-11-12, after release 2026-11-08, so its flags cannot appear in that release. Batch 138 (submitted 2026-10-30) is included, giving 4,843 variants with a flagging candidate submitted, the same number Figure 4 shows.
-- **CvC variants are selected, not sampled.** CvC chooses what to review through its curation priorities, so 21.7% is the share of CvC's reviews that were submitted. It is not an estimate of how many ClinVar submissions are incorrect.
+- **The cutoff leaves out batch 139.** It was finalized 2026-11-12, after release 2026-11-08, so its flags cannot appear in that release. Batch 138 (submitted 2026-10-30) is included, giving 4,925 variants with a flagging candidate submitted.
+- **CvC variants are selected, not sampled.** CvC chooses what to review through its curation priorities, so 22.0% is the share of CvC's reviews that were submitted. It is not an estimate of how many ClinVar submissions are incorrect.
 
 ### Refreshing Figures 3A and 3B
 
@@ -249,7 +251,7 @@ The tables under the figures are connector extracts and update on refresh. The f
 2. In the sheet, choose **Data > Data connectors > Refresh options > Refresh all**.
 3. Run `python3 generate_figure3ab.py --as-of YYYY-MM-DD --out output/figure3`.
 4. On each figure tab, delete the old image and choose **Insert > Image > Insert image over cells**. Use `figure3a.png` on the `Figure 3A` tab and `figure3b.png` on the `Figure 3B` tab.
-5. Update the typed dates and counts in rows 1 and 2 of those tabs, row 2 of the `Figure 3A-B excluded SCVs` tab, the Figures 3A and 3B rows and the open questions on the `About Figure 3` tab, and this section.
+5. Update the typed dates and counts in rows 1 and 2 of those tabs, rows 1 and 2 of the `Figure 3A-B excluded SCVs` tab, the Figures 3A and 3B rows and the open questions on the `About Figure 3` tab, and this section.
 
 ---
 
@@ -273,7 +275,7 @@ python3 generate_figure3.py --input output/figure3/consequence_counts.csv --out 
 
 | Output | Contents |
 | --- | --- |
-| `figure3_stacked.svg`, `figure3_stacked.png` | Figure 3C: each group's whole consequence mix, with each consequence group's change from the baseline (points, 95% CI) to the right and a legend beneath. Ratios and per-group p values are in `figure3_statistics.csv` and on the `Figure 3C statistics` tab. On 2026-11-09 the user chose this version as Figure 3C, so the paired-bar version (`figure3_bars`) is no longer drawn. |
+| `figure3_stacked.svg`, `figure3_stacked.png` | Figure 3C: each group's whole consequence mix, with each consequence group's change from the baseline (points, 95% CI) as columns to the right, in legend order, and the legend centered beneath the whole image. The columns have value labels but no group names; the legend identifies them (user request, 2026-11-13). Ratios and per-group p values are in `figure3_statistics.csv` and on the `Figure 3C statistics` tab. On 2026-11-09 the user chose this version as Figure 3C, so the paired-bar version (`figure3_bars`) is no longer drawn. |
 | `figure3_statistics.csv` | Per-group statistics, for all five groups and without `other` |
 | `figure3_overall_tests.csv` | The overall chi-square tests, for all five groups and without `other` |
 | `consequence_counts.csv` | The query result |
@@ -284,8 +286,8 @@ Figure 3C asks: **do the variants currently flagged through CvC have a different
 
 | | All ClinVar variants (upper bar) | CvC-flagged variants (lower bar) |
 | --- | --- | --- |
-| **Who is counted** | Every variant with at least one germline pathogenicity SCV (`proposition_type = 'path'`), of any variation type, flagged or not | The subset of those variants with at least one SCV that is flagged in this release, carries a ClinGen flag comment, and was submitted by CvC as a `flagging candidate` on or before the release |
-| **Total (n)** | 4,455,922 | 2,019 |
+| **Who is counted** | Every variant with at least one germline pathogenicity SCV (`proposition_type = 'path'`), of any variation type, flagged or not | The subset of those variants with at least one SCV that is flagged in this release, carries a ClinGen flag comment, and was submitted by CvC as a `flagging candidate` on or before the release, not counting the left-out discordance project annotations |
+| **Total (n)** | 4,455,922 | 2,020 |
 | **Each bar is** | % of all variants in that group | % of CvC-flagged variants in that group |
 
 Each group's percentages sum to about 100 (rounding can give 100.01). Compare a bar with its neighbor, not with bars in other groups.
@@ -296,13 +298,13 @@ Each group's percentages sum to about 100 (rounding can give 100.01). Compare a 
 | --- | --- |
 | Pathogenicity SCVs, flagged state (`rank = -3`) | `scv_summary` in the dataset for the release |
 | Who requested the flag | `scv_summary.comments` rows with `type = 'FlaggedComment'`, from the ClinVar XML comment `DataSource` |
-| CvC submissions | `clinvar_curator.cvc_submitted_annotations_view`, matched on SCV accession, not version |
+| CvC submissions | `clinvar_curator.cvc_submitted_annotations_view`, matched on SCV accession, not version, less `manuscript_excluded_annotations` by `annotation_id` |
 | Molecular consequence | `variation_hgvs.consq_label` on MANE Select rows |
 | Variation type | `variation_identity` |
 
 ### How to Interpret It
 
-- **Currently flagged, not everything CvC requested.** Through this release CvC submitted 6,106 SCV accessions as flagging candidates, not counting the 321 left-out retracted flags (233 discordance project, 88 other gene-disease relationship). 5,367 are still in ClinVar and 5,358 of those are pathogenicity SCVs. Of those, 2,397 are flagged now and 2,961 are not. One of the 321 left-out SCVs, SCV004105932 (retracted in batch 135, not part of the discordance project), is still flagged; it counts in All ClinVar as a flagged SCV with no CvC source. This figure does not explain why an SCV is not flagged. Four CvC-flagged SCVs are not pathogenicity SCVs and are excluded.
+- **Currently flagged, not everything CvC requested.** Through this release CvC submitted 6,195 SCV accessions as flagging candidates, not counting the discordance project retraction's flags and removals (batch 129), on 233 SCVs. 5,456 are still in ClinVar and 5,447 of those are pathogenicity SCVs. Of those, 2,398 are flagged now and 3,049 are not. None of the 233 discordance project SCVs is flagged in this release. SCV004105932, retracted in batch 135 and one of the 88 other gene-disease relationship flags, is still flagged and counts as ClinGen CvC. This figure does not explain why an SCV is not flagged. Four CvC-flagged SCVs are not pathogenicity SCVs and are excluded.
 - **The groups overlap.** CvC-flagged variants are also counted in All ClinVar. The odds ratios therefore compare flagged variants with all other ClinVar variants (All ClinVar minus flagged), which keeps the two groups separate. The change in points treats the All ClinVar percentages as a fixed baseline.
 - **CvC variants are selected, not sampled.** CvC chooses what to review through its curation priorities, so a difference between bars describes what was flagged. It does not show that a consequence type causes flagging or submission errors. The p values share this limit, and variants in the same gene or curation list are not independent, so they may overstate certainty.
 - **"Flag source" applies to the flagged bars only.** Variants flagged only by NCBI or ClinGen non-CvC are left out of the CvC-flagged bar but stay in All ClinVar. 14 variants with both CvC and NCBI flags count as CvC-flagged. All 142 ClinGen non-CvC SCVs carry the reason "Conflict with ClinGen Gene Dosage Map".
@@ -325,17 +327,17 @@ Per-group p values are Holm-adjusted across the groups.
 
 | Group | All ClinVar | Flagged | Odds ratio (95% CI) | Change, points (95% CI) | Ratio to baseline |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| predicted LOF | 7.44% | 17.73% | 2.68 (2.39-3.01) | +10.29 (+8.69 to +12.02) | 2.38 |
-| missense | 56.24% | 68.20% | 1.67 (1.52-1.83) | +11.96 (+9.90 to +13.96) | 1.21 |
-| inframe indels | 0.70% | 2.23% | 3.22 (2.40-4.33) | +1.53 (+0.97 to +2.27) | 3.17 |
-| UTR/intronic | 15.31% | 6.44% | 0.38 (0.32-0.45) | -8.87 (-9.86 to -7.72) | 0.42 |
-| other | 20.30% | 5.40% | 0.22 (0.18-0.27) | -14.91 (-15.81 to -13.83) | 0.27 |
+| predicted LOF | 7.44% | 17.72% | 2.68 (2.39-3.01) | +10.28 (+8.68 to +12.01) | 2.38 |
+| missense | 56.24% | 68.22% | 1.67 (1.52-1.83) | +11.98 (+9.92 to +13.97) | 1.21 |
+| inframe indels | 0.70% | 2.23% | 3.22 (2.39-4.33) | +1.52 (+0.97 to +2.26) | 3.17 |
+| UTR/intronic | 15.31% | 6.44% | 0.38 (0.32-0.45) | -8.88 (-9.87 to -7.72) | 0.42 |
+| other | 20.30% | 5.40% | 0.22 (0.18-0.27) | -14.91 (-15.81 to -13.84) | 0.27 |
 
-All five per-group p values are below 0.001 in both tests. Overall, the test of independence gives a chi-square of 730.5 and the goodness-of-fit test 730.1, each with 4 degrees of freedom and p below 1e-150.
+All five per-group p values are below 0.001 in both tests. Overall, the test of independence gives a chi-square of 730.5 and the goodness-of-fit test 730.2, each with 4 degrees of freedom and p below 1e-150.
 
 - **Read the size of the difference as well as the p value.** With counts this large, even small differences can reach p < 0.001.
 - **An odds ratio is not a ratio of percentages.** For common groups the odds ratio looks larger: missense has an odds ratio of 1.67, but its share only rises from 56% to 68%, a ratio of 1.21.
-- **The missense result depends on the `other` group.** Without `other`, missense is 72.09% of flagged variants and 70.57% of ClinVar (+1.53 points, 95% CI -0.53 to +3.49; odds ratio 1.08, 95% CI 0.98-1.19; Holm-adjusted p = 0.145), so it is no longer significant. The other groups stay below p = 0.001.
+- **The missense result depends on the `other` group.** Without `other`, missense is 72.11% of flagged variants and 70.57% of ClinVar (+1.54 points, 95% CI -0.51 to +3.51; odds ratio 1.08, 95% CI 0.98-1.19; Holm-adjusted p = 0.145), so it is no longer significant. The other groups stay below p = 0.001.
 
 ### Refreshing the Data
 
