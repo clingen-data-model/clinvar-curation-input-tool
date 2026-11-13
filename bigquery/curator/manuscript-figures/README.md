@@ -275,7 +275,7 @@ python3 generate_figure3.py --input output/figure3/consequence_counts.csv --out 
 
 | Output | Contents |
 | --- | --- |
-| `figure3_stacked.svg`, `figure3_stacked.png` | Figure 3C: each group's whole consequence mix, with each consequence group's change from the baseline (points, 95% CI) to the right and a legend beneath. Ratios and per-group p values are in `figure3_statistics.csv` and on the `Figure 3C statistics` tab. On 2026-11-09 the user chose this version as Figure 3C, so the paired-bar version (`figure3_bars`) is no longer drawn. |
+| `figure3_stacked.svg`, `figure3_stacked.png` | Figure 3C: each group's whole consequence mix, with each consequence group's change from the baseline (points, 95% CI) as columns to the right, in legend order, and the legend centered beneath the whole image. The columns have value labels but no group names; the legend identifies them (user request, 2026-11-13). Ratios and per-group p values are in `figure3_statistics.csv` and on the `Figure 3C statistics` tab. On 2026-11-09 the user chose this version as Figure 3C, so the paired-bar version (`figure3_bars`) is no longer drawn. |
 | `figure3_statistics.csv` | Per-group statistics, for all five groups and without `other` |
 | `figure3_overall_tests.csv` | The overall chi-square tests, for all five groups and without `other` |
 | `consequence_counts.csv` | The query result |
