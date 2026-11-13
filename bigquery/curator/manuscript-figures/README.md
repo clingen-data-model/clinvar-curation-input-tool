@@ -537,7 +537,7 @@ Figure 5 asks: **in which clinical domains, and at what gene-disease validity le
 | Clinical domain | Drafted from each relationship's expert panel, and still to be confirmed | A mapping from ClinGen or the team | ClinGen's export has no domain column |
 | Unit | SCVs, with variants and genes in the table | Variants | Flags are placed on SCVs, and the draft's figure counted SCVs |
 | Statistics | None | Tests between domains | The figure describes counts and does not compare groups |
-| Domains shown | All 16, including those with 0 | Only domains with flags | Hereditary Cancer, RASopathy, Rheumatologic Autoimmune Disease, Skeletal Disorders and Somatic Cancer show 0 |
+| Domains shown | Only the 11 domains with a flag in the figure | All 16, including those with 0 | Hereditary Cancer, RASopathy, Rheumatologic Autoimmune Disease, Skeletal Disorders and Somatic Cancer have none and don't appear |
 
 ### How to Interpret It
 
