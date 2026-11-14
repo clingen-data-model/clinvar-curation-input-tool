@@ -2,9 +2,15 @@
 """Generate manuscript Figure 6 from 06-conflict-resolution-reasons.sql.
 
 Figure 6A is the total number of ClinVar conflict resolutions by reason. Figure 6B
-is the same counts by monthly release. Both split medically significant conflicts
-from non-medically significant ones, on one shared scale. Each is its own titled
-image.
+is the same counts by monthly release. Both cover medically significant conflicts;
+Figures 6A-Supp and 6B-Supp are the same panels for non-medically significant
+ones. Each is its own titled image on its own scale.
+
+Unlike the other figures, the flagged bar counts every flagged submission: flags
+submitted through CvC and flags from NCBI or ClinGen outside CvC, on any ClinVar
+variant, whether or not CvC curated it. The script reads
+each of those outside flags' source from its ClinVar release and writes them to
+figure6_flag_sources.csv, so the footnotes can give the NCBI and ClinGen counts.
 
 Uses only the Python standard library and the bq CLI, and needs the table function
 that 06-conflict-resolution-reasons.sql creates. Writes SVG, plus PNG when Chrome
@@ -33,27 +39,37 @@ FROM `clinvar_ingest.manuscript_figure6_resolution_events`(@as_of)
 ORDER BY snapshot_release_date, variation_id
 """
 
-# Colors stay with a reason in every panel, as STYLE.md assigns them: CvC flags in
-# the CvC color, the submitter's own changes in category 1, new higher ranked
-# submissions in category 2, and flags from elsewhere and Other in neutral. Bars
-# stack in this order, with the submitter's own changes first, then flags, then
-# new higher ranked submissions.
-REASONS = [
-    ("Reclassified", COLORS["cat1_dark"]),
-    ("Rank lowered", COLORS["cat1"]),
-    ("Removed", COLORS["cat1_light"]),
-    ("Flagged through CvC", COLORS["cvc"]),
-    ("Flagged outside CvC", COLORS["neutral_dark"]),
-    ("Expert panel added", COLORS["cat2_dark"]),
-    ("1 star added to 0 star conflict", COLORS["cat2"]),
-    ("Other", COLORS["neutral"]),
+# Each figure label, its color and the reasons from the SQL it counts. Colors stay
+# with a label in every image, as STYLE.md assigns them: flags in the CvC color,
+# the submitter's own changes in category 1, new higher ranked submissions in
+# category 2, and Other in neutral. A raised rank is the submitter's own change, so
+# it takes category 1's middle step, placed after category 2 to keep it away from
+# the other category 1 steps. Flags from NCBI and ClinGen outside CvC count with
+# the flags submitted through CvC, which only Figure 6 does. Rows and legends
+# follow this order, flags first; in 6B stacks the flag segment is on top. A label
+# with no resolutions at all, such as an empty Other, is left out.
+FIGURE_REASONS = [
+    ("Submissions flagged", COLORS["cvc"], ["Flagged through CvC", "Flagged outside CvC"]),
+    ("Submissions reclassified", COLORS["cat1_dark"], ["Reclassified"]),
+    ("Submissions rank lowered", COLORS["cat1"], ["Rank lowered"]),
+    ("Submissions removed", COLORS["cat1_light"], ["Removed"]),
+    ("Expert panel submissions added", COLORS["cat2_dark"], ["Expert panel added"]),
+    ("1 star submissions added to 0 star conflict", COLORS["cat2"], ["1 star added to 0 star conflict"]),
+    ("Submissions rank raised", COLORS["cat1_mid"], ["Rank raised"]),
+    ("Other", COLORS["neutral"], ["Other"]),
 ]
+FLAGGED = FIGURE_REASONS[0][0]
+REASONS = [(label, color) for label, color, _ in FIGURE_REASONS]
+FIGURE_LABEL = {source: label for label, _, sources in FIGURE_REASONS for source in sources}
 REASON_COLORS = dict(REASONS)
 GROUPS = ["medically significant", "non-medically significant"]
 GROUP_TITLES = {
-    "medically significant": "Medically significant conflicts",
-    "non-medically significant": "Non-medically significant conflicts",
+    "medically significant": "medically significant",
+    "non-medically significant": "non-medically significant",
 }
+# Medically significant conflicts are the main panels, 6A and 6B; non-medically
+# significant ones are their supplements, 6A-Supp and 6B-Supp.
+GROUP_PANELS = {"medically significant": ("", ""), "non-medically significant": ("-Supp", "_supp")}
 
 
 def run_query(as_of):
@@ -75,7 +91,10 @@ def fmt(n):
 
 
 def pct(n, total):
-    return f"{100 * n / total:.1f}%" if total else "0.0%"
+    if not total or not n:
+        return "0.0%"
+    share = 100 * n / total
+    return "<0.1%" if share < 0.05 else f"{share:.1f}%"
 
 
 def heading(x, y, name, detail):
@@ -98,41 +117,31 @@ def note_block(top, note_lines):
     return body, math.ceil(first + height - TYPE["note"])
 
 
-def panel_a(counts, ordered, note_lines, title):
-    """One row per reason, headed by its all-conflicts total, with one bar per conflict type on a shared scale."""
+def panel_a(counts, group, note_lines, title, subtitle, flag_detail):
+    """One row per reason for one conflict type: a bold label, then its bar and value."""
     width = LAYOUT["width"]
-    totals = {g: sum(counts[(g, r)] for r, _ in REASONS) for g in GROUPS}
-    grand = sum(totals.values())
-    col_gap = 40
-    col_w = (width - col_gap) / 2
-    col_x = {GROUPS[0]: 0, GROUPS[1]: col_w + col_gap}
-    value_room = 118
-    biggest = max(counts[(g, r)] for g in GROUPS for r, _ in REASONS)
-    scale = (col_w - value_room) / biggest
+    total = sum(counts[(group, r)] for r, _ in REASONS)
+    value_room = 130
+    scale = (width - value_room) / max(counts[(group, r)] for r, _ in REASONS)
     bar_h, heading_gap, row_gap = 22, 9, 16
 
     body = []
-    for group in GROUPS:
-        body.append(heading(col_x[group], TYPE["heading"], GROUP_TITLES[group], f"n={fmt(totals[group])}"))
-    y = TYPE["heading"] + 10
-    body.append(line(0, y, width, y))
-    y += 12
-
-    for reason in ordered:
-        row_total = sum(counts[(g, reason)] for g in GROUPS)
+    y = 0
+    for reason, color in REASONS:
+        if not any(counts[(g, reason)] for g in GROUPS):
+            continue
+        n = counts[(group, reason)]
         y += TYPE["heading"]
-        body.append(heading(0, y, reason, f"{fmt(row_total)} in all conflicts ({pct(row_total, grand)})"))
+        body.append(heading(0, y, reason, flag_detail if reason == FLAGGED else ""))
         y += heading_gap
-        for group in GROUPS:
-            n = counts[(group, reason)]
-            w = max(n * scale, 1.5) if n else 0
-            if n:
-                body.append(rect(col_x[group], y, w, bar_h, REASON_COLORS[reason]))
-            body.append(text(col_x[group] + w + 6, y + bar_h / 2 + 5, f"{fmt(n)} ({pct(n, totals[group])})"))
+        w = max(n * scale, 1.5) if n else 0
+        if n:
+            body.append(rect(0, y, w, bar_h, color))
+        body.append(text(w + 6, y + bar_h / 2 + 5, f"{fmt(n)} ({pct(n, total)})"))
         y += bar_h + row_gap
 
     note_body, bottom = note_block(y - row_gap, note_lines)
-    return wrap_svg(bottom, title, body + note_body)
+    return wrap_svg(bottom, title, body + note_body, subtitle=subtitle)
 
 
 def nice_step(maximum, ticks=4):
@@ -144,72 +153,126 @@ def nice_step(maximum, ticks=4):
     return 10 * power
 
 
-def panel_b(monthly, months, ordered, note_lines, title):
-    """Stacked monthly bars in two rows that share one scale, so heights compare."""
+def panel_b(monthly, months, group, note_lines, title, subtitle):
+    """Stacked monthly bars for one conflict type, with labelled axes and a legend."""
     width = LAYOUT["width"]
-    used = [r for r, _ in REASONS if r in ordered]
-    peaks = {
-        g: max(sum(monthly[(m, g, r)] for r in used) for m in months)
-        for g in GROUPS
-    }
-    plot_left, plot_right = 50, width
+    peak = max(sum(monthly[(m, group, r)] for r, _ in REASONS) for m in months)
+    plot_left, plot_right = 74, width
     slot = (plot_right - plot_left) / len(months)
     bar_w = slot * 0.74
-    heading_gap, row_gap = 12, 30
-    # Each row is only as tall as it needs, so one pixel is the same count in both.
-    scale = 440 / sum(peaks.values())
-    step = nice_step(max(peaks.values()), ticks=6)
+    plot_h = 300
+    step = nice_step(peak, ticks=5)
+    top_tick = math.ceil(peak / step) * step
+    scale = plot_h / top_tick
     # Segments shorter than this get no white gap, so small counts stay visible.
     min_gapped = 3
 
     body = []
-    y = 0
-    for index, group in enumerate(GROUPS):
-        group_total = sum(monthly[(m, group, r)] for m in months for r in used)
-        y += TYPE["heading"]
-        body.append(heading(plot_left, y, GROUP_TITLES[group], f"n={fmt(group_total)}"))
-        y += heading_gap
-        row_h = max(peaks[group] * scale, 40)
-        base = y + row_h
+    base = 10 + plot_h
+    tick = 0
+    while tick <= top_tick:
+        ty = base - tick * scale
+        body.append(line(plot_left, ty, plot_right, ty, COLORS["rule"] if tick == 0 else COLORS["rule_light"]))
+        body.append(text(plot_left - 8, ty + 4, fmt(int(tick)), TYPE["tick"], fill=COLORS["ink_muted"], anchor="end"))
+        tick += step
+    axis_x, axis_y = 14, base - plot_h / 2
+    body.append(text(axis_x, axis_y, "Resolutions", TYPE["label"], fill=COLORS["ink_muted"], anchor="middle",
+                     extra=f' transform="rotate(-90 {axis_x} {axis_y:.1f})"'))
 
-        tick = 0
-        while tick <= peaks[group]:
-            ty = base - tick * scale
-            body.append(line(plot_left, ty, plot_right, ty, COLORS["rule"] if tick == 0 else COLORS["rule_light"]))
-            body.append(text(plot_left - 8, ty + 4, fmt(int(tick)), TYPE["tick"], fill=COLORS["ink_muted"], anchor="end"))
-            tick += step
+    for i, month in enumerate(months):
+        bx = plot_left + i * slot + (slot - bar_w) / 2
+        cursor = base
+        stacked = []
+        for reason, color in REASONS[1:] + REASONS[:1]:
+            n = monthly[(month, group, reason)]
+            if n:
+                h = n * scale
+                cursor -= h
+                body.append(rect(bx, cursor, bar_w, h, color))
+                stacked.append((cursor, h))
+        for (top, h), (_, above_h) in zip(stacked, stacked[1:]):
+            if h >= min_gapped and above_h >= min_gapped:
+                body.append(line(bx, top, bx + bar_w, top, COLORS["surface"], LAYOUT["bar_gap"]))
 
-        for i, month in enumerate(months):
-            bx = plot_left + i * slot + (slot - bar_w) / 2
-            cursor = base
-            stacked = []
-            for reason in used:
-                n = monthly[(month, group, reason)]
-                if n:
-                    h = n * scale
-                    cursor -= h
-                    body.append(rect(bx, cursor, bar_w, h, REASON_COLORS[reason]))
-                    stacked.append((cursor, h))
-            for (top, h), (_, above_h) in zip(stacked, stacked[1:]):
-                if h >= min_gapped and above_h >= min_gapped:
-                    body.append(line(bx, top, bx + bar_w, top, COLORS["surface"], LAYOUT["bar_gap"]))
+    y = base
+    for i, month in enumerate(months):
+        if i % 3 == 0:
+            lx = plot_left + i * slot + slot / 2
+            body.append(text(lx, y + 20, month, TYPE["tick"], fill=COLORS["ink_muted"], anchor="middle"))
+    y += 20 + 24
+    body.append(text((plot_left + plot_right) / 2, y, "Monthly ClinVar release", TYPE["label"],
+                     fill=COLORS["ink_muted"], anchor="middle"))
 
-        y = base
-        if index == len(GROUPS) - 1:
-            for i, month in enumerate(months):
-                if i % 3 == 0:
-                    lx = plot_left + i * slot + slot / 2
-                    body.append(text(lx, y + 20, month, TYPE["tick"], fill=COLORS["ink_muted"], anchor="middle"))
-            y += 20 + 22
-            body.append(text(plot_left, y, "Monthly ClinVar release. Both rows use the same vertical scale.", TYPE["tick"], fill=COLORS["ink_muted"]))
-        else:
-            y += row_gap
-
-    # Horizontal legend in stack order, beneath the plot.
+    # Horizontal legend beneath the plot, in 6A's row order, flags first.
     legend_y = y + 20
-    legend_body, legend_height = legend(plot_left, legend_y, [(r, REASON_COLORS[r]) for r in used], width - plot_left)
+    used = [(r, c) for r, c in REASONS if any(monthly[(m, group, r)] for m in months)]
+    legend_body, legend_height = legend(plot_left, legend_y, used, width - plot_left)
     note_body, bottom = note_block(legend_y + legend_height, note_lines)
-    return wrap_svg(bottom, title, body + legend_body + note_body)
+    return wrap_svg(bottom, title, body + legend_body + note_body, subtitle=subtitle)
+
+
+def flag_sources(rows, out_dir, saved):
+    """Who flagged each resolution flagged outside CvC: NCBI, ClinGen or both.
+
+    Flag comments live only in each release's own scv_summary, so this looks them
+    up release by release, unless a saved figure6_flag_sources.csv covers every
+    such resolution. Returns {(snapshot_release_date, variation_id): source}.
+    """
+    outside = [r for r in rows if r["resolution_reason"] == "Flagged outside CvC"]
+    keys = {(r["snapshot_release_date"], r["variation_id"]) for r in outside}
+    path = os.path.join(out_dir, "figure6_flag_sources.csv")
+    if saved and os.path.exists(saved):
+        with open(saved, newline="") as handle:
+            found = {(r["snapshot_release_date"], r["variation_id"]): r["flag_source"] for r in csv.DictReader(handle)}
+        if keys <= set(found):
+            if os.path.abspath(saved) != os.path.abspath(path):
+                shutil.copyfile(saved, path)
+            return found
+
+    def bq(sql):
+        result = subprocess.run(
+            ["bq", "--quiet", "--project_id=clingen-dev", "query", "--use_legacy_sql=false",
+             "--format=csv", "--max_rows=1000000", sql],
+            capture_output=True, text=True,
+        )
+        if result.returncode != 0:
+            sys.exit(f"bq query failed:\n{result.stdout}\n{result.stderr}")
+        return list(csv.DictReader(result.stdout.splitlines()))
+
+    parts = []
+    for release in sorted({d for d, _ in keys}):
+        schema = bq(f"SELECT schema_name FROM clinvar_ingest.schema_on(DATE '{release}')")[0]["schema_name"]
+        pairs = ", ".join(
+            f"STRUCT('{v}' AS variation_id, '{scv}' AS scv_id)"
+            for r in outside if r["snapshot_release_date"] == release
+            for v, scv in [(r["variation_id"], s) for s in r["reason_scvs"].split(", ") if s]
+        )
+        parts.append(
+            f"SELECT '{release}' AS snapshot_release_date, p.variation_id, c.source "
+            f"FROM UNNEST([{pairs}]) AS p "
+            f"LEFT JOIN `{schema}.scv_summary` AS s ON s.id = p.scv_id "
+            f"LEFT JOIN UNNEST(s.comments) AS c ON c.type = 'FlaggedComment'"
+        )
+    found = {}
+    if parts:
+        sql = (
+            "SELECT snapshot_release_date, variation_id, "
+            "IFNULL(STRING_AGG(DISTINCT source, ' + ' ORDER BY source), 'none') AS flag_source "
+            f"FROM ({' UNION ALL '.join(parts)}) GROUP BY 1, 2"
+        )
+        found = {(r["snapshot_release_date"], r["variation_id"]): r["flag_source"] for r in bq(sql)}
+    write_csv(
+        path,
+        ["as_of_release_date", "snapshot_release_date", "variation_id", "conflict_group", "resolution_reason",
+         "reason_scvs", "changed_submitters", "flag_source"],
+        [
+            [r["as_of_release_date"], r["snapshot_release_date"], r["variation_id"], r["conflict_group"],
+             r["resolution_reason"], r["reason_scvs"], r["changed_submitters"],
+             found.get((r["snapshot_release_date"], r["variation_id"]), "none")]
+            for r in outside
+        ],
+    )
+    return found
 
 
 def main():
@@ -232,7 +295,7 @@ def main():
     if not rows:
         sys.exit("The query returned no rows.")
 
-    unknown = {r["resolution_reason"] for r in rows} - set(REASON_COLORS)
+    unknown = {r["resolution_reason"] for r in rows} - set(FIGURE_LABEL)
     if unknown:
         raise ValueError(f"Unplaced reasons: {unknown}")
 
@@ -242,8 +305,10 @@ def main():
     months = sorted({r["release_month"] for r in rows})
     first_month = months[0]
 
-    counts = collections.Counter((r["conflict_group"], r["resolution_reason"]) for r in rows)
-    monthly = collections.Counter((r["release_month"], r["conflict_group"], r["resolution_reason"]) for r in rows)
+    # The images count figure labels; the CSVs keep the SQL reason beside its label.
+    counts = collections.Counter((r["conflict_group"], FIGURE_LABEL[r["resolution_reason"]]) for r in rows)
+    monthly = collections.Counter((r["release_month"], r["conflict_group"], FIGURE_LABEL[r["resolution_reason"]]) for r in rows)
+    source_monthly = collections.Counter((r["release_month"], r["conflict_group"], r["resolution_reason"]) for r in rows)
     by_reason = collections.Counter(r["resolution_reason"] for r in rows)
     ordered = [r for r, _ in by_reason.most_common() if r != "Other"]
     if by_reason["Other"]:
@@ -259,7 +324,7 @@ def main():
         for reason in ordered:
             matched = [r for r in members if r["resolution_reason"] == reason]
             totals_rows.append([
-                as_of, group, reason, len(matched), len({r["variation_id"] for r in matched}),
+                as_of, group, FIGURE_LABEL[reason], reason, len(matched), len({r["variation_id"] for r in matched}),
                 sum(int(r["reason_scv_count"]) for r in matched),
                 f"{100 * len(matched) / len(members):.2f}" if members else "0.00",
                 sum(is_true(r["returned_by_cutoff"]) for r in matched),
@@ -271,7 +336,7 @@ def main():
     write_csv(
         os.path.join(args.out, "figure6a_reason_totals.csv"),
         [
-            "as_of_release_date", "conflict_group", "resolution_reason", "resolution_events", "variants",
+            "as_of_release_date", "conflict_group", "figure_label", "resolution_reason", "resolution_events", "variants",
             "reason_scvs", "percent_of_group", "returned_by_cutoff", "in_conflict_at_cutoff",
             "events_with_multiple_reasons", "events_with_cvc_candidate_before",
             "events_with_cvc_candidate_within_60_days",
@@ -281,8 +346,8 @@ def main():
 
     write_csv(
         os.path.join(args.out, "figure6b_monthly.csv"),
-        ["as_of_release_date", "release_month", "conflict_group", "resolution_reason", "resolution_events"],
-        [[as_of, *k, v] for k, v in sorted(monthly.items())],
+        ["as_of_release_date", "release_month", "conflict_group", "figure_label", "resolution_reason", "resolution_events"],
+        [[as_of, m, g, FIGURE_LABEL[r], r, v] for (m, g, r), v in sorted(source_monthly.items())],
     )
 
     # The most granular breakdown, one row per exact starting state and result.
@@ -320,18 +385,42 @@ def main():
         ],
     )
 
-    returned_flagged = sum(
-        is_true(r["returned_by_cutoff"]) for r in rows if r["resolution_reason"] == "Flagged through CvC"
-    )
-    common = [
-        f"ClinVar monthly releases {first_month} to {as_of[:7]}. {fmt(total)} resolutions across {fmt(variants)} variants; a variant that resolves twice counts twice.",
-        f"Each resolution is counted in the release where the conflict stopped, with one reason. {fmt(returned_flagged)} of {fmt(by_reason['Flagged through CvC'])} resolutions flagged through CvC were in conflict again later.",
-    ]
-
-    outputs = {
-        "figure6a.svg": panel_a(counts, ordered, common, "Figure 6A. Reasons ClinVar conflicts resolved, in total"),
-        "figure6b.svg": panel_b(monthly, months, ordered, common, "Figure 6B. Reasons ClinVar conflicts resolved, by monthly release"),
-    }
+    sources = flag_sources(rows, args.out, os.path.join(os.path.dirname(args.input), "figure6_flag_sources.csv") if args.input else None)
+    outputs = {}
+    for group in GROUPS:
+        members = [r for r in rows if r["conflict_group"] == group]
+        flagged = [r for r in members if FIGURE_LABEL[r["resolution_reason"]] == FLAGGED]
+        outside = collections.Counter(
+            sources.get((r["snapshot_release_date"], r["variation_id"]), "none")
+            for r in members if r["resolution_reason"] == "Flagged outside CvC"
+        )
+        outside_text = " and ".join(f"{fmt(n)} {source}" for source, n in sorted(outside.items()))
+        through_cvc = sum(r["resolution_reason"] == "Flagged through CvC" for r in members)
+        flag_detail = ", ".join(
+            [f"{fmt(through_cvc)} through CvC"] + [f"{fmt(n)} {source}" for source, n in sorted(outside.items(), key=lambda kv: -kv[1])]
+        )
+        group_note = [
+            f"ClinVar monthly releases {first_month} to {as_of[:7]}. {fmt(len(members))} resolutions across "
+            f"{fmt(len({r['variation_id'] for r in members}))} variants; a variant that resolves twice counts twice.",
+            f"Each resolution is counted in the release where the conflict stopped, with one reason. "
+            f"{fmt(sum(is_true(r['returned_by_cutoff']) for r in flagged))} of {fmt(len(flagged))} resolutions "
+            f"from flagged submissions were in conflict again later.",
+            "Unlike the other figures, flagged submissions here include flags not submitted through CvC"
+            + (f": {outside_text} flags, counted on any ClinVar variant, whether or not CvC curated it."
+               if outside else ", though none of these resolutions has one."),
+            f"Left out: the discordance project retraction's flags and removals (batch 129), on {fmt(int(rows[0]['excluded_scvs']))} SCVs. "
+            f"{fmt(int(rows[0]['dropped_flag_resolutions']))} flag resolutions in all conflicts, credited only to those flags, are dropped.",
+        ]
+        subtitle = f"n={fmt(len(members))} resolutions, ClinVar release {as_of}"
+        label, suffix = GROUP_PANELS[group]
+        outputs[f"figure6a{suffix}.svg"] = panel_a(
+            counts, group, group_note,
+            f"Figure 6A{label}. Reasons {GROUP_TITLES[group]} ClinVar conflicts resolved, in total", subtitle, flag_detail,
+        )
+        outputs[f"figure6b{suffix}.svg"] = panel_b(
+            monthly, months, group, group_note,
+            f"Figure 6B{label}. Reasons {GROUP_TITLES[group]} ClinVar conflicts resolved, by monthly release", subtitle,
+        )
     png_written = True
     for name, svg in outputs.items():
         path = os.path.join(args.out, name)
@@ -340,10 +429,10 @@ def main():
         png_written = write_png(path) and png_written
 
     print(f"Releases {first_month} to {as_of}: {fmt(total)} resolutions, {fmt(variants)} variants")
-    for reason in ordered:
+    for reason, _ in REASONS:
         med = counts[(GROUPS[0], reason)]
         non = counts[(GROUPS[1], reason)]
-        print(f"  {reason:34}{fmt(by_reason[reason]):>8}  {pct(by_reason[reason], total):>6}  medsig {fmt(med):>6}  non {fmt(non):>6}")
+        print(f"  {reason:48}{fmt(med + non):>8}  {pct(med + non, total):>6}  medsig {fmt(med):>6}  non {fmt(non):>6}")
     print(f"Wrote {args.out}" + ("" if png_written else " (some PNGs missing: Chrome was not found or did not finish, set CHROME or rerun)"))
 
 
