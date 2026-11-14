@@ -7,7 +7,8 @@ Figures 6A-Supp and 6B-Supp are the same panels for non-medically significant
 ones. Each is its own titled image on its own scale.
 
 Unlike the other figures, the flagged bar counts every flagged submission: flags
-submitted through CvC and flags from NCBI or ClinGen outside CvC. The script reads
+submitted through CvC and flags from NCBI or ClinGen outside CvC, on any ClinVar
+variant, whether or not CvC curated it. The script reads
 each of those outside flags' source from its ClinVar release and writes them to
 figure6_flag_sources.csv, so the footnotes can give the NCBI and ClinGen counts.
 
@@ -405,7 +406,8 @@ def main():
             f"{fmt(sum(is_true(r['returned_by_cutoff']) for r in flagged))} of {fmt(len(flagged))} resolutions "
             f"from flagged submissions were in conflict again later.",
             "Unlike the other figures, flagged submissions here include flags not submitted through CvC"
-            + (f": {outside_text} flags." if outside else ", though none of these resolutions has one."),
+            + (f": {outside_text} flags, counted on any ClinVar variant, whether or not CvC curated it."
+               if outside else ", though none of these resolutions has one."),
             f"Left out: the discordance project retraction's flags and removals (batch 129), on {fmt(int(rows[0]['excluded_scvs']))} SCVs. "
             f"{fmt(int(rows[0]['dropped_flag_resolutions']))} flag resolutions in all conflicts, credited only to those flags, are dropped.",
         ]
