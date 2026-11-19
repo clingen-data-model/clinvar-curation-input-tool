@@ -32,12 +32,14 @@ import textwrap
 # deck's teal accent that stays distinct from the clinical blue for color-blind
 # readers. Gray is neutral: no change, other, or a comparison group.
 #
-# The base colors of all six families pass the dataviz validator as one set
-# (all pairs, white surface): worst color-blind separation 8.0 (CvC vs uncertain,
-# protan), worst normal-vision separation 16.1. Each family's steps pass its
-# ordinal check. STYLE.md has the commands to recheck after any change.
+# The base colors pass the dataviz validator as one set (all pairs, white
+# surface): worst color-blind separation 8.0 (CvC vs uncertain, protan), worst
+# normal-vision separation 16.1. The one exception is cat1 vs ok: the
+# blue-purple cat1 is too close to the clinical blue, so the two must never
+# appear in the same figure. Each family's steps pass its ordinal check.
+# STYLE.md has the commands to recheck after any change.
 #
-# Category colors (purple, pink) have no meaning across figures. Use them, in
+# Category colors (blue-purple, pink) have no meaning across figures. Use them, in
 # order, only for categories a figure's legend names, after the semantic colors
 # are used up.
 #
@@ -52,13 +54,10 @@ COLORS = {
     "ok_light": "#5B9BD5",
     "ok_pale": "#9DC3E6",       # direct labels required: below 2:1 on white
     # Uncertain: VUS, conflicts that are not medically significant.
-    "uncertain_dark": "#C55A11",
     "uncertain": "#ED7D31",
     "uncertain_light": "#F4B183",  # direct labels required: below 2:1 on white
     # Medically significant: P/LP, P/LP vs VUS or B/LB conflicts.
-    "medsig_dark": "#8B0000",
     "medsig": "#C00000",
-    "medsig_light": "#E2382A",
     # CvC's own work: flagging candidates submitted, CvC flags, CvC outcomes.
     "cvc_dark": "#024F39",
     "cvc_mid": "#0D7154",
@@ -68,11 +67,22 @@ COLORS = {
     "neutral_dark": "#5C5B57",
     "neutral": "#A3A29C",
     "neutral_light": "#D9D8D3",
+    # ClinGen gene-disease relationship (GDR) clinical validity levels, in
+    # ClinGen's own colors (its Gene-Disease Clinical Validity statistics page).
+    # Use them only for GDR levels, and always for them. Greens: evidence
+    # supports the relationship; reds: evidence is insufficient or against it.
+    "gdr_definitive": "#245C41",
+    "gdr_strong": "#329760",
+    "gdr_moderate": "#5DCE88",
+    "gdr_limited": "#F87878",
+    "gdr_no_known": "#67748A",
+    "gdr_disputed": "#DE3B3A",
+    "gdr_refuted": "#8E2A29",
     # Category colors with no shared meaning, used in this order.
-    "cat1_dark": "#4A1A70",
-    "cat1": "#7030A0",
-    "cat1_mid": "#9457C2",
-    "cat1_light": "#B585DD",
+    "cat1_dark": "#3B367F",
+    "cat1": "#5F59BB",
+    "cat1_mid": "#8180D8",
+    "cat1_light": "#9F9FFA",
     "cat2_dark": "#8E4072",
     "cat2_mid": "#B5608F",
     "cat2": "#D17DB0",
@@ -98,6 +108,13 @@ MEANING = {
     "other": "neutral",
     "not_recorded": "neutral",
     "all_clinvar": "neutral",
+    "gdr_definitive": "gdr_definitive",
+    "gdr_strong": "gdr_strong",
+    "gdr_moderate": "gdr_moderate",
+    "gdr_limited": "gdr_limited",
+    "gdr_no_known": "gdr_no_known",
+    "gdr_disputed": "gdr_disputed",
+    "gdr_refuted": "gdr_refuted",
     "not_cvc": "neutral_dark",
 }
 
@@ -326,10 +343,12 @@ def write_csv(path, header, rows):
 
 FAMILIES = [
     ("Clinically okay", "No conflict, concordant, B/LB", ["ok_dark", "ok", "ok_light", "ok_pale"]),
-    ("Uncertain", "VUS, conflicts that are not medically significant", ["uncertain_dark", "uncertain", "uncertain_light"]),
-    ("Medically significant", "P/LP, P/LP vs VUS or B/LB conflicts", ["medsig_dark", "medsig", "medsig_light"]),
+    ("Uncertain", "VUS, conflicts that are not medically significant", ["uncertain", "uncertain_light"]),
+    ("Medically significant", "P/LP, P/LP vs VUS or B/LB conflicts", ["medsig"]),
     ("CvC", "CvC submissions, flags and outcomes", ["cvc_dark", "cvc_mid", "cvc", "cvc_light"]),
     ("Neutral", "No change, other, all ClinVar as a comparison", ["neutral_dark", "neutral", "neutral_light"]),
+    ("GDR, supported", "ClinGen Definitive, Strong, Moderate", ["gdr_definitive", "gdr_strong", "gdr_moderate"]),
+    ("GDR, insufficient", "ClinGen Limited, No Known, Disputed, Refuted", ["gdr_limited", "gdr_no_known", "gdr_disputed", "gdr_refuted"]),
     ("Category 1", "Legend-named categories, no shared meaning", ["cat1_dark", "cat1", "cat1_mid", "cat1_light"]),
     ("Category 2", "Used after category 1", ["cat2_dark", "cat2_mid", "cat2"]),
 ]
