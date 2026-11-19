@@ -68,6 +68,17 @@ COLORS = {
     "neutral_dark": "#5C5B57",
     "neutral": "#A3A29C",
     "neutral_light": "#D9D8D3",
+    # ClinGen gene-disease relationship (GDR) clinical validity levels, in
+    # ClinGen's own colors (its Gene-Disease Clinical Validity statistics page).
+    # Use them only for GDR levels, and always for them. Greens: evidence
+    # supports the relationship; reds: evidence is insufficient or against it.
+    "gdr_definitive": "#245C41",
+    "gdr_strong": "#329760",
+    "gdr_moderate": "#5DCE88",
+    "gdr_limited": "#F87878",
+    "gdr_no_known": "#67748A",
+    "gdr_disputed": "#DE3B3A",
+    "gdr_refuted": "#8E2A29",
     # Category colors with no shared meaning, used in this order.
     "cat1_dark": "#4A1A70",
     "cat1": "#7030A0",
@@ -98,6 +109,13 @@ MEANING = {
     "other": "neutral",
     "not_recorded": "neutral",
     "all_clinvar": "neutral",
+    "gdr_definitive": "gdr_definitive",
+    "gdr_strong": "gdr_strong",
+    "gdr_moderate": "gdr_moderate",
+    "gdr_limited": "gdr_limited",
+    "gdr_no_known": "gdr_no_known",
+    "gdr_disputed": "gdr_disputed",
+    "gdr_refuted": "gdr_refuted",
     "not_cvc": "neutral_dark",
 }
 
@@ -305,6 +323,8 @@ FAMILIES = [
     ("Medically significant", "P/LP, P/LP vs VUS or B/LB conflicts", ["medsig_dark", "medsig", "medsig_light"]),
     ("CvC", "CvC submissions, flags and outcomes", ["cvc_dark", "cvc_mid", "cvc", "cvc_light"]),
     ("Neutral", "No change, other, all ClinVar as a comparison", ["neutral_dark", "neutral", "neutral_light"]),
+    ("GDR, supported", "ClinGen Definitive, Strong, Moderate", ["gdr_definitive", "gdr_strong", "gdr_moderate"]),
+    ("GDR, insufficient", "ClinGen Limited, No Known, Disputed, Refuted", ["gdr_limited", "gdr_no_known", "gdr_disputed", "gdr_refuted"]),
     ("Category 1", "Legend-named categories, no shared meaning", ["cat1_dark", "cat1", "cat1_mid", "cat1_light"]),
     ("Category 2", "Used after category 1", ["cat2_dark", "cat2_mid", "cat2"]),
 ]

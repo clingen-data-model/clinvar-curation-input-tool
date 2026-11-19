@@ -15,6 +15,7 @@ The palette follows the [CvC presentation deck](https://docs.google.com/presenta
 | Medically significant | P/LP, P/LP vs VUS or B/LB conflicts | `medsig` `#C00000` | `#8B0000`, `#C00000`, `#E2382A` |
 | CvC | CvC's own work: candidates submitted, CvC flags, CvC outcomes | `cvc` `#1B9E77` | `#024F39`, `#0D7154`, `#1B9E77`, `#43B991` |
 | Neutral | No change, other, not recorded, all ClinVar as a comparison | `neutral` `#A3A29C` | `#5C5B57`, `#A3A29C`, `#D9D8D3` |
+| GDR level | ClinGen gene-disease relationship clinical validity levels, in ClinGen's own colors | `gdr_*`, one key per level | Definitive `#245C41`, Strong `#329760`, Moderate `#5DCE88`, Limited `#F87878`, No Known Disease Relationship `#67748A`, Disputed `#DE3B3A`, Refuted `#8E2A29` |
 | Category 1 | No shared meaning; categories named by the figure's legend | `cat1` `#7030A0` | `#4A1A70`, `#7030A0`, `#9457C2`, `#B585DD` |
 | Category 2 | As category 1, used only after it | `cat2` `#D17DB0` | `#8E4072`, `#B5608F`, `#D17DB0` |
 
@@ -24,6 +25,12 @@ Rules:
 - **CvC is teal-green, not red.** Red means medically significant. The deck's own teal, `#438086`, reads as gray and is too close to the clinical blue for color-blind readers, so CvC uses the nearest teal-green that passes.
 - **Steps within a family show ordered sub-levels of the same meaning**, such as the kinds of CvC outcome in Figure 4A. Darker means more of that meaning.
 - **Category colors are for legend-named categories only**, such as consequence groups or gene-disease validity levels. They mean nothing across figures. Use category 1's steps first, then category 2. More than seven categories in one figure should fold into "Other".
+- **GDR levels always use ClinGen's colors.** The user set this on 2026-11-19, from ClinGen's Gene-Disease Clinical Validity statistics page, so a GDR level looks the same in the manuscript as on ClinGen's site. Use a `gdr_*` key for every GDR level (Definitive through Refuted) and for nothing else. Key by the level, not by position: Limited is always `gdr_limited`.
+- **GDR colors overlap three meanings, so keep them apart.** ClinGen's greens and reds were not chosen against this palette:
+  - `gdr_strong` is almost the same as `cvc` (ΔE 3.1). A figure that shows a supported GDR level must not also use `cvc`.
+  - `gdr_disputed` is close to `medsig` (ΔE 9.2), and all the GDR reds read as "medically significant" next to it. A figure that shows insufficient GDR levels must not also use `medsig`.
+  - `gdr_limited` and `neutral` are close for deutan readers (ΔE 6.6), and Limited vs Disputed is ΔE 13.1 for everyone. Label every GDR segment directly, or give the values in the table under the figure.
+  - Limited vs Strong fails for protan readers (ΔE 3.4), as red and green do. Don't rely on color alone to tell supported from insufficient levels; the labels carry it.
 - **Gray is reserved for neutral.** Use it for no change, other, not recorded, and for all ClinVar when it is the comparison for a CvC group.
 - **Text is ink, never a series color.** Values and labels use `ink` `#1F1F1F` or `ink_muted` `#52514E`. Use `label_ink(fill)` for text on a fill.
 
@@ -32,6 +39,7 @@ Rules:
 The palette was checked with the dataviz skill's validator, which simulates protan, deutan and tritan vision. Passing values:
 
 - **The six base colors as one set, all pairs on white:** worst color-blind separation ΔE 8.0 (CvC vs uncertain, protan), at the 8.0 target. Worst normal-vision separation is ΔE 16.1, above the 15 floor.
+- **GDR levels** are ClinGen's colors and are not tuned to this palette. Each ramp reads light to dark: the reds pass the ordinal check; in the greens, `gdr_moderate` is 1.97:1 on white, just under the 2:1 floor, so label it directly. Their clashes with other families are listed under the color rules above.
 - **Each family's steps:** pass the ordinal check, with lightness rising evenly and the lightest step at least 2:1 against white.
 - **Lighter fills:** `uncertain` (2.77:1), `cat2` (2.89:1), `ok_light`, `neutral` and the lightest steps are below 3:1 on white. Wherever they appear, label the marks directly or put the values in the table under the figure, which every figure already has.
 - **Never rely on color alone.** Use direct labels where they fit, a legend for two or more series, and a 2 px white gap between touching fills.
@@ -41,6 +49,8 @@ To recheck after a change, from the dataviz skill's `scripts` folder:
 ```sh
 node validate_palette.js "#2E75B6,#ED7D31,#C00000,#1B9E77,#7030A0,#D17DB0" --mode light --pairs all --surface "#ffffff"
 node validate_palette.js "#024F39,#0D7154,#1B9E77,#43B991" --ordinal --mode light --surface "#ffffff"
+node validate_palette.js "#F87878,#DE3B3A,#8E2A29" --ordinal --mode light --surface "#ffffff"
+node validate_palette.js "#5DCE88,#329760,#245C41" --ordinal --mode light --surface "#ffffff"
 ```
 
 ## Type
@@ -83,9 +93,9 @@ One family: `Arial, Helvetica, sans-serif`. Sizes are in SVG px at the standard 
 | 4A | No change | `neutral` |
 | 4B | Starting conflict nodes | `neutral_dark` |
 | 4B | P/LP, VUS, VUS vs B/LB, B/LB | `medsig`, `uncertain`, `uncertain_light`, `ok` |
-| 5 | Limited, Disputed, Refuted | `cat1_light`, `cat1`, `cat1_dark` |
+| 5 | Limited, Disputed, Refuted (switch from `cat1_light`, `cat1`, `cat1_dark`) | `gdr_limited`, `gdr_disputed`, `gdr_refuted` |
 | 5 | Not recorded | `neutral` |
-| 5 | No Known (not drawn on current data) | `cat2` |
+| 5 | No Known (not drawn on current data; switch from `cat2`) | `gdr_no_known` |
 | 6 | Flagged through CvC | `cvc` |
 | 6 | Flagged outside CvC, Other | `neutral_dark`, `neutral` |
 | 6 | Reclassified, Rank lowered, Removed | `cat1_dark`, `cat1`, `cat1_light` |
