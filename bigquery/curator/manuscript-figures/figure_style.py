@@ -52,13 +52,10 @@ COLORS = {
     "ok_light": "#5B9BD5",
     "ok_pale": "#9DC3E6",       # direct labels required: below 2:1 on white
     # Uncertain: VUS, conflicts that are not medically significant.
-    "uncertain_dark": "#C55A11",
     "uncertain": "#ED7D31",
     "uncertain_light": "#F4B183",  # direct labels required: below 2:1 on white
     # Medically significant: P/LP, P/LP vs VUS or B/LB conflicts.
-    "medsig_dark": "#8B0000",
     "medsig": "#C00000",
-    "medsig_light": "#E2382A",
     # CvC's own work: flagging candidates submitted, CvC flags, CvC outcomes.
     "cvc_dark": "#024F39",
     "cvc_mid": "#0D7154",
@@ -319,8 +316,8 @@ def write_csv(path, header, rows):
 
 FAMILIES = [
     ("Clinically okay", "No conflict, concordant, B/LB", ["ok_dark", "ok", "ok_light", "ok_pale"]),
-    ("Uncertain", "VUS, conflicts that are not medically significant", ["uncertain_dark", "uncertain", "uncertain_light"]),
-    ("Medically significant", "P/LP, P/LP vs VUS or B/LB conflicts", ["medsig_dark", "medsig", "medsig_light"]),
+    ("Uncertain", "VUS, conflicts that are not medically significant", ["uncertain", "uncertain_light"]),
+    ("Medically significant", "P/LP, P/LP vs VUS or B/LB conflicts", ["medsig"]),
     ("CvC", "CvC submissions, flags and outcomes", ["cvc_dark", "cvc_mid", "cvc", "cvc_light"]),
     ("Neutral", "No change, other, all ClinVar as a comparison", ["neutral_dark", "neutral", "neutral_light"]),
     ("GDR, supported", "ClinGen Definitive, Strong, Moderate", ["gdr_definitive", "gdr_strong", "gdr_moderate"]),
