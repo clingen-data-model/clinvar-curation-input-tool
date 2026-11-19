@@ -49,16 +49,16 @@ EXCLUSION_PHRASES = {
     "Discordance project retraction": "the discordance project retraction's flags and removals (batch 129)",
 }
 
-# Validity levels are legend-named categories, so they take category 1's steps,
-# darker for stronger evidence against the gene-disease relationship (STYLE.md).
-# No Known never reaches the figure on the current data; it takes the next unused
-# category color so it can't be mistaken for one of the three levels. Not recorded
-# is neutral because it is missing information rather than a level.
+# Validity levels use ClinGen's own gene-disease relationship (GDR) colors, keyed
+# by level, so each looks the same as on ClinGen's site (STYLE.md). No Known never
+# reaches the figure on the current data. Not recorded is neutral because it is
+# missing information rather than a level. The figure must not also use medsig,
+# which the GDR reds would be read as.
 LEVELS = [
-    ("Limited", COLORS["cat1_light"]),
-    ("Disputed", COLORS["cat1"]),
-    ("Refuted", COLORS["cat1_dark"]),
-    ("No Known", COLORS["cat2"]),
+    ("Limited", COLORS["gdr_limited"]),
+    ("Disputed", COLORS["gdr_disputed"]),
+    ("Refuted", COLORS["gdr_refuted"]),
+    ("No Known", COLORS["gdr_no_known"]),
     ("Not recorded", COLORS["neutral"]),
 ]
 
