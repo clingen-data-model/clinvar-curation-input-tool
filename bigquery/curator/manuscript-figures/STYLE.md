@@ -100,9 +100,9 @@ One family: `Arial, Helvetica, sans-serif`. Sizes are in SVG px at the standard 
 | 4A | Classification unchanged (no submission(s) flagged) | `neutral` |
 | 4B | Starting conflict nodes | `neutral_dark` |
 | 4B | P/LP, VUS, VUS vs B/LB, B/LB | `medsig`, `uncertain`, `uncertain_light`, `ok` |
-| 5 | Limited, Disputed, Refuted (switch from `cat1_light`, `cat1`, `cat1_dark`) | `gdr_limited`, `gdr_disputed`, `gdr_refuted` |
+| 5 | Limited, Disputed, Refuted | `gdr_limited`, `gdr_disputed`, `gdr_refuted` |
 | 5 | Not recorded | `neutral` |
-| 5 | No Known (not drawn on current data; switch from `cat2`) | `gdr_no_known` |
+| 5 | No Known (not drawn on current data) | `gdr_no_known` |
 | 6 | Submissions flagged (includes NCBI and ClinGen flags outside CvC) | `cvc` |
 | 6 | Other | `neutral` |
 | 6 | Submissions reclassified, Submissions rank lowered, Submissions removed | `cat1_dark`, `cat1`, `cat1_light` |
