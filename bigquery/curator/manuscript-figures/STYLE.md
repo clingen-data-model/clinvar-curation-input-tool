@@ -11,8 +11,8 @@ The palette follows the [CvC presentation deck](https://docs.google.com/presenta
 | Family | Meaning, in every figure | Base | Steps, dark to light |
 | --- | --- | --- | --- |
 | Clinically okay | No conflict, concordant submissions, B/LB | `ok` `#2E75B6` | `#1F4E79`, `#2E75B6`, `#5B9BD5`, `#9DC3E6` |
-| Uncertain | VUS, conflicts that are not medically significant | `uncertain` `#ED7D31` | `#C55A11`, `#ED7D31`, `#F4B183` |
-| Medically significant | P/LP, P/LP vs VUS or B/LB conflicts | `medsig` `#C00000` | `#8B0000`, `#C00000`, `#E2382A` |
+| Uncertain | VUS, conflicts that are not medically significant | `uncertain` `#ED7D31` | `#ED7D31`, `#F4B183` |
+| Medically significant | P/LP, P/LP vs VUS or B/LB conflicts | `medsig` `#C00000` | `#C00000` only |
 | CvC | CvC's own work: candidates submitted, CvC flags, CvC outcomes | `cvc` `#1B9E77` | `#024F39`, `#0D7154`, `#1B9E77`, `#43B991` |
 | Neutral | No change, other, not recorded, all ClinVar as a comparison | `neutral` `#A3A29C` | `#5C5B57`, `#A3A29C`, `#D9D8D3` |
 | GDR level | ClinGen gene-disease relationship clinical validity levels, in ClinGen's own colors | `gdr_*`, one key per level | Definitive `#245C41`, Strong `#329760`, Moderate `#5DCE88`, Limited `#F87878`, No Known Disease Relationship `#67748A`, Disputed `#DE3B3A`, Refuted `#8E2A29` |
@@ -31,6 +31,9 @@ Rules:
   - `gdr_disputed` is close to `medsig` (ΔE 9.2), and all the GDR reds read as "medically significant" next to it. A figure that shows insufficient GDR levels must not also use `medsig`.
   - `gdr_limited` and `neutral` are close for deutan readers (ΔE 6.6), and Limited vs Disputed is ΔE 13.1 for everyone. Label every GDR segment directly, or give the values in the table under the figure.
   - Limited vs Strong fails for protan readers (ΔE 3.4), as red and green do. Don't rely on color alone to tell supported from insufficient levels; the labels carry it.
+- **Steps retired to keep clear of the GDR reds.** On 2026-11-19 the user removed `medsig_dark` `#8B0000` (ΔE 5.0 from `gdr_refuted`), `medsig_light` `#E2382A` (ΔE 1.5 from `gdr_disputed`) and `uncertain_dark` `#C55A11` (ΔE 8.0 from `gdr_disputed`). No figure used them. Don't add darker or lighter medically significant or uncertain steps back without checking them against the GDR reds.
+- **`cvc`, `medsig` and `uncertain` stay as they are**, though they sit near GDR colors (`cvc` vs `gdr_strong` ΔE 3.1, `medsig` vs `gdr_disputed` 9.2, `uncertain` vs `gdr_limited` 8.1). Moving them gains little, because the nearby space is taken by `ok` and `cat2`. They also match the deck and the draft's captions. The user decided this on 2026-11-19. Keep the rule above instead: a figure that shows GDR levels uses neither `cvc` nor `medsig`.
+- **If a figure must show supported GDR levels next to CvC work**, solve it in that figure, not in the palette. For example, mark CvC's share with an outline or hatching over the GDR fill, or keep CvC in the figure's text and table rather than in color.
 - **Gray is reserved for neutral.** Use it for no change, other, not recorded, and for all ClinVar when it is the comparison for a CvC group.
 - **Text is ink, never a series color.** Values and labels use `ink` `#1F1F1F` or `ink_muted` `#52514E`. Use `label_ink(fill)` for text on a fill.
 
@@ -93,16 +96,17 @@ One family: `Arial, Helvetica, sans-serif`. Sizes are in SVG px at the standard 
 | 3C | All ClinVar variants, CvC-flagged variants | `neutral`, `cvc` |
 | 3C (stacked) | Predicted LoF, Missense, In-frame indels, UTR/intronic | `cat1_dark`, `cat1`, `cat1_mid`, `cat1_light` |
 | 3C (stacked) | Other | `neutral` |
-| 4A | Conflict resolved, Conflict reduced, Incorrect record flagged, Record modified | `cvc_dark`, `cvc_mid`, `cvc`, `cvc_light` |
-| 4A | No change | `neutral` |
+| 4A | Conflict resolved, Conflict reduced, Classification removed, Classification unchanged (submission(s) flagged) | `cvc_dark`, `cvc_mid`, `cvc`, `cvc_light` |
+| 4A | Classification unchanged (no submission(s) flagged) | `neutral` |
 | 4B | Starting conflict nodes | `neutral_dark` |
 | 4B | P/LP, VUS, VUS vs B/LB, B/LB | `medsig`, `uncertain`, `uncertain_light`, `ok` |
 | 5 | Limited, Disputed, Refuted | `gdr_limited`, `gdr_disputed`, `gdr_refuted` |
 | 5 | Not recorded | `neutral` |
 | 5 | No Known (not drawn on current data) | `gdr_no_known` |
-| 6 | Flagged through CvC | `cvc` |
-| 6 | Flagged outside CvC, Other | `neutral_dark`, `neutral` |
-| 6 | Reclassified, Rank lowered, Removed | `cat1_dark`, `cat1`, `cat1_light` |
-| 6 | Expert panel added, 1 star added to 0 star conflict | `cat2_dark`, `cat2` |
+| 6 | Submissions flagged (includes NCBI and ClinGen flags outside CvC) | `cvc` |
+| 6 | Other | `neutral` |
+| 6 | Submissions reclassified, Submissions rank lowered, Submissions removed | `cat1_dark`, `cat1`, `cat1_light` |
+| 6 | Expert panel submissions added, 1 star submissions added to 0 star conflict | `cat2_dark`, `cat2` |
+| 6 | Submissions rank raised (placed after category 2, away from the other category 1 steps) | `cat1_mid` |
 
 When a new figure needs a color, pick it by meaning from the families above, add its row here, and use the `COLORS` key in the generator.
