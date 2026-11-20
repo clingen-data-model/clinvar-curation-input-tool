@@ -53,19 +53,33 @@
 --
 --   Three source reasons describe context rather than a cause, so this script
 --   maps them to the SCV change behind them, in that same order:
---   single_submitter_withdrawn, vcv_rank_changed and outlier_reclassified. Events
---   with no matching change are Other.
+--   single_submitter_withdrawn, vcv_rank_changed and outlier_reclassified.
+--
+--   The conflict tables' reason lists miss some changes. Where no source reason
+--   or list explains an event, the SCV changes in monthly_conflict_scv_changes
+--   decide it, in this order: a contributing SCV flagged (Flagged), a new SCV
+--   ranked above the old top group (Expert panel added at 3 stars or more,
+--   otherwise 1 star added to 0 star conflict), and an existing SCV whose rank
+--   rose while it contributed (Rank raised), such as a 0 star SCV that gained
+--   assertion criteria. Through release 2026-11-08 this moves 48 events out of
+--   Other: 1 flag, 2 new 1 star SCVs and 45 rank raises. The user chose this on
+--   2026-11-13. Events still unexplained are Other.
 --
 --   Flagged through CvC means a flagged SCV had a valid CvC flagging candidate
 --   submitted on or before that release, matched on accession. Flagged outside CvC
 --   means none did, such as flags from NCBI.
 --
--- Excluded SCVs:
---   SCVs listed in clinvar_ingest.manuscript_excluded_scvs (00-excluded-scvs.sql)
---   are left out: the 321 SCVs whose gene-disease relationship flag CvC later
---   retracted. They are not CvC flagging candidates here, and an event whose
---   reason SCVs are all excluded is dropped, because the retracted flag caused
---   it. Run that script first.
+-- Left-out annotations:
+--   Every annotation in clinvar_ingest.manuscript_excluded_annotations
+--   (00-excluded-scvs.sql) is left out, matched on annotation_id: the discordance
+--   project retraction's flags and removals (batch 129), on 233 SCVs. They are
+--   never CvC flagging candidates here, so they can't credit a flag to CvC or set
+--   cvc_candidate_before. Other CvC annotations on the same SCVs still count, and
+--   so do all other retracted flags. A flag resolution whose only CvC flagging
+--   candidate was a left-out annotation is dropped, because counting it as
+--   Flagged outside CvC would call a CvC flag a non-CvC one. The user chose this
+--   on 2026-11-12. Through release 2026-11-08 that drops 4 resolutions. Run that
+--   script first.
 --
 -- CvC candidates before a submitter's change:
 --   cvc_candidate_before and cvc_candidate_within_60_days apply to any reason.
@@ -98,6 +112,9 @@
 --   reason_scvs, changed_submitters (separated by " | ")
 --   cvc_candidate_before, cvc_candidate_within_60_days
 --   returned_by_cutoff, first_return_release, in_conflict_at_cutoff
+--   excluded_scvs          - SCVs in manuscript_excluded_scvs, for the footnote
+--   dropped_flag_resolutions - Flag resolutions in the series dropped because
+--                            only a left-out annotation credited them
 -- ============================================================================
 
 CREATE OR REPLACE TABLE FUNCTION `clinvar_ingest.manuscript_figure6_resolution_events`(as_of_date DATE)
@@ -137,10 +154,42 @@ AS (
       AND d.snapshot_release_date <= cutoff.as_of
   ),
 
+  -- SCV changes the conflict tables leave out of their reason lists. Used only
+  -- for events that no source reason or list explains, which would otherwise be
+  -- Other: a contributing SCV flagged but missing from scvs_flagged_contributing,
+  -- a new SCV ranked above the old top group, and an existing SCV whose rank rose.
+  scv_fallback AS (
+    SELECT
+      snapshot_release_date,
+      variation_id,
+      ARRAY_AGG(IF(scv_change_status = 'flagged' AND prev_is_contributing, scv_id, NULL) IGNORE NULLS ORDER BY scv_id) AS fb_flagged_scvs,
+      ARRAY_AGG(IF(is_new_higher, scv_id, NULL) IGNORE NULLS ORDER BY scv_id) AS fb_new_higher_scvs,
+      MAX(IF(is_new_higher, curr_scv_rank, NULL)) AS fb_new_higher_rank,
+      ARRAY_AGG(
+        IF(scv_change_status = 'rank_changed' AND curr_scv_rank > prev_scv_rank AND curr_is_contributing, scv_id, NULL)
+        IGNORE NULLS ORDER BY scv_id
+      ) AS fb_rank_raised_scvs
+    FROM (
+      SELECT
+        sc.*,
+        sc.scv_change_status = 'new' AND sc.curr_is_contributing
+          AND sc.curr_scv_rank > MAX(IF(sc.prev_is_contributing, sc.prev_scv_rank, NULL))
+            OVER (PARTITION BY sc.snapshot_release_date, sc.variation_id) AS is_new_higher
+      FROM `clinvar_ingest.monthly_conflict_scv_changes` sc
+      JOIN resolved r
+        ON r.snapshot_release_date = sc.snapshot_release_date
+        AND r.variation_id = sc.variation_id
+    )
+    GROUP BY snapshot_release_date, variation_id
+  ),
+
   -- Context reasons map to the change behind them, in the source's own order.
   reasoned AS (
     SELECT
       r.*,
+      f.fb_flagged_scvs,
+      f.fb_new_higher_scvs,
+      f.fb_rank_raised_scvs,
       CASE
         WHEN source_primary_reason = 'expert_panel_added' THEN 'expert_panel'
         WHEN source_primary_reason = 'higher_rank_scv_added' THEN 'higher_rank'
@@ -152,48 +201,64 @@ AS (
         WHEN ARRAY_LENGTH(scvs_removed_contributing) > 0 THEN 'removed'
         WHEN ARRAY_LENGTH(scvs_rank_downgraded) > 0 THEN 'rank_lowered'
         WHEN ARRAY_LENGTH(scvs_reclassified_contributing) > 0 THEN 'reclassified'
+        WHEN ARRAY_LENGTH(f.fb_flagged_scvs) > 0 THEN 'flagged'
+        WHEN f.fb_new_higher_rank >= 3 THEN 'expert_panel'
+        WHEN ARRAY_LENGTH(f.fb_new_higher_scvs) > 0 THEN 'higher_rank'
+        WHEN ARRAY_LENGTH(f.fb_rank_raised_scvs) > 0 THEN 'rank_raised'
         ELSE 'other'
       END AS base_reason
     FROM resolved r
+    LEFT JOIN scv_fallback f
+      ON f.snapshot_release_date = r.snapshot_release_date
+      AND f.variation_id = r.variation_id
   ),
 
   with_scvs AS (
     SELECT
       r.* EXCEPT (
         scvs_flagged_contributing, scvs_removed_contributing, scvs_rank_downgraded,
-        scvs_reclassified_contributing, scvs_added_higher_rank
+        scvs_reclassified_contributing, scvs_added_higher_rank,
+        fb_flagged_scvs, fb_new_higher_scvs, fb_rank_raised_scvs
       ),
       CASE base_reason
-        WHEN 'flagged' THEN scvs_flagged_contributing
+        WHEN 'flagged' THEN IF(ARRAY_LENGTH(scvs_flagged_contributing) > 0, scvs_flagged_contributing, IFNULL(fb_flagged_scvs, []))
         WHEN 'removed' THEN scvs_removed_contributing
         WHEN 'rank_lowered' THEN scvs_rank_downgraded
         WHEN 'reclassified' THEN scvs_reclassified_contributing
-        WHEN 'expert_panel' THEN scvs_added_higher_rank
-        WHEN 'higher_rank' THEN scvs_added_higher_rank
+        WHEN 'expert_panel' THEN IF(ARRAY_LENGTH(scvs_added_higher_rank) > 0, scvs_added_higher_rank, IFNULL(fb_new_higher_scvs, []))
+        WHEN 'higher_rank' THEN IF(ARRAY_LENGTH(scvs_added_higher_rank) > 0, scvs_added_higher_rank, IFNULL(fb_new_higher_scvs, []))
+        WHEN 'rank_raised' THEN IFNULL(fb_rank_raised_scvs, [])
         ELSE ARRAY<STRING>[]
       END AS reason_scvs
     FROM reasoned r
   ),
 
   -- Valid flagging candidates, the same test Figure 4 uses.
+  -- Left-out annotations are dropped by annotation_id, so the SCV's other CvC
+  -- annotations still count.
   candidates AS (
     SELECT DISTINCT sa.scv_id, sa.submission_date
     FROM `clinvar_curator.cvc_submitted_annotations_view` sa
-    LEFT JOIN `clinvar_ingest.manuscript_excluded_scvs` x
-      ON x.scv_id = sa.scv_id
+    LEFT JOIN `clinvar_ingest.manuscript_excluded_annotations` x
+      ON x.annotation_id = sa.annotation_id
     WHERE sa.action = 'flagging candidate'
       AND sa.valid_submission
-      AND x.scv_id IS NULL
+      AND x.annotation_id IS NULL
   ),
 
-  -- Events caused only by excluded SCVs.
-  excluded_events AS (
+  -- Flag resolutions credited only by left-out annotations, to drop.
+  excluded_flag_events AS (
     SELECT e.snapshot_release_date, e.variation_id
     FROM with_scvs e, UNNEST(e.reason_scvs) AS scv
-    LEFT JOIN `clinvar_ingest.manuscript_excluded_scvs` x
-      ON x.scv_id = REGEXP_EXTRACT(scv, r'SCV\d+')
+    JOIN `clinvar_curator.cvc_submitted_annotations_view` sa
+      ON sa.scv_id = REGEXP_EXTRACT(scv, r'SCV\d+')
+    JOIN `clinvar_ingest.manuscript_excluded_annotations` x
+      ON x.annotation_id = sa.annotation_id
+    WHERE e.base_reason = 'flagged'
+      AND sa.action = 'flagging candidate'
+      AND sa.valid_submission
+      AND sa.submission_date <= e.snapshot_release_date
     GROUP BY e.snapshot_release_date, e.variation_id
-    HAVING LOGICAL_AND(x.scv_id IS NOT NULL)
   ),
 
   cvc_timing AS (
@@ -208,6 +273,17 @@ AS (
     FROM with_scvs e, UNNEST(e.reason_scvs) AS scv
     JOIN candidates c ON c.scv_id = REGEXP_EXTRACT(scv, r'SCV\d+')
     GROUP BY e.snapshot_release_date, e.variation_id
+  ),
+
+  dropped AS (
+    SELECT
+      (SELECT COUNT(*) FROM `clinvar_ingest.manuscript_excluded_scvs`) AS excluded_scvs,
+      (
+        SELECT COUNT(*)
+        FROM excluded_flag_events xf
+        LEFT JOIN cvc_timing t USING (snapshot_release_date, variation_id)
+        WHERE NOT COALESCE(t.cvc_candidate_before, FALSE)
+      ) AS dropped_flag_resolutions
   ),
 
   submitters AS (
@@ -297,6 +373,7 @@ AS (
       WHEN 'flagged' THEN IF(COALESCE(t.cvc_candidate_before, FALSE), 'Flagged through CvC', 'Flagged outside CvC')
       WHEN 'expert_panel' THEN 'Expert panel added'
       WHEN 'higher_rank' THEN '1 star added to 0 star conflict'
+      WHEN 'rank_raised' THEN 'Rank raised'
       ELSE 'Other'
     END AS resolution_reason,
     e.source_primary_reason,
@@ -317,14 +394,18 @@ AS (
     COALESCE(t.cvc_candidate_within_60_days, FALSE) AS cvc_candidate_within_60_days,
     b.first_return_release IS NOT NULL AS returned_by_cutoff,
     b.first_return_release,
-    COALESCE(b.in_conflict_at_cutoff, FALSE) AS in_conflict_at_cutoff
+    COALESCE(b.in_conflict_at_cutoff, FALSE) AS in_conflict_at_cutoff,
+    dr.excluded_scvs,
+    dr.dropped_flag_resolutions
   FROM with_scvs e
+  CROSS JOIN dropped dr
   LEFT JOIN cvc_timing t USING (snapshot_release_date, variation_id)
   LEFT JOIN submitters su USING (snapshot_release_date, variation_id)
   LEFT JOIN returned b USING (snapshot_release_date, variation_id)
   LEFT JOIN start_label l USING (snapshot_release_date, variation_id)
-  LEFT JOIN excluded_events x USING (snapshot_release_date, variation_id)
-  WHERE x.variation_id IS NULL
+  LEFT JOIN excluded_flag_events xf USING (snapshot_release_date, variation_id)
+  WHERE xf.variation_id IS NULL
+    OR COALESCE(t.cvc_candidate_before, FALSE)
 );
 
 CREATE OR REPLACE VIEW `clinvar_ingest.manuscript_figure6_resolution_events_view`
