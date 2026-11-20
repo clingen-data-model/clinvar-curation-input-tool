@@ -96,8 +96,8 @@ One family: `Arial, Helvetica, sans-serif`. Sizes are in SVG px at the standard 
 | 3C | All ClinVar variants, CvC-flagged variants | `neutral`, `cvc` |
 | 3C (stacked) | Predicted LoF, Missense, In-frame indels, UTR/intronic | `cat1_dark`, `cat1`, `cat1_mid`, `cat1_light` |
 | 3C (stacked) | Other | `neutral` |
-| 4A | Conflict resolved, Conflict reduced, Incorrect record flagged, Record modified | `cvc_dark`, `cvc_mid`, `cvc`, `cvc_light` |
-| 4A | No change | `neutral` |
+| 4A | Conflict resolved, Conflict reduced, Classification removed, Classification unchanged (submission(s) flagged) | `cvc_dark`, `cvc_mid`, `cvc`, `cvc_light` |
+| 4A | Classification unchanged (no submission(s) flagged) | `neutral` |
 | 4B | Starting conflict nodes | `neutral_dark` |
 | 4B | P/LP, VUS, VUS vs B/LB, B/LB | `medsig`, `uncertain`, `uncertain_light`, `ok` |
 | 5 | Limited, Disputed, Refuted (switch from `cat1_light`, `cat1`, `cat1_dark`) | `gdr_limited`, `gdr_disputed`, `gdr_refuted` |

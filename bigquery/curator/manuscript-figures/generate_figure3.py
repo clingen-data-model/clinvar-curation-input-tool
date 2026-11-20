@@ -274,7 +274,7 @@ def heading(x, y, name, detail):
 
 
 def stacked_figure(stats, tests, release):
-    """Two 100% stacked bars joined by bands, with each group's change from the baseline to their right."""
+    """Two 100% stacked bars joined by bands, with each group's change from the baseline as columns to their right."""
     width = LAYOUT["width"]
     flagged_total = sum(s["flagged"] for s in stats)
     all_total = sum(s["all"] for s in stats)
@@ -327,42 +327,43 @@ def stacked_figure(stats, tests, release):
         body.append(line(bar_x(tick), axis_y, bar_x(tick), axis_y + 5))
         body.append(text(bar_x(tick), axis_y + 21, f"{tick}%", TYPE["tick"], fill=COLORS["ink_muted"], anchor="middle"))
 
-    # Change from the All ClinVar baseline, one row per group, beside the bars.
+    # Change from the All ClinVar baseline, one column per group in legend order,
+    # beside the bars. Columns rise for a larger flagged share and fall for a smaller one.
     label_left = bar_right + 36
-    change_left, change_right = label_left + 112, width - 8
+    change_left, change_right = label_left + 34, width - 8
+    rows_top, rows_bottom = upper_y, lower_y + bar_height
     largest = max(abs(v) for s in stats for v in (s["change_low"], s["change_high"]))
-    limit = math.ceil(largest * 1.35 / 5) * 5  # room for the value label past each CI
+    limit = math.ceil(largest * 1.25 / 5) * 5  # room for the value label past each CI
 
-    def change_x(value):
-        return change_left + (change_right - change_left) * (value + limit) / (2 * limit)
+    def change_y(value):
+        return rows_bottom - (rows_bottom - rows_top) * (value + limit) / (2 * limit)
 
     body.append(heading(label_left, upper_y - heading_gap, "Change from baseline", "points, 95% CI"))
-    rows_top, rows_bottom = upper_y, lower_y + bar_height
-    row_height = (rows_bottom - rows_top) / len(stats)
-    zero = change_x(0)
+    zero = change_y(0)
     step = 10 if limit > 15 else 5
     for tick in range(-(limit // step) * step, limit + 1, step):
-        x = change_x(tick)
-        body.append(line(x, rows_top, x, rows_bottom, COLORS["rule_light"]))
-        body.append(line(x, axis_y, x, axis_y + 5))
-        body.append(text(x, axis_y + 21, signed(tick, 0) if tick else "0", TYPE["tick"], fill=COLORS["ink_muted"], anchor="middle"))
-    body.append(line(change_left, axis_y, change_right, axis_y))
-    body.append(line(zero, rows_top, zero, rows_bottom, COLORS["ink_muted"]))
+        y = change_y(tick)
+        body.append(line(change_left, y, change_right, y, COLORS["rule_light"]))
+        body.append(text(change_left - 6, y + 4, signed(tick, 0) if tick else "0", TYPE["tick"], fill=COLORS["ink_muted"], anchor="end"))
+    body.append(line(change_left, zero, change_right, zero, COLORS["ink_muted"]))
+    column_width = (change_right - change_left) / len(stats)
     for i, s in enumerate(stats):
-        center = rows_top + row_height * (i + 0.5)
-        body.append(text(label_left, center + 5, s["label"], TYPE["label"]))
-        x = change_x(s["change"])
-        body.append(rect(min(x, zero), center - 10, abs(x - zero), 20, s["fill"]))
-        low, high = change_x(s["change_low"]), change_x(s["change_high"])
-        body.append(line(low, center, high, center, COLORS["ink"], 2))
+        center = change_left + column_width * (i + 0.5)
+        y = change_y(s["change"])
+        body.append(rect(center - 12, min(y, zero), 24, abs(y - zero), s["fill"]))
+        low, high = change_y(s["change_low"]), change_y(s["change_high"])
+        body.append(line(center, low, center, high, COLORS["ink"], 2))
         if s["change"] >= 0:
-            body.append(text(high + 6, center + 5, signed(s["change"]), TYPE["tick"], "bold"))
+            body.append(text(center, high - 6, signed(s["change"]), TYPE["tick"], "bold", anchor="middle"))
         else:
-            body.append(text(low - 6, center + 5, signed(s["change"]), TYPE["tick"], "bold", anchor="end"))
+            body.append(text(center, low + 16, signed(s["change"]), TYPE["tick"], "bold", anchor="middle"))
 
-    # Horizontal legend for the consequence groups, beneath the bars.
+    # Horizontal legend for the consequence groups, centered beneath the whole image.
+    entries = [(s["label"], s["fill"]) for s in stats]
+    legend_width = sum(LAYOUT["legend_swatch"] + 8 + len(label) * TYPE["label"] * 0.55 + LAYOUT["legend_gap"]
+                       for label, _ in entries) - LAYOUT["legend_gap"]
     legend_y = axis_y + 44
-    legend_body, legend_height = legend(bar_left, legend_y, [(s["label"], s["fill"]) for s in stats])
+    legend_body, legend_height = legend(max(0, (width - legend_width) / 2), legend_y, entries)
     body += legend_body
 
     if all(s["binomial_holm"] < 0.001 for s in stats):
